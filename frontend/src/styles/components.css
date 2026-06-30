@@ -1,0 +1,25 @@
+/* Component-level overrides that don't fit in Tailwind utilities */
+
+/* Vega-Embed canvas responsiveness */
+.vega-embed {
+  width: 100% !important;
+}
+.vega-embed canvas,
+.vega-embed svg {
+  max-width: 100%;
+}
+
+/* Remove Vega-Embed action menu */
+.vega-embed .vega-actions {
+  display: none !important;
+}
+
+/* Recharts responsive tweak */
+.recharts-wrapper {
+  font-family: 'Inter', system-ui, sans-serif !important;
+}
+
+/* Textarea auto-height helper */
+textarea.dp-input {
+  field-sizing: content;
+}
