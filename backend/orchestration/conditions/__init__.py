@@ -1,0 +1,1 @@
+"""Graph edge condition functions."""

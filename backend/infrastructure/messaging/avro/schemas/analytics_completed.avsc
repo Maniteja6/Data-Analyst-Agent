@@ -1,0 +1,82 @@
+{
+  "type": "record",
+  "name": "AnalyticsCompleted",
+  "namespace": "com.datapilot.events.analytics",
+  "doc": "Emitted when the full analytics pipeline (profiling + cleaning + anomaly detection) completes for a dataset. Triggers the AI agent pipeline.",
+  "fields": [
+    {
+      "name": "event_id",
+      "type": "string",
+      "doc": "Unique UUID for this event occurrence."
+    },
+    {
+      "name": "event_type",
+      "type": "string",
+      "default": "AnalyticsCompleted",
+      "doc": "Event type discriminator."
+    },
+    {
+      "name": "correlation_id",
+      "type": "string",
+      "doc": "Request-scoped tracing ID propagated from the original upload."
+    },
+    {
+      "name": "causation_id",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "ID of the DatasetUploaded event that caused this analytics run."
+    },
+    {
+      "name": "occurred_at",
+      "type": "string",
+      "doc": "UTC ISO-8601 timestamp when the analytics pipeline completed."
+    },
+    {
+      "name": "dataset_id",
+      "type": "string",
+      "doc": "UUID of the Dataset that was analysed."
+    },
+    {
+      "name": "session_id",
+      "type": "string",
+      "doc": "UUID of the AnalysisSession created for this pipeline run."
+    },
+    {
+      "name": "stage",
+      "type": {
+        "type": "enum",
+        "name": "AnalyticsStage",
+        "symbols": ["PROFILING_COMPLETE", "CLEANING_COMPLETE", "ANOMALY_DETECTION_COMPLETE", "PIPELINE_COMPLETE"],
+        "doc": "Which stage just completed. Consumers filter on this to react at the right point."
+      },
+      "doc": "The analytics stage that just completed."
+    },
+    {
+      "name": "row_count",
+      "type": "long",
+      "doc": "Row count after the cleaning stage (duplicates removed)."
+    },
+    {
+      "name": "column_count",
+      "type": "int",
+      "doc": "Column count after the cleaning stage (high-null columns dropped)."
+    },
+    {
+      "name": "anomaly_count",
+      "type": "int",
+      "default": 0,
+      "doc": "Total anomalies detected. 0 until ANOMALY_DETECTION_COMPLETE stage."
+    },
+    {
+      "name": "completeness_score",
+      "type": "float",
+      "default": 1.0,
+      "doc": "Fraction of non-null cells across the whole dataset (0.0–1.0)."
+    },
+    {
+      "name": "storage_key",
+      "type": "string",
+      "doc": "S3/MinIO key for the (cleaned) dataset file used by subsequent agents."
+    }
+  ]
+}

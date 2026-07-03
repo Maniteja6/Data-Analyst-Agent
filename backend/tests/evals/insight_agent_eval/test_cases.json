@@ -1,0 +1,16 @@
+[
+  {
+    "id": "insight_001",
+    "description": "Insight report has executive summary",
+    "input": {"dataset_id": "test-d1", "profile": {"row_count": 100, "column_count": 5, "completeness_score": 0.95}},
+    "expected": {"has_executive_summary": true, "min_insight_count": 0},
+    "score_type": "json_schema"
+  },
+  {
+    "id": "insight_002",
+    "description": "KPI calculator produces completeness KPI",
+    "input": {"profile": {"row_count": 500, "column_count": 10, "completeness_score": 0.88}},
+    "expected_kpi_names": ["Total Rows", "Completeness"],
+    "score_type": "contains"
+  }
+]

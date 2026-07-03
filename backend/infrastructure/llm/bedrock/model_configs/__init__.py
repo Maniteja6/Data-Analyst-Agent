@@ -1,0 +1,1 @@
+"""Per-model configuration constants."""

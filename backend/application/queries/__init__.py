@@ -1,0 +1,1 @@
+"""Query data classes."""

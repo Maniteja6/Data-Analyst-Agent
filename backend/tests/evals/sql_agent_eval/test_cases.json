@@ -1,0 +1,24 @@
+[
+  {
+    "id": "sql_001",
+    "description": "Total revenue aggregation",
+    "input": {"question": "What is the total revenue?", "schema": {"columns": [{"name": "revenue", "semantic_type": "currency"}]}},
+    "expected_sql_contains": "SUM",
+    "expected_sql_contains_2": "revenue",
+    "score_type": "contains"
+  },
+  {
+    "id": "sql_002",
+    "description": "Revenue by region group-by",
+    "input": {"question": "Break down revenue by region.", "schema": {"columns": [{"name": "revenue", "semantic_type": "currency"}, {"name": "region", "semantic_type": "categorical"}]}},
+    "expected_sql_contains": "GROUP BY",
+    "score_type": "contains"
+  },
+  {
+    "id": "sql_003",
+    "description": "Top 5 products by revenue",
+    "input": {"question": "Top 5 products by revenue.", "schema": {"columns": [{"name": "revenue", "semantic_type": "currency"}, {"name": "product", "semantic_type": "categorical"}]}},
+    "expected_sql_contains": "LIMIT",
+    "score_type": "contains"
+  }
+]

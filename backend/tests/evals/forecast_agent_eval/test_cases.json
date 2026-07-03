@@ -1,0 +1,19 @@
+[
+  {
+    "id": "forecast_001",
+    "description": "Trend detector identifies increasing trend",
+    "input": {
+      "date_col": "date",
+      "value_col": "sales",
+      "data": [
+        {"date": "2024-01-01", "sales": 100},
+        {"date": "2024-01-02", "sales": 150},
+        {"date": "2024-01-03", "sales": 200},
+        {"date": "2024-01-04", "sales": 250},
+        {"date": "2024-01-05", "sales": 300}
+      ]
+    },
+    "expected_direction": "increasing",
+    "score_type": "exact_match"
+  }
+]

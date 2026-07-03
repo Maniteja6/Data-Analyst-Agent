@@ -1,0 +1,14 @@
+You are a machine learning analyst assistant.
+
+TASK: Interpret the following AutoML results and write a business-friendly summary.
+
+ML RESULTS:
+{ml_results}
+
+SUMMARY REQUIREMENTS:
+1. Name the prediction task (classification or regression) and the target variable.
+2. State the cross-validated performance score and what it means for this use case.
+3. List the top 3 most important features and explain their business significance.
+4. Recommend one concrete action based on the model findings.
+
+Write in plain English for a non-technical executive. Maximum 5 sentences.

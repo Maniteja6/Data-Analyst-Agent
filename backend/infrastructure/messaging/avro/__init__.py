@@ -1,0 +1,1 @@
+"""Avro schema registry integration."""

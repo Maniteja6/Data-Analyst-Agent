@@ -1,0 +1,60 @@
+{
+  "type": "record",
+  "name": "DatasetUploaded",
+  "namespace": "com.datapilot.events.dataset",
+  "doc": "Emitted when a user uploads a dataset file. Triggers the analytics pipeline.",
+  "fields": [
+    {
+      "name": "event_id",
+      "type": "string",
+      "doc": "Unique UUID for this event occurrence."
+    },
+    {
+      "name": "event_type",
+      "type": "string",
+      "default": "DatasetUploaded",
+      "doc": "Event type discriminator — always 'DatasetUploaded'."
+    },
+    {
+      "name": "correlation_id",
+      "type": "string",
+      "doc": "Request-scoped tracing ID propagated from the original HTTP upload request."
+    },
+    {
+      "name": "causation_id",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "ID of the command or event that caused this event. Null for user-initiated uploads."
+    },
+    {
+      "name": "occurred_at",
+      "type": "string",
+      "doc": "UTC ISO-8601 timestamp when the upload completed, e.g. '2024-11-01T14:32:00.000Z'."
+    },
+    {
+      "name": "dataset_id",
+      "type": "string",
+      "doc": "UUID of the newly created Dataset aggregate."
+    },
+    {
+      "name": "storage_key",
+      "type": "string",
+      "doc": "S3/MinIO object key, e.g. 'datasets/abc-123/sales_q4.csv'."
+    },
+    {
+      "name": "filename",
+      "type": "string",
+      "doc": "Original filename as supplied by the user."
+    },
+    {
+      "name": "size_bytes",
+      "type": "long",
+      "doc": "File size in bytes at upload time."
+    },
+    {
+      "name": "mime_type",
+      "type": "string",
+      "doc": "Detected MIME type, e.g. 'text/csv' or 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'."
+    }
+  ]
+}

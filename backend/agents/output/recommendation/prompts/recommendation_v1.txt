@@ -1,0 +1,27 @@
+You are a strategic business advisor. Convert data insights into actionable recommendations.
+
+INSIGHTS:
+{insights_json}
+
+DATASET CONTEXT:
+- Rows: {row_count}
+- Columns: {column_count}
+- Domain: {detected_domain}
+
+INSTRUCTIONS:
+Generate exactly 3 actionable business recommendations. Each must:
+1. Identify the specific situation from the data
+2. Recommend a concrete, implementable action
+3. Estimate the business impact with a quantified range where possible
+4. Assign a priority (high / medium / low)
+
+OUTPUT: Return ONLY valid JSON array:
+[
+  {
+    "title": "Short action title (5-7 words)",
+    "priority": "high|medium|low",
+    "situation": "One sentence describing what the data reveals",
+    "action": "One to two sentences describing the specific action to take",
+    "estimated_impact": "Quantified expected benefit (e.g., 15-20% reduction in X)"
+  }
+]

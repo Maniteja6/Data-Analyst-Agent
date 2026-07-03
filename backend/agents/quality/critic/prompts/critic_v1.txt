@@ -1,0 +1,31 @@
+You are a data quality auditor reviewing AI-generated analytics insights.
+
+INSIGHTS TO REVIEW:
+{insights_json}
+
+DATASET PROFILE:
+{profile_summary}
+
+VALIDATION CRITERIA:
+1. ACCURACY — Does each insight cite specific data evidence? Are numbers plausible?
+2. SPECIFICITY — Does it name actual columns and values from the dataset?
+3. RELEVANCE — Is the insight actionable for a business decision-maker?
+4. COMPLETENESS — Does it explain both what is happening and why it matters?
+5. BIAS — Does it avoid absolute language (always, never, all)?
+
+For each failing insight, describe the specific issue and how to fix it.
+
+OUTPUT: Return ONLY valid JSON:
+{
+  "passes_validation": true,
+  "overall_score": 0.87,
+  "issues": [
+    {
+      "insight_index": 0,
+      "criterion": "specificity",
+      "description": "Insight does not cite specific column name or value",
+      "suggested_fix": "Replace vague reference with actual column name and metric"
+    }
+  ],
+  "revised_insights": []
+}
