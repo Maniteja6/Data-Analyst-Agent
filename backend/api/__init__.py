@@ -1,4 +1,3 @@
-"""FastAPI application layer — routers, middleware, schemas, WebSocket, and dependencies."""
 """DataPilot API layer — real-time FastAPI + Socket.IO application.
 
 Built for real-time: every HTTP endpoint has a paired Socket.IO event so
