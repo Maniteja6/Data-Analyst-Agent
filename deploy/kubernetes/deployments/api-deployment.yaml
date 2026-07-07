@@ -1,0 +1,163 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: datapilot-api
+  namespace: datapilot
+  labels:
+    app.kubernetes.io/name: datapilot
+    app.kubernetes.io/component: api
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  # Minimum 2 replicas for HA + zero-downtime rolling deploys.
+  # Real-time note: Socket.IO sticky sessions are handled by the ALB
+  # target group with session affinity (see ingress.yaml annotations).
+  # Without sticky sessions, a reconnecting client might land on a different
+  # pod and lose its Socket.IO room subscriptions.
+  replicas: 2
+  selector:
+    matchLabels:
+      app: datapilot-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0        # never take a pod down before the new one is ready
+  template:
+    metadata:
+      labels:
+        app: datapilot-api
+        app.kubernetes.io/component: api
+      annotations:
+        # Force pod restart when configmaps change
+        checksum/app-config: "{{ include (print $.Template.BasePath \"/configmaps/app-config.yaml\") . | sha256sum }}"
+        checksum/bedrock-config: "{{ include (print $.Template.BasePath \"/configmaps/bedrock-config.yaml\") . | sha256sum }}"
+        # Prometheus scraping
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: datapilot-sa
+      terminationGracePeriodSeconds: 90   # long enough to drain active WebSocket connections
+
+      # Spread pods across AZs for HA
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: datapilot-api
+
+      containers:
+        - name: api
+          image: <ecr-account>.dkr.ecr.us-east-1.amazonaws.com/datapilot/api:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+
+          # ── Environment ──────────────────────────────────────────────────
+          envFrom:
+            - configMapRef:
+                name: app-config
+            - configMapRef:
+                name: bedrock-config
+            - configMapRef:
+                name: kafka-config
+            - secretRef:
+                name: datapilot-secrets
+
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            # OTel resource attributes populated from downward API
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "k8s.pod.name=$(POD_NAME),k8s.namespace.name=$(POD_NAMESPACE),k8s.node.name=$(NODE_NAME)"
+
+          # ── Resource limits ──────────────────────────────────────────────
+          # API is I/O-bound (Bedrock + Redis + Postgres) — 1 vCPU is plenty.
+          # 1Gi memory: FastAPI + Socket.IO + asyncio task queue.
+          # Real-time note: DO NOT set CPU limit too low — it will throttle
+          # the asyncio event loop and add jitter to WebSocket token streaming.
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+
+          # ── Health probes ────────────────────────────────────────────────
+          # readinessProbe gates traffic — pod doesn't receive requests until
+          # the DB pool, Redis connection, and Kafka consumers are initialised.
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3
+            successThreshold: 1
+
+          # livenessProbe restarts pods that are stuck (event loop deadlock).
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 4
+            timeoutSeconds: 5
+
+          # startupProbe gives the app time to complete DB migrations check.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            failureThreshold: 12
+            periodSeconds: 5
+
+          # ── Security context ─────────────────────────────────────────────
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+
+          # ── Volume mounts ────────────────────────────────────────────────
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: prometheus-multiproc
+              mountPath: /tmp/prometheus
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: prometheus-multiproc
+          emptyDir: {}
+
+      # Prefer nodes with the analytics node group label but don't require it
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: datapilot.ai/node-group
+                    operator: In
+                    values: ["api"]

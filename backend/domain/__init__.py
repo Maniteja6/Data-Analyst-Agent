@@ -1,4 +1,7 @@
 """Domain layer — bounded contexts: dataset, analytics, insight, intelligence, workspace."""
+
+from __future__ import annotations
+
 """DataPilot domain layer — pure business logic for a real-time data analytics platform.
 
 Zero infrastructure dependencies. Python stdlib + Pydantic only.
@@ -262,8 +265,6 @@ MessageSent                 Conversation        (no Kafka; direct Socket.IO
                             .add_message()       from SendMessageUseCase)
 ConversationCreated         Conversation.create (no handler; in-memory only)
 """
-from __future__ import annotations
-
 from backend.shared.domain_event import DomainEvent  # noqa: F401 — re-export for convenience
 
 __all__ = ["DomainEvent"]

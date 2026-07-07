@@ -1,0 +1,48 @@
+apiVersion: v2
+name: datapilot
+description: >
+  DataPilot — real-time AI data analytics platform.
+  FastAPI + Socket.IO API, React frontend, Celery worker pools,
+  19-agent LangGraph pipeline with AWS Bedrock streaming.
+
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+
+keywords:
+  - datapilot
+  - ai
+  - analytics
+  - realtime
+  - websocket
+
+maintainers:
+  - name: DataPilot Platform Team
+    email: platform@datapilot.ai
+
+# External chart dependencies — pinned versions for reproducible deploys.
+# Update with: helm dependency update deploy/helm/datapilot
+dependencies:
+  - name: redis
+    version: "18.19.4"
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled     # set false when using ElastiCache (production)
+    alias: redis
+
+  - name: postgresql
+    version: "15.5.4"
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled  # set false when using RDS (production)
+    alias: postgresql
+
+  - name: kafka
+    version: "26.11.4"
+    repository: https://charts.bitnami.com/bitnami
+    condition: kafka.enabled       # set false when using MSK (production)
+    alias: kafka
+
+  - name: qdrant
+    version: "0.8.4"
+    repository: https://qdrant.github.io/qdrant-helm
+    condition: qdrant.enabled
+    alias: qdrant

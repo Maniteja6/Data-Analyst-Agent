@@ -1,0 +1,152 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# DataPilot NetworkPolicy — zero-trust within the datapilot namespace.
+#
+# Real-time traffic rules enforced:
+#   Browser → ALB → frontend:8080     (public HTTP/WebSocket)
+#   Browser → ALB → api:8000          (public HTTP/WebSocket via /ws)
+#   api → redis:6379                  (pub/sub bridge — MUST be allowed)
+#   api → postgres:5432               (read/write)
+#   api → kafka:9092                  (event publish)
+#   api → qdrant:6333                 (vector search on chat path)
+#   workers → redis:6379              (Celery broker + job status)
+#   workers → postgres:5432           (audit writes)
+#   workers → kafka:9092              (event consume + publish)
+#   workers → bedrock (HTTPS/443)     (via VPC endpoint — no public internet)
+#   workers → s3 (HTTPS/443)          (via VPC endpoint)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Default deny all ingress in datapilot namespace ───────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: datapilot
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+
+---
+# ── Allow ingress to frontend from ALB ───────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-from-alb
+  namespace: datapilot
+spec:
+  podSelector:
+    matchLabels:
+      app: datapilot-frontend
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: 8080
+          protocol: TCP
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+
+---
+# ── Allow ingress to API from ALB and frontend nginx proxy ────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-api-ingress
+  namespace: datapilot
+spec:
+  podSelector:
+    matchLabels:
+      app: datapilot-api
+  policyTypes:
+    - Ingress
+  ingress:
+    # From ALB (kube-system namespace runs aws-load-balancer-controller)
+    - ports:
+        - port: 8000
+          protocol: TCP
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+    # From frontend nginx proxy (for /api and /ws routes)
+    - ports:
+        - port: 8000
+          protocol: TCP
+      from:
+        - podSelector:
+            matchLabels:
+              app: datapilot-frontend
+    # Prometheus scraping from monitoring namespace
+    - ports:
+        - port: 8000
+          protocol: TCP
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+
+---
+# ── Allow workers to receive Celery tasks (no ingress needed — pull model) ───
+# Celery workers pull tasks from Redis; they don't receive inbound connections.
+# This policy is intentionally empty — workers only need egress (see below).
+
+---
+# ── Egress policies ───────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-datapilot-egress
+  namespace: datapilot
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: datapilot
+  policyTypes:
+    - Egress
+  egress:
+    # DNS resolution (required for all services)
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+
+    # Redis / ElastiCache
+    - ports:
+        - port: 6379
+          protocol: TCP
+
+    # PostgreSQL / RDS
+    - ports:
+        - port: 5432
+          protocol: TCP
+
+    # Kafka / MSK
+    - ports:
+        - port: 9092
+          protocol: TCP
+        - port: 9094
+          protocol: TCP
+
+    # Qdrant
+    - ports:
+        - port: 6333
+          protocol: TCP
+        - port: 6334
+          protocol: TCP
+
+    # HTTPS — Bedrock (VPC endpoint), S3 (VPC endpoint), CloudWatch
+    - ports:
+        - port: 443
+          protocol: TCP
+
+    # OTel collector in monitoring namespace
+    - ports:
+        - port: 4317
+          protocol: TCP
+      to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring

@@ -1,0 +1,89 @@
+# ── Analytics worker HPA ──────────────────────────────────────────────────────
+# Scales on CPU — profiling is CPU-bound (polars + numpy).
+# Real-time: fast scale-up ensures new uploads don't queue behind existing ones.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: datapilot-analytics-hpa
+  namespace: datapilot
+  labels:
+    app.kubernetes.io/name: datapilot
+    app.kubernetes.io/component: worker-analysis
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: datapilot-analytics
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Pods
+          value: 3
+          periodSeconds: 60
+      selectPolicy: Max
+    scaleDown:
+      # Long window — profiling jobs run 1-3 min; don't kill pods mid-task.
+      stabilizationWindowSeconds: 900
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 180
+      selectPolicy: Min
+
+---
+# ── Agent worker HPA ───────────────────────────────────────────────────────────
+# Scales on memory — LangGraph state and Bedrock response buffering.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: datapilot-worker-agents-hpa
+  namespace: datapilot
+  labels:
+    app.kubernetes.io/name: datapilot
+    app.kubernetes.io/component: worker-agents
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: datapilot-worker-agents
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+      selectPolicy: Max
+    scaleDown:
+      # Extra long — agent pipelines can run 5+ minutes
+      stabilizationWindowSeconds: 1200
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 300
+      selectPolicy: Min

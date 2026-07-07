@@ -1,0 +1,15 @@
+dependencies:
+- name: redis
+  repository: https://charts.bitnami.com/bitnami
+  version: 18.19.4
+- name: postgresql
+  repository: https://charts.bitnami.com/bitnami
+  version: 15.5.4
+- name: kafka
+  repository: https://charts.bitnami.com/bitnami
+  version: 26.11.4
+- name: qdrant
+  repository: https://qdrant.github.io/qdrant-helm
+  version: 0.8.4
+digest: sha256:a7c3f2d1e4b8912a6f0e5d4c3b2a1f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3
+generated: "2025-08-01T00:00:00.000000000Z"

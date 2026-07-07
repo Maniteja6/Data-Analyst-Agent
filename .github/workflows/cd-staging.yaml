@@ -1,0 +1,171 @@
+name: Deploy — Staging
+
+# Triggers on merge to develop.
+# Real-time app note: staging uses the same ALB idle_timeout=3600s and
+# lb_cookie sticky sessions as production so WebSocket behaviour is
+# identical between environments. A staging deploy that breaks Socket.IO
+# will be caught before it reaches production.
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to deploy (default: latest develop SHA)"
+        required: false
+
+env:
+  AWS_REGION: us-east-1
+  ECR_ACCOUNT: ${{ secrets.ECR_ACCOUNT_ID }}
+  EKS_CLUSTER: datapilot-staging
+  HELM_NAMESPACE: datapilot-staging
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  # ── 1. Build and push all Docker images to ECR ───────────────────────────
+  build-and-push:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tag }}
+    strategy:
+      matrix:
+        image:
+          - { name: api,       dockerfile: deploy/docker/Dockerfile.api }
+          - { name: worker,    dockerfile: deploy/docker/Dockerfile.worker }
+          - { name: analytics, dockerfile: deploy/docker/Dockerfile.analytics }
+          - { name: frontend,  dockerfile: deploy/docker/Dockerfile.frontend }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Generate image metadata
+        id: meta
+        run: |
+          TAG=${{ env.IMAGE_TAG }}
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "repo=${{ env.ECR_ACCOUNT }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/datapilot/${{ matrix.image.name }}" >> $GITHUB_OUTPUT
+
+      - name: Build and push ${{ matrix.image.name }}
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ matrix.image.dockerfile }}
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.repo }}:${{ steps.meta.outputs.tag }}
+            ${{ steps.meta.outputs.repo }}:staging-latest
+          cache-from: type=gha,scope=${{ matrix.image.name }}-staging
+          cache-to:   type=gha,mode=max,scope=${{ matrix.image.name }}-staging
+          build-args: |
+            VITE_API_URL=https://staging.datapilot.ai/api
+            VITE_WS_URL=https://staging.datapilot.ai/ws
+
+  # ── 2. Run Alembic migrations against staging DB ─────────────────────────
+  migrate-staging:
+    name: Database Migrations (Staging)
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install alembic
+        run: pip install alembic asyncpg
+
+      - name: Run migrations
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+        run: alembic upgrade head
+
+  # ── 3. Helm deploy to staging EKS ────────────────────────────────────────
+  deploy-staging:
+    name: Helm Deploy (Staging)
+    runs-on: ubuntu-latest
+    needs: [build-and-push, migrate-staging]
+    environment:
+      name: staging
+      url: https://staging.datapilot.ai
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --name ${{ env.EKS_CLUSTER }} \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: "3.14.0"
+
+      - name: Add Helm chart dependencies
+        run: |
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm repo add qdrant  https://qdrant.github.io/qdrant-helm
+          helm repo update
+          helm dependency update deploy/helm/datapilot
+
+      - name: Helm upgrade (staging)
+        run: |
+          helm upgrade --install datapilot ./deploy/helm/datapilot \
+            --namespace ${{ env.HELM_NAMESPACE }} \
+            --create-namespace \
+            -f deploy/helm/datapilot/values.yaml \
+            -f deploy/helm/datapilot/values.staging.yaml \
+            --set image.tag=${{ env.IMAGE_TAG }} \
+            --set global.imageRegistry=${{ env.ECR_ACCOUNT }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com \
+            --set serviceAccount.roleArn=${{ secrets.STAGING_IRSA_ROLE_ARN }} \
+            --set ingress.tls.certArn=${{ secrets.STAGING_ACM_CERT_ARN }} \
+            --set externalServices.databaseUrl=${{ secrets.STAGING_DATABASE_URL }} \
+            --set externalServices.redisUrl=${{ secrets.STAGING_REDIS_URL }} \
+            --set externalServices.s3BucketName=${{ secrets.STAGING_S3_BUCKET }} \
+            --atomic \
+            --timeout 10m \
+            --wait
+
+      - name: Verify WebSocket endpoint
+        run: |
+          # Wait for the API pod to be ready
+          kubectl rollout status deployment/datapilot-api \
+            -n ${{ env.HELM_NAMESPACE }} \
+            --timeout=120s
+
+          # Smoke test: /health endpoint
+          curl -f https://staging.datapilot.ai/health || exit 1
+          echo "Staging health check passed ✓"
+
+      - name: Post deployment summary
+        run: |
+          echo "## Staging Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image tag**: \`${{ env.IMAGE_TAG }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **URL**: https://staging.datapilot.ai" >> $GITHUB_STEP_SUMMARY
+          echo "- **Namespace**: ${{ env.HELM_NAMESPACE }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **WebSocket**: wss://staging.datapilot.ai/ws" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,395 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# DataPilot Helm values — base defaults (all environments inherit from here).
+# Override with values.staging.yaml or values.production.yaml.
+#
+# Real-time architecture:
+#   Every tunable that affects WebSocket latency, sticky sessions,
+#   streaming token delivery, or Kafka consumer throughput is documented
+#   with WHY the default was chosen.
+# ─────────────────────────────────────────────────────────────────────────────
+
+global:
+  imageRegistry: ""             # set to ECR account in production
+  imagePullSecrets: []
+  storageClass: "gp3"
+
+# ── Image defaults ────────────────────────────────────────────────────────────
+image:
+  tag: "latest"
+  pullPolicy: Always
+
+# ── API (FastAPI + Socket.IO) ─────────────────────────────────────────────────
+api:
+  enabled: true
+  replicaCount: 2
+
+  image:
+    repository: datapilot/api
+    tag: ""                     # defaults to .image.tag
+
+  # Real-time: uvicorn + uvloop for maximum asyncio throughput.
+  # --ws websockets required for Socket.IO WebSocket transport under uvicorn.
+  command:
+    - uvicorn
+    - backend.api.main:app
+    - --host
+    - "0.0.0.0"
+    - --port
+    - "8000"
+    - --loop
+    - uvloop
+    - --ws
+    - websockets
+    - --timeout-keep-alive
+    - "75"
+    - --access-log
+
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8000
+    # Real-time: ClientIP affinity as fallback for Socket.IO sticky sessions.
+    # Primary stickiness is handled by ALB lb_cookie in ingress annotations.
+    sessionAffinity: ClientIP
+    sessionAffinityTimeout: 86400
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+  # Real-time: long termination grace so active WebSocket connections drain.
+  terminationGracePeriodSeconds: 90
+
+  # Real-time: readiness gates traffic until DB pool + Redis + Kafka are ready.
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: 8000
+    initialDelaySeconds: 15
+    periodSeconds: 10
+    failureThreshold: 3
+
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 30
+    periodSeconds: 15
+    failureThreshold: 4
+    timeoutSeconds: 5
+
+  startupProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    failureThreshold: 12
+    periodSeconds: 5
+
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 60
+    targetMemoryUtilizationPercentage: 75
+    # Real-time: scale up fast (30s window), scale down slowly (10min window)
+    # to avoid dropping active WebSocket connections during traffic dips.
+    scaleUpStabilizationWindowSeconds: 30
+    scaleDownStabilizationWindowSeconds: 600
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1             # never take all API pods down simultaneously
+
+  topologySpreadConstraints:
+    enabled: true               # spread pods across AZs for HA
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+    runAsUser: 1001
+    runAsGroup: 1001
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: ["ALL"]
+
+# ── Frontend (nginx + React SPA) ──────────────────────────────────────────────
+frontend:
+  enabled: true
+  replicaCount: 2
+
+  image:
+    repository: datapilot/frontend
+    tag: ""
+
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+  terminationGracePeriodSeconds: 30
+
+# ── Analytics worker (profiling/cleaning/anomaly — CPU-bound) ─────────────────
+analyticsWorker:
+  enabled: true
+  replicaCount: 2
+
+  image:
+    repository: datapilot/analytics
+    tag: ""
+
+  queue: analysis
+  concurrency: 4
+
+  # Real-time: per-column Socket.IO events during profiling.
+  emitColumnEvents: true
+
+  resources:
+    requests:
+      cpu: 2000m
+      memory: 3Gi
+    limits:
+      cpu: 4000m
+      memory: 8Gi
+
+  # Long grace — profiling a 10M-row dataset takes 2-3 minutes.
+  terminationGracePeriodSeconds: 300
+
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    scaleUpStabilizationWindowSeconds: 30
+    scaleDownStabilizationWindowSeconds: 900
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+  # Limit OpenMP threads: concurrency × omThreads ≤ node vCPU count.
+  # On c6i.2xlarge (8 vCPU): 4 workers × 2 threads = 8.
+  env:
+    OMP_NUM_THREADS: "2"
+
+# ── Agent worker (LangGraph + Bedrock — I/O-bound) ────────────────────────────
+agentWorker:
+  enabled: true
+  replicaCount: 2
+
+  image:
+    repository: datapilot/worker
+    tag: ""
+
+  queue: agents
+  concurrency: 2
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+
+  # Extra long — LangGraph pipelines + Bedrock streaming can run 5+ min.
+  terminationGracePeriodSeconds: 600
+
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    targetMemoryUtilizationPercentage: 70
+    targetCPUUtilizationPercentage: 60
+    scaleUpStabilizationWindowSeconds: 60
+    scaleDownStabilizationWindowSeconds: 1200
+
+# ── Report worker (PDF/XLSX/PPTX — disk-bound) ───────────────────────────────
+reportWorker:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    repository: datapilot/worker
+    tag: ""
+
+  queue: reports
+  concurrency: 1
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+  terminationGracePeriodSeconds: 120
+
+# ── Ingress (AWS ALB) ─────────────────────────────────────────────────────────
+ingress:
+  enabled: true
+  className: alb
+  host: "app.datapilot.ai"
+  tls:
+    enabled: true
+    certArn: ""                 # ACM certificate ARN — required in production
+
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+
+    # Real-time: 3600s idle timeout — keeps analysis pipeline WebSocket connections
+    # alive. Default ALB timeout (60s) would silently drop long-running sessions.
+    alb.ingress.kubernetes.io/load-balancer-attributes: >-
+      idle_timeout.timeout_seconds=3600,
+      routing.http.drop_invalid_header_fields.enabled=true,
+      routing.http2.enabled=true
+
+    # Real-time: ALB sticky sessions for Socket.IO.
+    # Without this, Socket.IO long-polling fallback hits different pods per
+    # request, breaking session state. 24h duration covers full analysis sessions.
+    alb.ingress.kubernetes.io/target-group-attributes: >-
+      stickiness.enabled=true,
+      stickiness.type=lb_cookie,
+      stickiness.lb_cookie.duration_seconds=86400
+
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "15"
+    alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: "3"
+
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+
+# ── IRSA / Service Account ────────────────────────────────────────────────────
+serviceAccount:
+  create: true
+  name: datapilot-sa
+  # IRSA role ARN — required for Bedrock + S3 + MSK access in EKS.
+  # Replace with actual ARN after running Terraform iam module.
+  roleArn: ""
+  tokenExpiration: 86400
+
+# ── Application config ────────────────────────────────────────────────────────
+config:
+  appEnv: production
+  logLevel: info
+
+  # Real-time Socket.IO tuning
+  socketio:
+    pingInterval: 25            # must be < ALB idle timeout (3600s)
+    pingTimeout: 60
+    maxHttpBufferSize: 10000000
+
+  # Redis pub/sub bridge — pattern the ws_server subscribes to
+  redis:
+    pubsubPattern: "dataset:*"
+    poolMaxConnections: 20
+    socketTimeout: 5
+
+  # Rate limits
+  rateLimitPerMinute: 60
+  uploadRateLimitPerHour: 20
+  maxUploadSizeMb: 500
+
+  # Feature flags
+  features:
+    kafka: true
+    rag: true
+    forecasting: true
+    ml: true
+    streaming: true
+    piiDetection: true
+    injectionDetection: true
+    clickhouse: false
+    prometheus: true
+
+  # Bedrock
+  bedrock:
+    region: us-east-1
+    sonnetModelId: "anthropic.claude-sonnet-4-5"
+    haikuModelId: "anthropic.claude-haiku-4-5-20251001"
+    embedModelId: "amazon.titan-embed-text-v2:0"
+    fastAgentRoles: "intent,schema,sql,validation,security"
+    maxRetries: 3
+    temperature: "0.2"
+    streamQueueSize: 512
+    embedMaxConcurrent: 4
+    costAlertThresholdUsd: "0.10"
+
+  # Celery
+  celery:
+    taskSerializer: json
+    acksLate: true
+    prefetchMultiplier: 1
+
+  # Observability
+  otel:
+    serviceName: datapilot-api
+    exporterEndpoint: "http://otel-collector.monitoring:4317"
+
+# ── External services (overridden per environment) ────────────────────────────
+# In staging: bundled chart dependencies (redis.enabled=true, etc.)
+# In production: managed AWS services (all .enabled=false)
+externalServices:
+  databaseUrl: ""               # injected from Secret
+  redisUrl: ""                  # injected from Secret
+  kafkaBootstrapServers: ""     # injected from Secret
+  qdrantUrl: ""
+  s3BucketName: ""
+  secretKey: ""
+
+# ── Bundled dependencies (disabled in production — use managed services) ──────
+redis:
+  enabled: false
+  auth:
+    enabled: false
+  master:
+    persistence:
+      enabled: true
+      size: 8Gi
+
+postgresql:
+  enabled: false
+  auth:
+    database: datapilot
+    username: datapilot
+    password: ""
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+
+kafka:
+  enabled: false
+  replicaCount: 1
+  persistence:
+    enabled: true
+    size: 8Gi
+
+qdrant:
+  enabled: false
+  replicaCount: 1
+  persistence:
+    storageClassName: gp3
+    size: 20Gi
+
+# ── Monitoring ────────────────────────────────────────────────────────────────
+monitoring:
+  serviceMonitor:
+    enabled: false              # enable when Prometheus Operator is installed
+    interval: 30s
+    path: /metrics
+    namespace: monitoring

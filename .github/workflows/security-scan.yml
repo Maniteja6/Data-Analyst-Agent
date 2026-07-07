@@ -1,0 +1,297 @@
+name: Security Scan
+
+# Runs on every PR, every push to main/develop, and weekly on schedule.
+#
+# Real-time application security focus:
+#   • WebSocket endpoints are unauthenticated at the transport level —
+#     the SecurityAgent (injection + PII gate) is the runtime defence.
+#     This workflow checks that the SecurityAgent code itself has no
+#     vulnerabilities (Bandit SAST) and that its dependencies are not
+#     compromised (pip-audit + Trivy).
+#   • Checks for hardcoded secrets that could leak AWS/Bedrock credentials
+#     into the repository (Gitleaks, TruffleHog).
+#   • Scans all 4 Docker images for CVEs (Trivy) so we know the attack
+#     surface of each container before it reaches production.
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  schedule:
+    - cron: "0 3 * * 1"   # Every Monday 03:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write   # required to upload SARIF results to GitHub Security tab
+  actions: read
+
+jobs:
+  # ── 1. Secret detection — must pass before any other job ─────────────────
+  secret-detection:
+    name: Secret Detection
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history needed for Gitleaks commit scanning
+
+      - name: Gitleaks — scan for hardcoded secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}   # optional — remove if using free tier
+        # Gitleaks config: .gitleaks.toml in repo root (allowlist for test fixtures)
+
+      - name: TruffleHog — deep entropy-based secret scan
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --only-verified --fail
+
+  # ── 2. Python SAST — Bandit static analysis ───────────────────────────────
+  sast:
+    name: SAST — Bandit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install Bandit
+        run: pip install bandit[sarif]
+
+      - name: Run Bandit
+        run: |
+          bandit \
+            --recursive backend/ \
+            --format sarif \
+            --output bandit-results.sarif \
+            --severity-level medium \
+            --confidence-level medium \
+            --exclude backend/tests/ \
+            --skip B101,B311 \
+            || true
+          # B101: assert statements (fine in tests)
+          # B311: random (used for jitter in retry backoff — not cryptographic)
+
+      - name: Upload Bandit SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: bandit-results.sarif
+          category: bandit
+
+      - name: Fail on high-severity findings
+        run: |
+          python3 - << 'EOF'
+          import json, sys
+          with open("bandit-results.sarif") as f:
+              sarif = json.load(f)
+          high = [
+              r for run in sarif.get("runs", [])
+              for r in run.get("results", [])
+              if r.get("level") == "error"
+          ]
+          if high:
+              print(f"FAIL: {len(high)} high-severity Bandit findings")
+              for r in high:
+                  loc = r.get("locations", [{}])[0].get("physicalLocation", {})
+                  file = loc.get("artifactLocation", {}).get("uri", "?")
+                  line = loc.get("region", {}).get("startLine", "?")
+                  msg  = r.get("message", {}).get("text", "?")
+                  print(f"  [{file}:{line}] {msg}")
+              sys.exit(1)
+          print(f"Bandit: no high-severity findings ✓")
+          EOF
+
+  # ── 3. Dependency audit — pip-audit + safety ──────────────────────────────
+  dependency-audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install audit tools
+        run: pip install pip-audit
+
+      - name: pip-audit — check for known CVEs in requirements.txt
+        run: |
+          pip-audit \
+            --requirement requirements.txt \
+            --requirement requirements-worker.txt \
+            --format sarif \
+            --output pip-audit-results.sarif \
+            --ignore-vuln PYSEC-2022-42969 \
+            || true
+          # PYSEC-2022-42969: setuptools false positive — not used at runtime
+
+      - name: Upload pip-audit SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: pip-audit-results.sarif
+          category: pip-audit
+
+      - name: Fail on critical CVEs
+        run: |
+          pip-audit \
+            --requirement requirements.txt \
+            --requirement requirements-worker.txt \
+            --severity critical \
+            --fail-on-severity critical
+
+  # ── 4. Container image scanning — Trivy ──────────────────────────────────
+  container-scan:
+    name: Container Scan — ${{ matrix.image.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - { name: api,       dockerfile: deploy/docker/Dockerfile.api }
+          - { name: worker,    dockerfile: deploy/docker/Dockerfile.worker }
+          - { name: analytics, dockerfile: deploy/docker/Dockerfile.analytics }
+          - { name: frontend,  dockerfile: deploy/docker/Dockerfile.frontend }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image for scanning
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ matrix.image.dockerfile }}
+          push: false
+          load: true
+          tags: datapilot/${{ matrix.image.name }}:scan
+          cache-from: type=gha,scope=${{ matrix.image.name }}-scan
+
+      - name: Trivy — scan for OS and library CVEs
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: datapilot/${{ matrix.image.name }}:scan
+          format: sarif
+          output: trivy-${{ matrix.image.name }}.sarif
+          severity: CRITICAL,HIGH
+          exit-code: "0"           # upload results first, fail separately
+          ignore-unfixed: true      # ignore CVEs with no available fix
+          vuln-type: os,library
+
+      - name: Upload Trivy SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-${{ matrix.image.name }}.sarif
+          category: trivy-${{ matrix.image.name }}
+
+      - name: Fail on CRITICAL CVEs with fixes available
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: datapilot/${{ matrix.image.name }}:scan
+          format: table
+          severity: CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
+
+  # ── 5. CodeQL — semantic code analysis ────────────────────────────────────
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python
+          queries: security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: codeql-python
+
+  # ── 6. WebSocket / injection-specific checks ──────────────────────────────
+  injection-gate-tests:
+    name: Injection Gate Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install deps
+        run: pip install pytest pytest-asyncio -r requirements.txt
+
+      - name: Run SecurityAgent injection + PII tests
+        env:
+          APP_ENV: test
+          MOCK_LLM: "true"
+        run: |
+          pytest backend/tests/unit/agents/test_security_agent.py \
+            -v \
+            --tb=short \
+            -x \
+            --timeout=30
+        # These tests verify:
+        #   • All 10 injection pattern categories are detected
+        #   • PII (email, phone, SSN, credit card) is redacted before LLM call
+        #   • STRICT policy blocks injection; MODERATE policy sanitises PII
+        #   • security:blocked Socket.IO event fires with correct room routing
+        #   • GovernanceEngine never blocks on PERMISSIVE policy (for tests)
+
+  # ── Summary gate ───────────────────────────────────────────────────────────
+  security-passed:
+    name: Security Scan Passed
+    needs:
+      - secret-detection
+      - sast
+      - dependency-audit
+      - container-scan
+      - codeql
+      - injection-gate-tests
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check all security jobs passed
+        run: |
+          RESULTS=(
+            "${{ needs.secret-detection.result }}"
+            "${{ needs.sast.result }}"
+            "${{ needs.dependency-audit.result }}"
+            "${{ needs.container-scan.result }}"
+            "${{ needs.codeql.result }}"
+            "${{ needs.injection-gate-tests.result }}"
+          )
+          FAILED=0
+          for r in "${RESULTS[@]}"; do
+            if [[ "$r" != "success" && "$r" != "skipped" ]]; then
+              FAILED=1
+            fi
+          done
+          if [[ $FAILED -eq 1 ]]; then
+            echo "One or more security scans failed — block merge"
+            exit 1
+          fi
+          echo "All security scans passed ✓"

@@ -1,0 +1,68 @@
+{{- if .Values.ingress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "datapilot.fullname" . }}-ingress
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "datapilot.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ingress
+  annotations:
+    kubernetes.io/ingress.class: {{ .Values.ingress.className | quote }}
+    alb.ingress.kubernetes.io/target-type: ip
+    {{- if .Values.ingress.tls.enabled }}
+    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.ingress.tls.certArn | quote }}
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+    {{- end }}
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "15"
+    alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: "3"
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          # ── Socket.IO WebSocket path ─────────────────────────────────────
+          # Real-time: /ws must route to the API, not the frontend.
+          # ALB forwards the HTTP Upgrade header so Socket.IO WS transport works.
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "datapilot.fullname" . }}-api
+                port:
+                  name: http
+
+          # ── REST API ─────────────────────────────────────────────────────
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "datapilot.fullname" . }}-api
+                port:
+                  name: http
+
+          # ── Prometheus metrics ────────────────────────────────────────────
+          - path: /metrics
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "datapilot.fullname" . }}-api
+                port:
+                  name: http
+
+          # ── React SPA (catch-all) ─────────────────────────────────────────
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "datapilot.fullname" . }}-frontend
+                port:
+                  name: http
+{{- end }}

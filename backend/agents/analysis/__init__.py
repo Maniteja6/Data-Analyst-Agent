@@ -1,5 +1,6 @@
-"""Agent sub-package."""
-"""Analysis agents — parallel fan-out layer of the pipeline DAG.
+"""Agent sub-package.
+
+Analysis agents — parallel fan-out layer of the pipeline DAG.
 
 All five agents run concurrently after the cleaning step:
     SQLAgent          — NL→SQL→DuckDB; emits sql:result
@@ -8,10 +9,31 @@ All five agents run concurrently after the cleaning step:
     MLAgent           — RandomForest AutoML; emits ml:complete
     VisualizationAgent— Vega-Lite v5 spec from result rows
 """
-from backend.agents.analysis.sql.sql_agent                   import SQLAgent
-from backend.agents.analysis.python.python_agent             import PythonAgent
-from backend.agents.analysis.forecast.forecast_agent         import ForecastAgent
-from backend.agents.analysis.ml.ml_agent                     import MLAgent
-from backend.agents.analysis.visualization.visualization_agent import VisualizationAgent
+
+from __future__ import annotations
+
+from importlib import import_module
+from typing import Any
 
 __all__ = ["SQLAgent", "PythonAgent", "ForecastAgent", "MLAgent", "VisualizationAgent"]
+
+
+def __getattr__(name: str) -> Any:
+    mapping = {
+        "SQLAgent": ("backend.agents.analysis.sql.sql_agent", "SQLAgent"),
+        "PythonAgent": ("backend.agents.analysis.python.python_agent", "PythonAgent"),
+        "ForecastAgent": ("backend.agents.analysis.forecast.forecast_agent", "ForecastAgent"),
+        "MLAgent": ("backend.agents.analysis.ml.ml_agent", "MLAgent"),
+        "VisualizationAgent": (
+            "backend.agents.analysis.visualization.visualization_agent",
+            "VisualizationAgent",
+        ),
+    }
+    if name not in mapping:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    module_name, attr_name = mapping[name]
+    module = import_module(module_name)
+    value = getattr(module, attr_name)
+    globals()[name] = value
+    return value

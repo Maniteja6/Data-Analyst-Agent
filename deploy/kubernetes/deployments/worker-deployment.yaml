@@ -1,0 +1,263 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Three separate Deployments — one per Celery queue.
+# Separated so each can be scaled, resource-limited, and node-affinity-targeted
+# independently:
+#   analysis  → CPU-optimised nodes (c6i.2xlarge)
+#   agents    → Memory-optimised nodes (r6i.xlarge) — LangGraph state is large
+#   reports   → General-purpose nodes (m6i.large)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Worker: analysis queue ────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: datapilot-worker-analysis
+  namespace: datapilot
+  labels:
+    app.kubernetes.io/name: datapilot
+    app.kubernetes.io/component: worker-analysis
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: datapilot-worker-analysis
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: datapilot-worker-analysis
+        app.kubernetes.io/component: worker-analysis
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9100"
+    spec:
+      serviceAccountName: datapilot-sa
+      terminationGracePeriodSeconds: 300   # allow long profiling jobs to finish
+
+      containers:
+        - name: worker
+          image: <ecr-account>.dkr.ecr.us-east-1.amazonaws.com/datapilot/analytics:latest
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: app-config
+            - secretRef:
+                name: datapilot-secrets
+          env:
+            - name: QUEUE
+              value: "analysis"
+            - name: CONCURRENCY
+              value: "4"
+            - name: OMP_NUM_THREADS
+              value: "2"         # 4 workers × 2 threads = 8 = vCPU count on c6i.2xlarge
+
+          resources:
+            requests:
+              cpu: "1500m"
+              memory: "2Gi"
+            limits:
+              cpu: "3000m"
+              memory: "4Gi"
+
+          livenessProbe:
+            exec:
+              command:
+                - celery
+                - -A
+                - backend.infrastructure.job_queue.celery_app
+                - inspect
+                - ping
+                - --destination
+                - "celery@$(HOSTNAME)"
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            timeoutSeconds: 15
+            failureThreshold: 3
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
+
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: datapilot.ai/node-group
+                    operator: In
+                    values: ["analytics"]
+
+---
+# ── Worker: agents queue ──────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: datapilot-worker-agents
+  namespace: datapilot
+  labels:
+    app.kubernetes.io/name: datapilot
+    app.kubernetes.io/component: worker-agents
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: datapilot-worker-agents
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: datapilot-worker-agents
+        app.kubernetes.io/component: worker-agents
+    spec:
+      serviceAccountName: datapilot-sa
+      terminationGracePeriodSeconds: 600   # LangGraph pipelines can run 5+ minutes
+
+      containers:
+        - name: worker
+          image: <ecr-account>.dkr.ecr.us-east-1.amazonaws.com/datapilot/worker:latest
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: app-config
+            - configMapRef:
+                name: bedrock-config
+            - configMapRef:
+                name: kafka-config
+            - secretRef:
+                name: datapilot-secrets
+          env:
+            - name: QUEUE
+              value: "agents"
+            - name: CONCURRENCY
+              value: "2"
+
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "2Gi"    # LangGraph state + Bedrock response buffers
+            limits:
+              cpu: "2000m"
+              memory: "4Gi"
+
+          livenessProbe:
+            exec:
+              command:
+                - celery
+                - -A
+                - backend.infrastructure.job_queue.celery_app
+                - inspect
+                - ping
+                - --destination
+                - "celery@$(HOSTNAME)"
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            timeoutSeconds: 15
+            failureThreshold: 3
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
+
+---
+# ── Worker: reports queue ─────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: datapilot-worker-reports
+  namespace: datapilot
+  labels:
+    app.kubernetes.io/name: datapilot
+    app.kubernetes.io/component: worker-reports
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: datapilot-worker-reports
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: datapilot-worker-reports
+        app.kubernetes.io/component: worker-reports
+    spec:
+      serviceAccountName: datapilot-sa
+      terminationGracePeriodSeconds: 120
+
+      containers:
+        - name: worker
+          image: <ecr-account>.dkr.ecr.us-east-1.amazonaws.com/datapilot/worker:latest
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: app-config
+            - secretRef:
+                name: datapilot-secrets
+          env:
+            - name: QUEUE
+              value: "reports"
+            - name: CONCURRENCY
+              value: "1"
+
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "2Gi"   # PDF/XLSX generation can spike memory on large reports
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+
+      volumes:
+        - name: tmp
+          emptyDir: {}

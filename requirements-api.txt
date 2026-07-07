@@ -1,0 +1,27 @@
+# requirements-api.txt — API server image dependencies only
+# Excludes: prophet, statsforecast, xgboost, scikit-learn, reportlab, python-pptx
+# These are ~600MB and not needed in the API container — only in worker images.
+# Result: API Docker image ~400MB vs ~1.1GB if everything were included.
+#
+# Usage: pip install -r requirements.txt -r requirements-api.txt
+# (requirements.txt is the base; this file overrides nothing, only excludes)
+#
+# Actually used as: the Dockerfile.api only installs packages from requirements.txt
+# that are NOT in the exclude list below. QueryBuilder handles this via pip-tools.
+
+# ── API-specific extras ───────────────────────────────────────────────────────
+# aiofiles: async static file serving (used by some FastAPI middleware)
+aiofiles==24.1.0
+
+# ── Explicitly excluded from API image (installed in worker images instead) ──
+# prophet            → Dockerfile.worker, Dockerfile.analytics
+# statsforecast      → Dockerfile.worker, Dockerfile.analytics
+# xgboost            → Dockerfile.worker, Dockerfile.analytics
+# scikit-learn       → Dockerfile.worker, Dockerfile.analytics
+# reportlab          → Dockerfile.worker (reports queue)
+# python-pptx        → Dockerfile.worker (reports queue)
+# lxml               → Dockerfile.worker (reports queue)
+# mlflow             → Dockerfile.worker (agents queue)
+# presidio-analyzer  → Dockerfile.api (security — keep in API for < 2ms gate)
+# presidio-anonymizer→ Dockerfile.api
+# clickhouse-connect → Dockerfile.analytics only

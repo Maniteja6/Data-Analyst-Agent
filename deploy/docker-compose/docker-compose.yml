@@ -1,0 +1,244 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DataPilot production docker-compose
+#
+# Services:
+#   frontend        — nginx + React SPA (port 8080)
+#   api             — FastAPI + Socket.IO (port 8000, internal)
+#   worker-analysis — Celery analysis queue (profiling/cleaning/anomaly)
+#   worker-agents   — Celery agents queue  (LangGraph + Bedrock)
+#   worker-reports  — Celery reports queue (PDF/XLSX/PPTX render)
+#   postgres        — Primary database
+#   redis           — Cache + pub/sub bridge + Celery broker
+#   kafka           — Domain event bus
+#   zookeeper       — Kafka coordinator
+#   qdrant          — Vector store for RAG
+#
+# Real-time flow:
+#   Browser ─WebSocket─► nginx /ws ─proxy─► api:8000/ws
+#   api emits domain events ─► kafka ─► worker-agents
+#   worker-agents publishes to Redis channel dataset:<id>
+#   api ws_server psubscribe loop re-emits to Socket.IO room
+#   Browser receives real-time update
+# ─────────────────────────────────────────────────────────────────────────────
+
+x-common-env: &common-env
+  DATABASE_URL: postgresql+asyncpg://datapilot:${POSTGRES_PASSWORD}@postgres:5432/datapilot
+  REDIS_URL: redis://redis:6379/0
+  KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+  S3_BUCKET_NAME: ${S3_BUCKET_NAME}
+  QDRANT_URL: http://qdrant:6333
+  APP_ENV: production
+  LOG_LEVEL: info
+  FEATURE_KAFKA: "true"
+  FEATURE_RAG: "true"
+
+x-api-image: &api-image
+  image: datapilot/api:${IMAGE_TAG:-latest}
+  build:
+    context: ../..
+    dockerfile: deploy/docker/Dockerfile.api
+
+x-worker-image: &worker-image
+  image: datapilot/worker:${IMAGE_TAG:-latest}
+  build:
+    context: ../..
+    dockerfile: deploy/docker/Dockerfile.worker
+
+services:
+
+  # ── Frontend ──────────────────────────────────────────────────────────────
+  frontend:
+    image: datapilot/frontend:${IMAGE_TAG:-latest}
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.frontend
+    ports:
+      - "8080:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - datapilot
+
+  # ── API server ────────────────────────────────────────────────────────────
+  api:
+    <<: *api-image
+    environment:
+      <<: *common-env
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - datapilot
+
+  # ── Celery workers ────────────────────────────────────────────────────────
+  worker-analysis:
+    <<: *worker-image
+    environment:
+      <<: *common-env
+      QUEUE: analysis
+      CONCURRENCY: "4"
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - datapilot
+
+  worker-agents:
+    <<: *worker-image
+    environment:
+      <<: *common-env
+      QUEUE: agents
+      CONCURRENCY: "2"
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - datapilot
+
+  worker-reports:
+    <<: *worker-image
+    environment:
+      <<: *common-env
+      QUEUE: reports
+      CONCURRENCY: "1"
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - datapilot
+
+  # ── Postgres ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: datapilot
+      POSTGRES_USER: datapilot
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U datapilot -d datapilot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - datapilot
+
+  # ── Redis ─────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --notify-keyspace-events ""
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - datapilot
+
+  # ── Kafka ─────────────────────────────────────────────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
+    restart: unless-stopped
+    networks:
+      - datapilot
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_NUM_PARTITIONS: 3
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - datapilot
+
+  # ── Qdrant ────────────────────────────────────────────────────────────────
+  qdrant:
+    image: qdrant/qdrant:v1.7.4
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:6333/readyz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - datapilot
+
+volumes:
+  postgres_data:
+  redis_data:
+  zookeeper_data:
+  zookeeper_log:
+  kafka_data:
+  qdrant_data:
+
+networks:
+  datapilot:
+    driver: bridge

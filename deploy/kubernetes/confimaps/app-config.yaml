@@ -1,0 +1,68 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: datapilot
+  labels:
+    app.kubernetes.io/name: datapilot
+    app.kubernetes.io/component: config
+data:
+  # ── Application ────────────────────────────────────────────────────────
+  APP_ENV: "production"
+  LOG_LEVEL: "info"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+  # ── Real-time WebSocket ────────────────────────────────────────────────
+  # Socket.IO ping interval/timeout must be LESS than ALB idle timeout (3600s).
+  # Keep-alive pings prevent the load balancer from closing idle WS connections
+  # during long-running analysis pipelines (which can take 3-5 minutes).
+  SOCKETIO_PING_INTERVAL: "25"
+  SOCKETIO_PING_TIMEOUT: "60"
+  SOCKETIO_MAX_HTTP_BUFFER_SIZE: "10000000"  # 10MB — large enough for file upload events
+
+  # ── Redis pub/sub bridge ───────────────────────────────────────────────
+  # Pattern subscribed by ws_server._redis_bridge_loop().
+  # Workers publish to "dataset:<id>" channels; bridge re-emits to Socket.IO rooms.
+  REDIS_PUBSUB_PATTERN: "dataset:*"
+  REDIS_POOL_MAX_CONNECTIONS: "20"
+  REDIS_SOCKET_TIMEOUT: "5"
+  REDIS_SOCKET_CONNECT_TIMEOUT: "3"
+
+  # ── API rate limits ────────────────────────────────────────────────────
+  RATE_LIMIT_PER_MINUTE: "60"
+  UPLOAD_RATE_LIMIT_PER_HOUR: "20"
+
+  # ── File upload limits ─────────────────────────────────────────────────
+  MAX_UPLOAD_SIZE_MB: "500"
+  ALLOWED_EXTENSIONS: "csv,xlsx,xls,parquet,json,tsv"
+
+  # ── Bedrock / LLM ─────────────────────────────────────────────────────
+  AWS_DEFAULT_REGION: "us-east-1"
+  BEDROCK_MAX_RETRIES: "3"
+  BEDROCK_BASE_BACKOFF_SECONDS: "1.5"
+  BEDROCK_MAX_BACKOFF_SECONDS: "30"
+  LLM_RESPONSE_CACHE_TTL_SECONDS: "86400"   # 24h — safe for deterministic prompts
+
+  # ── Feature flags ──────────────────────────────────────────────────────
+  FEATURE_KAFKA: "true"
+  FEATURE_RAG: "true"
+  FEATURE_FORECASTING: "true"
+  FEATURE_ML: "true"
+  FEATURE_STREAMING: "true"
+  FEATURE_PII_DETECTION: "true"
+  FEATURE_INJECTION_DETECTION: "true"
+  FEATURE_CLICKHOUSE: "false"
+  FEATURE_PROMETHEUS: "true"
+
+  # ── Celery ─────────────────────────────────────────────────────────────
+  CELERY_TASK_SERIALIZER: "json"
+  CELERY_RESULT_SERIALIZER: "json"
+  CELERY_ACCEPT_CONTENT: "json"
+  CELERY_TASK_ACKS_LATE: "true"
+  CELERY_WORKER_PREFETCH_MULTIPLIER: "1"    # fair scheduling — critical for long tasks
+
+  # ── Observability ──────────────────────────────────────────────────────
+  OTEL_SERVICE_NAME: "datapilot-api"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector.monitoring:4317"
+  PROMETHEUS_MULTIPROC_DIR: "/tmp/prometheus"

@@ -1,0 +1,38 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: datapilot-api-pdb
+  namespace: datapilot
+  labels:
+    app.kubernetes.io/name: datapilot
+    app.kubernetes.io/component: api
+spec:
+  # Real-time requirement: never take ALL API pods down simultaneously.
+  # Active WebSocket connections (analysis pipelines, chat sessions) would
+  # be severed — clients would lose streaming progress and have to restart.
+  # minAvailable=1 ensures at least one pod stays up during:
+  #   • Rolling deployments (maxUnavailable=0 in the Deployment handles this too)
+  #   • Node drains during cluster upgrades
+  #   • HPA scale-down events
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: datapilot-api
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: datapilot-analytics-pdb
+  namespace: datapilot
+  labels:
+    app.kubernetes.io/name: datapilot
+    app.kubernetes.io/component: analytics
+spec:
+  # Keep at least 1 analytics pod available so uploads aren't queued.
+  # Celery's acks_late=True means an in-flight task is requeued if the pod
+  # dies — the task will restart on another pod after the grace period.
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: datapilot-analytics

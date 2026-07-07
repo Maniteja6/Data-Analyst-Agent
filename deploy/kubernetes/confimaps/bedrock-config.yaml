@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bedrock-config
+  namespace: datapilot
+  labels:
+    app.kubernetes.io/name: datapilot
+    app.kubernetes.io/component: bedrock-config
+data:
+  # ── Model routing ─────────────────────────────────────────────────────────
+  # FAST_AGENT_ROLES → Claude Haiku (~200ms) for latency-sensitive WebSocket path.
+  # All other roles → Claude Sonnet (~1.5s) for quality-sensitive batch work.
+  # Format: comma-separated agent role names
+  FAST_AGENT_ROLES: "intent,schema,sql,validation,security"
+
+  # ── Primary model IDs ─────────────────────────────────────────────────────
+  BEDROCK_SONNET_MODEL_ID: "anthropic.claude-sonnet-4-5"
+  BEDROCK_HAIKU_MODEL_ID: "anthropic.claude-haiku-4-5-20251001"
+  BEDROCK_EMBED_MODEL_ID: "amazon.titan-embed-text-v2:0"
+
+  # ── Inference parameters ──────────────────────────────────────────────────
+  BEDROCK_MAX_TOKENS_DEFAULT: "2000"
+  BEDROCK_MAX_TOKENS_STREAMING: "600"    # executive summary — keep tight for speed
+  BEDROCK_MAX_TOKENS_SQL: "400"          # SQL queries are short
+  BEDROCK_MAX_TOKENS_INTENT: "400"       # intent JSON is short
+  BEDROCK_TEMPERATURE: "0.2"             # low temperature for deterministic analytics
+  BEDROCK_TOP_P: "0.9"
+
+  # ── Embedding ─────────────────────────────────────────────────────────────
+  BEDROCK_EMBED_DIMENSIONS: "1536"
+  BEDROCK_EMBED_NORMALIZE: "true"
+  BEDROCK_EMBED_MAX_CONCURRENT: "4"      # semaphore — stays within Bedrock rate limits
+  BEDROCK_EMBED_CACHE_TTL_SECONDS: "604800"  # 7 days — column names rarely change
+
+  # ── Token + cost tracking ─────────────────────────────────────────────────
+  BEDROCK_COST_ALERT_THRESHOLD_USD: "0.10"   # MonitoringAgent emits cost_alert above this
+  BEDROCK_ENABLE_CLOUDWATCH_METRICS: "true"
+
+  # ── Streaming ─────────────────────────────────────────────────────────────
+  # Real-time: BedrockStreamAdapter pushes tokens via asyncio Queue(maxsize=512).
+  # The reader thread fills the queue; the async generator drains it.
+  # Queue backpressure prevents memory blowup if the Socket.IO client is slow.
+  BEDROCK_STREAM_QUEUE_SIZE: "512"
+  BEDROCK_STREAM_CHUNK_SIZE: "1"         # emit every token individually

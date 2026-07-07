@@ -1,0 +1,139 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# values.staging.yaml — staging environment overrides
+#
+# Usage:
+#   helm upgrade --install datapilot ./deploy/helm/datapilot \
+#     -f values.yaml \
+#     -f values.staging.yaml \
+#     --namespace datapilot-staging \
+#     --set image.tag=$GIT_SHA
+#
+# Staging philosophy:
+#   • Real infrastructure (EKS, RDS, ElastiCache) — catches infra bugs before prod
+#   • Scaled down replicas and resources to save cost
+#   • Bundled Kafka + Qdrant (no MSK/managed Qdrant in staging)
+#   • MockLLMService OFF — real Bedrock calls with staging IAM role
+#   • Full real-time pipeline enabled — same code path as production
+# ─────────────────────────────────────────────────────────────────────────────
+
+global:
+  imageRegistry: "<ecr-account>.dkr.ecr.us-east-1.amazonaws.com"
+
+image:
+  tag: "staging"
+  pullPolicy: Always
+
+# ── API ───────────────────────────────────────────────────────────────────────
+api:
+  replicaCount: 1           # single replica in staging — save cost
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: false          # no HPA in staging — predictable for debugging
+  podDisruptionBudget:
+    enabled: false          # no PDB in staging — allow full restarts
+
+# ── Frontend ──────────────────────────────────────────────────────────────────
+frontend:
+  replicaCount: 1
+
+# ── Workers ───────────────────────────────────────────────────────────────────
+analyticsWorker:
+  replicaCount: 1
+  concurrency: 2
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+  autoscaling:
+    enabled: false
+  podDisruptionBudget:
+    enabled: false
+  env:
+    OMP_NUM_THREADS: "1"
+
+agentWorker:
+  replicaCount: 1
+  concurrency: 1
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+  autoscaling:
+    enabled: false
+
+reportWorker:
+  replicaCount: 1
+
+# ── Ingress ───────────────────────────────────────────────────────────────────
+ingress:
+  host: "staging.datapilot.ai"
+  tls:
+    enabled: true
+    certArn: "arn:aws:acm:us-east-1:<account-id>:certificate/<staging-cert-id>"
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/load-balancer-name: datapilot-alb-staging
+    # Real-time: same sticky session + idle timeout config as production.
+    # Staging must match prod behaviour for WebSocket testing to be meaningful.
+    alb.ingress.kubernetes.io/load-balancer-attributes: >-
+      idle_timeout.timeout_seconds=3600,
+      routing.http.drop_invalid_header_fields.enabled=true
+    alb.ingress.kubernetes.io/target-group-attributes: >-
+      stickiness.enabled=true,
+      stickiness.type=lb_cookie,
+      stickiness.lb_cookie.duration_seconds=86400
+
+# ── IRSA ──────────────────────────────────────────────────────────────────────
+serviceAccount:
+  roleArn: "arn:aws:iam::<account-id>:role/datapilot-staging-irsa-role"
+
+# ── Config overrides ──────────────────────────────────────────────────────────
+config:
+  appEnv: staging
+  logLevel: debug             # verbose logging in staging for debugging
+  rateLimitPerMinute: 120     # higher limit — fewer users, more testing
+
+  features:
+    kafka: false              # use in-memory event bus in staging (no MSK cost)
+    clickhouse: false
+    prometheus: true
+
+  bedrock:
+    region: us-east-1
+    costAlertThresholdUsd: "0.05"  # lower threshold — catch cost bugs early
+
+# ── Bundled dependencies for staging ─────────────────────────────────────────
+# Kafka and Qdrant bundled to avoid MSK/managed Qdrant costs in staging.
+# Redis and Postgres are managed (ElastiCache + RDS) — same as production.
+kafka:
+  enabled: true
+  replicaCount: 1
+  persistence:
+    enabled: false            # ephemeral — staging data is disposable
+  kraft:
+    enabled: true             # KRaft mode — no Zookeeper needed
+
+qdrant:
+  enabled: true
+  replicaCount: 1
+  persistence:
+    enabled: true
+    size: 5Gi
+
+redis:
+  enabled: false              # use ElastiCache in staging
+
+postgresql:
+  enabled: false              # use RDS in staging

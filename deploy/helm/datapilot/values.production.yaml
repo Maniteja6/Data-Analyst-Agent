@@ -1,0 +1,206 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# values.production.yaml — production environment overrides
+#
+# Usage:
+#   helm upgrade --install datapilot ./deploy/helm/datapilot \
+#     -f values.yaml \
+#     -f values.production.yaml \
+#     --namespace datapilot \
+#     --set image.tag=$RELEASE_TAG \
+#     --atomic \
+#     --timeout 10m
+#
+# All managed AWS services — no bundled chart dependencies.
+# ─────────────────────────────────────────────────────────────────────────────
+
+global:
+  imageRegistry: "<ecr-account>.dkr.ecr.us-east-1.amazonaws.com"
+
+image:
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent    # faster pod start — image already on node cache
+
+# ── API ───────────────────────────────────────────────────────────────────────
+api:
+  replicaCount: 3             # 3 replicas across 3 AZs minimum for HA
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 60
+    targetMemoryUtilizationPercentage: 75
+    scaleUpStabilizationWindowSeconds: 30
+    scaleDownStabilizationWindowSeconds: 600
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 2           # keep at least 2 pods for active WebSocket connections
+
+  topologySpreadConstraints:
+    enabled: true             # enforce spread across 3 AZs
+
+# ── Frontend ──────────────────────────────────────────────────────────────────
+frontend:
+  replicaCount: 2
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+
+# ── Analytics worker ──────────────────────────────────────────────────────────
+analyticsWorker:
+  replicaCount: 3
+  concurrency: 4
+
+  resources:
+    requests:
+      cpu: 2000m
+      memory: 3Gi
+    limits:
+      cpu: 4000m
+      memory: 8Gi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 15
+    targetCPUUtilizationPercentage: 70
+    scaleUpStabilizationWindowSeconds: 30
+    scaleDownStabilizationWindowSeconds: 900
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+  nodeSelector:
+    datapilot.ai/node-group: analytics
+
+  env:
+    OMP_NUM_THREADS: "2"
+
+# ── Agent worker ──────────────────────────────────────────────────────────────
+agentWorker:
+  replicaCount: 3
+  concurrency: 2
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 12
+    targetMemoryUtilizationPercentage: 70
+    targetCPUUtilizationPercentage: 60
+    scaleUpStabilizationWindowSeconds: 60
+    scaleDownStabilizationWindowSeconds: 1200
+
+  nodeSelector:
+    datapilot.ai/node-group: agents
+
+# ── Report worker ─────────────────────────────────────────────────────────────
+reportWorker:
+  replicaCount: 2
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+
+# ── Ingress ───────────────────────────────────────────────────────────────────
+ingress:
+  host: "app.datapilot.ai"
+  tls:
+    enabled: true
+    certArn: "arn:aws:acm:us-east-1:<account-id>:certificate/<prod-cert-id>"
+  annotations:
+    alb.ingress.kubernetes.io/load-balancer-name: datapilot-alb-prod
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/security-groups: "sg-<alb-sg-id>"
+    alb.ingress.kubernetes.io/manage-backend-security-group-rules: "true"
+    alb.ingress.kubernetes.io/wafv2-acl-arn: "arn:aws:wafv2:us-east-1:<account-id>:regional/webacl/datapilot-waf/<id>"
+    alb.ingress.kubernetes.io/load-balancer-attributes: >-
+      idle_timeout.timeout_seconds=3600,
+      routing.http.drop_invalid_header_fields.enabled=true,
+      routing.http2.enabled=true,
+      access_logs.s3.enabled=true,
+      access_logs.s3.bucket=datapilot-alb-logs-<account-id>,
+      access_logs.s3.prefix=datapilot
+    alb.ingress.kubernetes.io/target-group-attributes: >-
+      stickiness.enabled=true,
+      stickiness.type=lb_cookie,
+      stickiness.lb_cookie.duration_seconds=86400,
+      deregistration_delay.timeout_seconds=90
+
+# ── IRSA ──────────────────────────────────────────────────────────────────────
+serviceAccount:
+  roleArn: "arn:aws:iam::<account-id>:role/datapilot-prod-irsa-role"
+  tokenExpiration: 43200      # 12h rotation in production
+
+# ── Config overrides ──────────────────────────────────────────────────────────
+config:
+  appEnv: production
+  logLevel: info
+
+  features:
+    kafka: true
+    rag: true
+    forecasting: true
+    ml: true
+    streaming: true
+    piiDetection: true
+    injectionDetection: true
+    clickhouse: true          # enabled in production for column stats analytics
+    prometheus: true
+
+  bedrock:
+    maxRetries: 5             # more retries in production
+    costAlertThresholdUsd: "0.10"
+
+  otel:
+    serviceName: datapilot-api-prod
+    exporterEndpoint: "http://otel-collector.monitoring:4317"
+
+  celery:
+    prefetchMultiplier: 1     # fair scheduling — never set > 1 for long tasks
+
+# ── All bundled dependencies disabled — use managed AWS services ──────────────
+redis:
+  enabled: false
+
+postgresql:
+  enabled: false
+
+kafka:
+  enabled: false
+
+qdrant:
+  enabled: false
+
+# ── Monitoring ────────────────────────────────────────────────────────────────
+monitoring:
+  serviceMonitor:
+    enabled: true
+    interval: 15s
+    namespace: monitoring

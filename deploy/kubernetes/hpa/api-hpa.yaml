@@ -1,0 +1,63 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: datapilot-api-hpa
+  namespace: datapilot
+  labels:
+    app.kubernetes.io/name: datapilot
+    app.kubernetes.io/component: api
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: datapilot-api
+
+  minReplicas: 2
+  maxReplicas: 10
+
+  metrics:
+    # ── CPU — primary scaling signal for the API ───────────────────────────
+    # Target 60% CPU: leaves headroom for WebSocket burst traffic.
+    # Real-time note: scaling on CPU alone can be too slow for sudden
+    # WebSocket connection spikes. Consider KEDA with Socket.IO connection
+    # count metric for faster scale-out.
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+
+    # ── Memory — secondary signal ─────────────────────────────────────────
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 75
+
+  behavior:
+    scaleUp:
+      # Scale up fast — real-time apps need capacity immediately.
+      # A new pod takes ~30s to be ready; scale up 2 at a time.
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 30
+        - type: Percent
+          value: 50
+          periodSeconds: 30
+      selectPolicy: Max
+
+    scaleDown:
+      # Scale down slowly — avoid removing pods that have active WebSocket connections.
+      # 10-minute stabilisation window prevents flapping during analysis bursts.
+      # Real-time note: PodDisruptionBudget (api-pdb.yaml) ensures at least
+      # 1 pod stays up during scale-down to serve active connections.
+      stabilizationWindowSeconds: 600
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+      selectPolicy: Min

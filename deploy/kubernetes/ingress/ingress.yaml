@@ -1,0 +1,98 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: datapilot-ingress
+  namespace: datapilot
+  labels:
+    app.kubernetes.io/name: datapilot
+    app.kubernetes.io/component: ingress
+  annotations:
+    # ── AWS Load Balancer Controller ───────────────────────────────────────
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/load-balancer-name: datapilot-alb
+
+    # ── TLS ────────────────────────────────────────────────────────────────
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:<account-id>:certificate/<cert-id>
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+
+    # ── Real-time WebSocket: idle timeout ─────────────────────────────────
+    # Default ALB idle timeout is 60s — WebSocket connections drop silently.
+    # Set to 3600s (1 hour) to keep analysis pipeline connections alive.
+    # Socket.IO ping interval (25s) keeps the connection active within this window.
+    alb.ingress.kubernetes.io/load-balancer-attributes: >-
+      idle_timeout.timeout_seconds=3600,
+      routing.http.drop_invalid_header_fields.enabled=true,
+      routing.http2.enabled=true,
+      access_logs.s3.enabled=false
+
+    # ── Sticky sessions (critical for Socket.IO) ───────────────────────────
+    # Without stickiness, a Socket.IO polling fallback may hit different pods
+    # for each HTTP request in the same session, breaking connection state.
+    # Duration: 86400s (24h) — longer than any analysis session.
+    alb.ingress.kubernetes.io/target-group-attributes: >-
+      stickiness.enabled=true,
+      stickiness.type=lb_cookie,
+      stickiness.lb_cookie.duration_seconds=86400
+
+    # ── Health check ───────────────────────────────────────────────────────
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "15"
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "5"
+    alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: "3"
+
+    # ── CORS headers (handled by FastAPI middleware — not at ALB level) ────
+    # alb.ingress.kubernetes.io/actions.cors-response: ... (not needed)
+
+    # ── WAF (optional) ────────────────────────────────────────────────────
+    # alb.ingress.kubernetes.io/wafv2-acl-arn: arn:aws:wafv2:...
+
+    # ── Security groups ────────────────────────────────────────────────────
+    alb.ingress.kubernetes.io/security-groups: sg-<alb-security-group-id>
+    alb.ingress.kubernetes.io/manage-backend-security-group-rules: "true"
+
+spec:
+  ingressClassName: alb
+  rules:
+    - host: app.datapilot.ai
+      http:
+        paths:
+          # ── API + WebSocket ──────────────────────────────────────────────
+          # /ws routes to the API service — nginx proxy in each pod handles
+          # the WebSocket upgrade. ALB forwards HTTP/1.1 Upgrade headers.
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: datapilot-api
+                port:
+                  name: http
+
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: datapilot-api
+                port:
+                  name: http
+
+          - path: /metrics
+            pathType: Prefix
+            backend:
+              service:
+                name: datapilot-api
+                port:
+                  name: http
+
+          # ── Frontend (catch-all) ─────────────────────────────────────────
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: datapilot-frontend
+                port:
+                  name: http

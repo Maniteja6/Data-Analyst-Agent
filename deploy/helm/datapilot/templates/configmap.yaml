@@ -1,0 +1,70 @@
+{{- /*
+configmap.yaml — DataPilot application ConfigMap
+All values sourced from .Values.config — no secrets here.
+*/ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "datapilot.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "datapilot.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+data:
+  # ── Application ─────────────────────────────────────────────────────────
+  APP_ENV:                  {{ .Values.config.appEnv | quote }}
+  LOG_LEVEL:                {{ .Values.config.logLevel | quote }}
+  PYTHONUNBUFFERED:         "1"
+  PYTHONDONTWRITEBYTECODE:  "1"
+
+  # ── Real-time Socket.IO ──────────────────────────────────────────────────
+  SOCKETIO_PING_INTERVAL:       {{ .Values.config.socketio.pingInterval | toString | quote }}
+  SOCKETIO_PING_TIMEOUT:        {{ .Values.config.socketio.pingTimeout | toString | quote }}
+  SOCKETIO_MAX_HTTP_BUFFER_SIZE: {{ .Values.config.socketio.maxHttpBufferSize | toString | quote }}
+  REDIS_PUBSUB_PATTERN:         {{ .Values.config.redis.pubsubPattern | quote }}
+  REDIS_POOL_MAX_CONNECTIONS:   {{ .Values.config.redis.poolMaxConnections | toString | quote }}
+  REDIS_SOCKET_TIMEOUT:         {{ .Values.config.redis.socketTimeout | toString | quote }}
+
+  # ── Rate limits ──────────────────────────────────────────────────────────
+  RATE_LIMIT_PER_MINUTE:        {{ .Values.config.rateLimitPerMinute | toString | quote }}
+  UPLOAD_RATE_LIMIT_PER_HOUR:   {{ .Values.config.uploadRateLimitPerHour | toString | quote }}
+  MAX_UPLOAD_SIZE_MB:           {{ .Values.config.maxUploadSizeMb | toString | quote }}
+
+  # ── Feature flags ────────────────────────────────────────────────────────
+  FEATURE_KAFKA:             {{ .Values.config.features.kafka | toString | quote }}
+  FEATURE_RAG:               {{ .Values.config.features.rag | toString | quote }}
+  FEATURE_FORECASTING:       {{ .Values.config.features.forecasting | toString | quote }}
+  FEATURE_ML:                {{ .Values.config.features.ml | toString | quote }}
+  FEATURE_STREAMING:         {{ .Values.config.features.streaming | toString | quote }}
+  FEATURE_PII_DETECTION:     {{ .Values.config.features.piiDetection | toString | quote }}
+  FEATURE_INJECTION_DETECTION: {{ .Values.config.features.injectionDetection | toString | quote }}
+  FEATURE_CLICKHOUSE:        {{ .Values.config.features.clickhouse | toString | quote }}
+  FEATURE_PROMETHEUS:        {{ .Values.config.features.prometheus | toString | quote }}
+
+  # ── Bedrock ──────────────────────────────────────────────────────────────
+  AWS_DEFAULT_REGION:             {{ .Values.config.bedrock.region | quote }}
+  BEDROCK_SONNET_MODEL_ID:        {{ .Values.config.bedrock.sonnetModelId | quote }}
+  BEDROCK_HAIKU_MODEL_ID:         {{ .Values.config.bedrock.haikuModelId | quote }}
+  BEDROCK_EMBED_MODEL_ID:         {{ .Values.config.bedrock.embedModelId | quote }}
+  FAST_AGENT_ROLES:               {{ .Values.config.bedrock.fastAgentRoles | quote }}
+  BEDROCK_MAX_RETRIES:            {{ .Values.config.bedrock.maxRetries | toString | quote }}
+  BEDROCK_TEMPERATURE:            {{ .Values.config.bedrock.temperature | quote }}
+  BEDROCK_STREAM_QUEUE_SIZE:      {{ .Values.config.bedrock.streamQueueSize | toString | quote }}
+  BEDROCK_EMBED_MAX_CONCURRENT:   {{ .Values.config.bedrock.embedMaxConcurrent | toString | quote }}
+  BEDROCK_COST_ALERT_THRESHOLD_USD: {{ .Values.config.bedrock.costAlertThresholdUsd | quote }}
+
+  # ── Celery ───────────────────────────────────────────────────────────────
+  CELERY_TASK_SERIALIZER:        {{ .Values.config.celery.taskSerializer | quote }}
+  CELERY_TASK_ACKS_LATE:         {{ .Values.config.celery.acksLate | toString | quote }}
+  CELERY_WORKER_PREFETCH_MULTIPLIER: {{ .Values.config.celery.prefetchMultiplier | toString | quote }}
+
+  # ── Observability ────────────────────────────────────────────────────────
+  OTEL_SERVICE_NAME:              {{ .Values.config.otel.serviceName | quote }}
+  OTEL_EXPORTER_OTLP_ENDPOINT:   {{ .Values.config.otel.exporterEndpoint | quote }}
+  PROMETHEUS_MULTIPROC_DIR:       "/tmp/prometheus"
+
+---
+{{- /*
+_helpers.tpl inline — define template helpers used across all templates.
+In a real chart these live in templates/_helpers.tpl.
+*/ -}}

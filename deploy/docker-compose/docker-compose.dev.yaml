@@ -1,0 +1,153 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# docker-compose.dev.yml — DataPilot local development override
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Dev-specific changes vs production:
+#   • API and workers mount source code as a volume (hot reload without rebuild)
+#   • uvicorn runs with --reload flag (restarts on file change)
+#   • All service ports exposed to localhost for direct debugging
+#   • APP_ENV=development (console log renderer, permissive security policy)
+#   • MockLLMService active — no AWS credentials needed for UI development
+#   • Kafka UI (kafka-ui) exposed on :8090 for topic inspection
+#   • Qdrant dashboard accessible on :6333
+#   • Redis Insight (optional) accessible on :8001
+#
+# Real-time dev flow:
+#   Edit backend/*.py → uvicorn --reload restarts in < 1s
+#   Edit frontend/*.tsx → Vite HMR updates browser in < 200ms
+#   Socket.IO events visible in browser DevTools Network > WS tab
+# ─────────────────────────────────────────────────────────────────────────────
+
+x-dev-env: &dev-env
+  APP_ENV: development
+  LOG_LEVEL: debug
+  FEATURE_KAFKA: "false"        # use InMemory event bus locally
+  FEATURE_CLICKHOUSE: "false"
+  MOCK_LLM: "true"              # MockLLMService — no Bedrock calls
+  S3_ENDPOINT_URL: "local://"   # LocalStorageAdapter — no S3 needed
+  REDIS_URL: redis://redis:6379/0
+  DATABASE_URL: postgresql+asyncpg://datapilot:datapilot@postgres:5432/datapilot
+  QDRANT_URL: http://qdrant:6333
+
+services:
+
+  # ── Frontend: Vite dev server with HMR ────────────────────────────────────
+  frontend:
+    image: node:20-slim
+    working_dir: /app
+    volumes:
+      - ../../frontend:/app
+      - /app/node_modules       # anonymous volume — don't overwrite node_modules
+    environment:
+      VITE_API_URL: http://localhost:8000
+      VITE_WS_URL: http://localhost:8000/ws
+    ports:
+      - "5173:5173"             # Vite dev server with HMR
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    networks:
+      - datapilot
+
+  # ── API: uvicorn --reload ─────────────────────────────────────────────────
+  api:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.api
+      target: production
+    volumes:
+      - ../../backend:/app/backend   # mount source for hot reload
+    environment:
+      <<: *dev-env
+    ports:
+      - "8000:8000"
+    command: >
+      uvicorn backend.api.main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+      --reload-dir /app/backend
+      --loop asyncio
+      --log-level debug
+
+  # ── Workers: mount source, single concurrency ─────────────────────────────
+  worker-analysis:
+    volumes:
+      - ../../backend:/app/backend
+    environment:
+      <<: *dev-env
+      QUEUE: analysis
+      CONCURRENCY: "2"
+    command: >
+      celery -A backend.infrastructure.job_queue.celery_app worker
+      --queues=analysis
+      --concurrency=2
+      --loglevel=debug
+      -Ofair
+
+  worker-agents:
+    volumes:
+      - ../../backend:/app/backend
+    environment:
+      <<: *dev-env
+      QUEUE: agents
+      CONCURRENCY: "1"
+    command: >
+      celery -A backend.infrastructure.job_queue.celery_app worker
+      --queues=agents
+      --concurrency=1
+      --loglevel=debug
+      -Ofair
+
+  worker-reports:
+    volumes:
+      - ../../backend:/app/backend
+    environment:
+      <<: *dev-env
+      QUEUE: reports
+      CONCURRENCY: "1"
+
+  # ── Postgres: exposed for direct DB clients (TablePlus, DBeaver) ──────────
+  postgres:
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: datapilot
+
+  # ── Redis: exposed for redis-cli and Redis Insight ────────────────────────
+  redis:
+    ports:
+      - "6379:6379"
+
+  # ── Qdrant: dashboard accessible at http://localhost:6333/dashboard ───────
+  qdrant:
+    ports:
+      - "6333:6333"
+      - "6334:6334"   # gRPC port
+
+  # ── Kafka UI: topic browser at http://localhost:8090 ──────────────────────
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    ports:
+      - "8090:8080"
+    depends_on:
+      - kafka
+    networks:
+      - datapilot
+
+  # ── Celery Flower: task monitor at http://localhost:5555 ──────────────────
+  flower:
+    image: mher/flower:2.0
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+    networks:
+      - datapilot

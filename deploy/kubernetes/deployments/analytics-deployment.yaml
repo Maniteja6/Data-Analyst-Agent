@@ -1,0 +1,124 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: datapilot-analytics
+  namespace: datapilot
+  labels:
+    app.kubernetes.io/name: datapilot
+    app.kubernetes.io/component: analytics
+spec:
+  # Analytics engine scales separately from the agent workers.
+  # Start with 2; HPA scales to 10 based on CPU (profiling is CPU-bound).
+  replicas: 2
+  selector:
+    matchLabels:
+      app: datapilot-analytics
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 2
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: datapilot-analytics
+        app.kubernetes.io/component: analytics
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9100"
+    spec:
+      serviceAccountName: datapilot-sa
+      # Long grace period — profiling a 10M-row dataset can take 2-3 minutes.
+      # SIGTERM triggers graceful Celery shutdown; in-flight tasks finish first.
+      terminationGracePeriodSeconds: 300
+
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: datapilot-analytics
+
+      containers:
+        - name: analytics
+          image: <ecr-account>.dkr.ecr.us-east-1.amazonaws.com/datapilot/analytics:latest
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: app-config
+            - secretRef:
+                name: datapilot-secrets
+          env:
+            - name: QUEUE
+              value: "analysis"
+            - name: CONCURRENCY
+              value: "4"
+            - name: OMP_NUM_THREADS
+              value: "2"
+            # Real-time: emit profiling:column_complete events back to Redis
+            # which the ws_server bridge forwards to the browser Socket.IO room
+            - name: EMIT_COLUMN_EVENTS
+              value: "true"
+
+          resources:
+            requests:
+              cpu: "2000m"     # polars profiling is genuinely CPU-intensive
+              memory: "3Gi"    # 10M-row DataFrame + column statistics
+            limits:
+              cpu: "4000m"
+              memory: "8Gi"
+
+          livenessProbe:
+            exec:
+              command:
+                - celery
+                - -A
+                - backend.infrastructure.job_queue.celery_app
+                - inspect
+                - ping
+                - --destination
+                - "celery@$(HOSTNAME)"
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            timeoutSeconds: 20
+            failureThreshold: 3
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: duckdb-scratch
+              mountPath: /tmp/duckdb   # DuckDB temp files during SQL execution
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: duckdb-scratch
+          emptyDir:
+            sizeLimit: "2Gi"   # cap DuckDB temp disk usage
+
+      # Prefer CPU-optimised instances for analytics workloads
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: datapilot.ai/node-group
+                    operator: In
+                    values: ["analytics"]
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values: ["amd64"]   # polars ARM64 support varies — pin to amd64

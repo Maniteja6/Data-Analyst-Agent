@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: datapilot
+  labels:
+    app.kubernetes.io/name: datapilot
+    app.kubernetes.io/managed-by: kubectl
+    # Pod Security Standards — block privileged containers cluster-wide
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

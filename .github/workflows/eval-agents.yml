@@ -1,0 +1,105 @@
+name: LLM Eval Suite
+
+# Runs weekly on Sunday and on-demand.
+# Tests all 12 prompt templates against canned inputs via MockLLMService.
+# Fails if pass_rate < 80% — prevents prompt regressions from reaching production.
+# No AWS credentials needed — all LLM calls are mocked.
+
+on:
+  schedule:
+    - cron: "0 6 * * 0"   # Every Sunday 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: "Eval suite to run (all | sql | insight | forecast)"
+        required: false
+        default: all
+
+env:
+  APP_ENV: test
+  MOCK_LLM: "true"
+  FEATURE_BEDROCK: "false"
+  PASS_RATE_THRESHOLD: "0.80"
+
+jobs:
+  run-evals:
+    name: Run Eval Suite — ${{ github.event.inputs.suite || 'all' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Run eval suite
+        id: evals
+        run: |
+          SUITE="${{ github.event.inputs.suite || 'all' }}"
+          python -m backend.tests.evals.eval_runner \
+            --suite "${SUITE}" \
+            --threshold ${{ env.PASS_RATE_THRESHOLD }} \
+            --output-json eval-results.json
+        continue-on-error: true
+
+      - name: Parse eval results
+        id: results
+        run: |
+          python3 - << 'EOF'
+          import json, os, sys
+          with open("eval-results.json") as f:
+              data = json.load(f)
+          rate = data.get("pass_rate", 0.0)
+          total = data.get("total", 0)
+          passed = data.get("passed", 0)
+          failed = data.get("failed", 0)
+
+          summary = f"## Eval Results\n\n"
+          summary += f"| Metric | Value |\n|---|---|\n"
+          summary += f"| Pass rate | {rate:.1%} |\n"
+          summary += f"| Passed | {passed}/{total} |\n"
+          summary += f"| Failed | {failed} |\n"
+
+          for suite_name, suite_data in data.get("suites", {}).items():
+              summary += f"\n### {suite_name}\n"
+              for case in suite_data.get("cases", []):
+                  icon = "✓" if case["passed"] else "✗"
+                  summary += f"- {icon} {case['name']}\n"
+                  if not case["passed"]:
+                      summary += f"  - Expected: {case.get('expected', '')}\n"
+                      summary += f"  - Got:      {case.get('actual', '')}\n"
+
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+              f.write(summary)
+
+          threshold = float(os.environ.get("PASS_RATE_THRESHOLD", "0.80"))
+          if rate < threshold:
+              print(f"FAIL: pass_rate={rate:.1%} < threshold={threshold:.1%}")
+              sys.exit(1)
+          else:
+              print(f"PASS: pass_rate={rate:.1%}")
+          EOF
+
+      - name: Upload eval results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-results-${{ github.run_id }}
+          path: eval-results.json
+          retention-days: 90
+
+      - name: Notify on eval failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "⚠️ LLM Eval suite pass rate dropped below 80%\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        continue-on-error: true

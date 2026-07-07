@@ -1,0 +1,114 @@
+name: Rollback — Production
+
+# One-click rollback for real-time applications.
+# Critically: rolling back the API pods does NOT sever active WebSocket
+# connections because Helm uses maxUnavailable=0 — new (old) pods come
+# up before current pods are drained.
+
+on:
+  workflow_dispatch:
+    inputs:
+      rollback_tag:
+        description: "Image tag to roll back to (e.g. v1.2.3)"
+        required: true
+      reason:
+        description: "Reason for rollback (logged in audit trail)"
+        required: true
+
+env:
+  AWS_REGION: us-east-1
+  ECR_ACCOUNT: ${{ secrets.ECR_ACCOUNT_ID }}
+  EKS_CLUSTER: datapilot-prod
+  HELM_NAMESPACE: datapilot
+
+jobs:
+  rollback:
+    name: Production Rollback to ${{ github.event.inputs.rollback_tag }}
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.rollback_tag }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - name: Verify rollback image exists in ECR
+        run: |
+          TAG=${{ github.event.inputs.rollback_tag }}
+          for IMAGE in api worker analytics frontend; do
+            REPO="${{ env.ECR_ACCOUNT }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/datapilot/${IMAGE}"
+            if ! aws ecr describe-images --repository-name "datapilot/${IMAGE}" \
+                --image-ids imageTag="${TAG}" --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
+              echo "ERROR: datapilot/${IMAGE}:${TAG} not found in ECR"
+              exit 1
+            fi
+            echo "✓ datapilot/${IMAGE}:${TAG} exists"
+          done
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --name ${{ env.EKS_CLUSTER }} \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: "3.14.0"
+
+      - name: Add Helm repositories
+        run: |
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm repo add qdrant  https://qdrant.github.io/qdrant-helm
+          helm repo update
+          helm dependency update deploy/helm/datapilot
+
+      - name: Execute rollback
+        run: |
+          helm upgrade datapilot ./deploy/helm/datapilot \
+            --namespace ${{ env.HELM_NAMESPACE }} \
+            -f deploy/helm/datapilot/values.yaml \
+            -f deploy/helm/datapilot/values.production.yaml \
+            --set image.tag=${{ github.event.inputs.rollback_tag }} \
+            --set global.imageRegistry=${{ env.ECR_ACCOUNT }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com \
+            --set serviceAccount.roleArn=${{ secrets.PROD_IRSA_ROLE_ARN }} \
+            --set ingress.tls.certArn=${{ secrets.PROD_ACM_CERT_ARN }} \
+            --set externalServices.databaseUrl=${{ secrets.PROD_DATABASE_URL }} \
+            --set externalServices.redisUrl=${{ secrets.PROD_REDIS_URL }} \
+            --set externalServices.kafkaBootstrapServers=${{ secrets.PROD_KAFKA_BROKERS }} \
+            --set externalServices.qdrantUrl=${{ secrets.PROD_QDRANT_URL }} \
+            --set externalServices.s3BucketName=${{ secrets.PROD_S3_BUCKET }} \
+            --atomic \
+            --timeout 10m \
+            --wait
+
+      - name: Verify rollback health
+        run: |
+          kubectl rollout status deployment/datapilot-api \
+            -n ${{ env.HELM_NAMESPACE }} --timeout=120s
+          curl -sf https://app.datapilot.ai/health | grep -q "ok" || exit 1
+          echo "Rollback health check passed ✓"
+
+      - name: Post rollback summary
+        run: |
+          echo "## ⏪ Rollback Complete" >> $GITHUB_STEP_SUMMARY
+          echo "- **Rolled back to**: \`${{ github.event.inputs.rollback_tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Triggered by**: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Reason**: ${{ github.event.inputs.reason }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify Slack
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "⏪ Production rolled back to ${{ github.event.inputs.rollback_tag }} by ${{ github.actor }}\nReason: ${{ github.event.inputs.reason }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        continue-on-error: true

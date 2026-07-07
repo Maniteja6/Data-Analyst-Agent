@@ -1,0 +1,140 @@
+{{- /* HPA for API */ -}}
+{{- if and .Values.api.enabled .Values.api.autoscaling.enabled -}}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "datapilot.fullname" . }}-api-hpa
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "datapilot.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "datapilot.fullname" . }}-api
+  minReplicas: {{ .Values.api.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.api.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.api.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.api.autoscaling.targetMemoryUtilizationPercentage }}
+  behavior:
+    scaleUp:
+      # Real-time: scale up fast — active users notice WebSocket slowdowns immediately.
+      stabilizationWindowSeconds: {{ .Values.api.autoscaling.scaleUpStabilizationWindowSeconds }}
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 30
+        - type: Percent
+          value: 50
+          periodSeconds: 30
+      selectPolicy: Max
+    scaleDown:
+      # Real-time: scale down slowly — avoid evicting pods with active WS connections.
+      stabilizationWindowSeconds: {{ .Values.api.autoscaling.scaleDownStabilizationWindowSeconds }}
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+      selectPolicy: Min
+{{- end }}
+
+---
+{{- /* HPA for Analytics Worker */ -}}
+{{- if and .Values.analyticsWorker.enabled .Values.analyticsWorker.autoscaling.enabled -}}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "datapilot.fullname" . }}-analytics-hpa
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "datapilot.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker-analysis
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "datapilot.fullname" . }}-worker-analysis
+  minReplicas: {{ .Values.analyticsWorker.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.analyticsWorker.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.analyticsWorker.autoscaling.targetCPUUtilizationPercentage }}
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: {{ .Values.analyticsWorker.autoscaling.scaleUpStabilizationWindowSeconds }}
+      policies:
+        - type: Pods
+          value: 3
+          periodSeconds: 60
+      selectPolicy: Max
+    scaleDown:
+      # Extra long — profiling tasks run 1-3 min; don't interrupt mid-job.
+      stabilizationWindowSeconds: {{ .Values.analyticsWorker.autoscaling.scaleDownStabilizationWindowSeconds }}
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 180
+      selectPolicy: Min
+{{- end }}
+
+---
+{{- /* HPA for Agent Worker */ -}}
+{{- if and .Values.agentWorker.enabled .Values.agentWorker.autoscaling.enabled -}}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "datapilot.fullname" . }}-agents-hpa
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "datapilot.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker-agents
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "datapilot.fullname" . }}-worker-agents
+  minReplicas: {{ .Values.agentWorker.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.agentWorker.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.agentWorker.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.agentWorker.autoscaling.targetCPUUtilizationPercentage }}
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: {{ .Values.agentWorker.autoscaling.scaleUpStabilizationWindowSeconds }}
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+      selectPolicy: Max
+    scaleDown:
+      # Agent pipelines run 5+ min — very long stabilisation to prevent mid-pipeline eviction.
+      stabilizationWindowSeconds: {{ .Values.agentWorker.autoscaling.scaleDownStabilizationWindowSeconds }}
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 300
+      selectPolicy: Min
+{{- end }}

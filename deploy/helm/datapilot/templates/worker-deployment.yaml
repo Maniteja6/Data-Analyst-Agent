@@ -1,0 +1,114 @@
+{{- /*
+worker-deployment.yaml — generates Deployments for all three Celery worker types:
+  analytics  (analyticsWorker)
+  agents     (agentWorker)
+  reports    (reportWorker)
+*/ -}}
+
+{{- define "datapilot.worker" -}}
+{{- $worker := .worker -}}
+{{- $ctx    := .ctx -}}
+{{- if $worker.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "datapilot.fullname" $ctx }}-worker-{{ $worker.queue }}
+  namespace: {{ $ctx.Release.Namespace }}
+  labels: {{- include "datapilot.labels" $ctx | nindent 4 }}
+    app.kubernetes.io/component: worker-{{ $worker.queue }}
+spec:
+  replicas: {{ $worker.replicaCount }}
+  selector:
+    matchLabels: {{- include "datapilot.selectorLabels" $ctx | nindent 6 }}
+      app.kubernetes.io/component: worker-{{ $worker.queue }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels: {{- include "datapilot.selectorLabels" $ctx | nindent 8 }}
+        app.kubernetes.io/component: worker-{{ $worker.queue }}
+    spec:
+      serviceAccountName: {{ $ctx.Values.serviceAccount.name }}
+      terminationGracePeriodSeconds: {{ $worker.terminationGracePeriodSeconds }}
+      containers:
+        - name: worker
+          image: {{ include "datapilot.image" (dict "imageRoot" $worker.image "global" $ctx.Values.global "defaultTag" $ctx.Values.image.tag) }}
+          imagePullPolicy: {{ $ctx.Values.image.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "datapilot.fullname" $ctx }}-config
+            - secretRef:
+                name: {{ include "datapilot.fullname" $ctx }}-secrets
+          env:
+            - name: QUEUE
+              value: {{ $worker.queue | quote }}
+            - name: CONCURRENCY
+              value: {{ $worker.concurrency | toString | quote }}
+            {{- if $worker.env }}
+            {{- range $k, $v := $worker.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- end }}
+            {{- if $worker.emitColumnEvents }}
+            - name: EMIT_COLUMN_EVENTS
+              value: "true"
+            {{- end }}
+          resources: {{- toYaml $worker.resources | nindent 12 }}
+          livenessProbe:
+            exec:
+              command:
+                - celery
+                - -A
+                - backend.infrastructure.job_queue.celery_app
+                - inspect
+                - ping
+                - --destination
+                - "celery@$(HOSTNAME)"
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            timeoutSeconds: 20
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- if $worker.nodeSelector }}
+      nodeSelector: {{- toYaml $worker.nodeSelector | nindent 8 }}
+      {{- end }}
+
+---
+{{- if $worker.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "datapilot.fullname" $ctx }}-worker-{{ $worker.queue }}-pdb
+  namespace: {{ $ctx.Release.Namespace }}
+  labels: {{- include "datapilot.labels" $ctx | nindent 4 }}
+    app.kubernetes.io/component: worker-{{ $worker.queue }}
+spec:
+  minAvailable: {{ $worker.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels: {{- include "datapilot.selectorLabels" $ctx | nindent 6 }}
+      app.kubernetes.io/component: worker-{{ $worker.queue }}
+{{- end }}
+---
+{{- end }}
+{{- end }}
+
+{{- include "datapilot.worker" (dict "worker" .Values.analyticsWorker "ctx" .) }}
+{{- include "datapilot.worker" (dict "worker" .Values.agentWorker     "ctx" .) }}
+{{- include "datapilot.worker" (dict "worker" .Values.reportWorker    "ctx" .) }}

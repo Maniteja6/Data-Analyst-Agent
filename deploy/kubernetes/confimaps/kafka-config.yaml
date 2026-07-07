@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-config
+  namespace: datapilot
+  labels:
+    app.kubernetes.io/name: datapilot
+    app.kubernetes.io/component: kafka-config
+data:
+  # ── MSK connection ────────────────────────────────────────────────────────
+  # KAFKA_BOOTSTRAP_SERVERS injected from Secret (contains broker endpoints).
+  KAFKA_SECURITY_PROTOCOL: "SASL_SSL"
+  KAFKA_SASL_MECHANISM: "AWS_MSK_IAM"
+  KAFKA_SSL_CHECK_HOSTNAME: "true"
+
+  # ── Producer (KafkaEventBus) ──────────────────────────────────────────────
+  # acks=1: leader acknowledges — fast enough for domain events (not financial txns).
+  # compression_type=lz4: low CPU, good ratio — better than gzip for small messages.
+  KAFKA_PRODUCER_ACKS: "1"
+  KAFKA_PRODUCER_COMPRESSION_TYPE: "lz4"
+  KAFKA_PRODUCER_LINGER_MS: "5"         # batch for 5ms before sending — reduces requests
+  KAFKA_PRODUCER_BATCH_SIZE: "16384"    # 16KB batch — reasonable for domain event JSON
+  KAFKA_PRODUCER_MAX_IN_FLIGHT: "5"
+  KAFKA_PRODUCER_RETRIES: "3"
+  KAFKA_PRODUCER_RETRY_BACKOFF_MS: "100"
+
+  # ── Consumer (KafkaConsumer base class) ───────────────────────────────────
+  # auto_offset_reset=earliest: never miss an event after a consumer restart.
+  # enable_auto_commit=false: manual commit AFTER _handle() returns — at-least-once.
+  # max_poll_records=10: small batch so each event handler call is fast.
+  KAFKA_CONSUMER_GROUP_ID_PREFIX: "datapilot"
+  KAFKA_CONSUMER_AUTO_OFFSET_RESET: "earliest"
+  KAFKA_CONSUMER_ENABLE_AUTO_COMMIT: "false"
+  KAFKA_CONSUMER_MAX_POLL_RECORDS: "10"
+  KAFKA_CONSUMER_SESSION_TIMEOUT_MS: "30000"
+  KAFKA_CONSUMER_HEARTBEAT_INTERVAL_MS: "10000"
+  KAFKA_CONSUMER_MAX_POLL_INTERVAL_MS: "300000"  # 5min — agent pipeline can be slow
+
+  # ── Topic configuration ───────────────────────────────────────────────────
+  # 3 partitions per topic — allows 3 parallel consumers per group.
+  # replication_factor=3 for MSK production durability.
+  KAFKA_TOPIC_PARTITIONS: "3"
+  KAFKA_TOPIC_REPLICATION_FACTOR: "3"
+  KAFKA_TOPIC_RETENTION_MS: "604800000"  # 7 days
+
+  # Topic names (must match KafkaEventBus.EVENT_TOPIC_MAP)
+  KAFKA_TOPIC_DATASETS_UPLOADED: "datapilot.datasets.uploaded"
+  KAFKA_TOPIC_DATASETS_LIFECYCLE: "datapilot.datasets.lifecycle"
+  KAFKA_TOPIC_ANALYTICS_COMPLETED: "datapilot.analytics.completed"
+  KAFKA_TOPIC_INSIGHTS_GENERATED: "datapilot.insights.generated"
+  KAFKA_TOPIC_CONVERSATIONS_MESSAGES: "datapilot.conversations.messages"
+  KAFKA_TOPIC_CONVERSATIONS_LIFECYCLE: "datapilot.conversations.lifecycle"
