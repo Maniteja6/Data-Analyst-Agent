@@ -23,9 +23,8 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import structlog
-
-from backend.agents.base.base_agent import BaseAgent
 from backend.agents.base.agent_context import AgentContext
+from backend.agents.base.base_agent import BaseAgent
 from backend.analytics_engine.profiling.data_profiler import DataProfiler
 
 logger = structlog.get_logger(__name__)
@@ -73,7 +72,7 @@ class ProfilingAgent(BaseAgent):
         loop = asyncio.get_event_loop()
         columns_done = [0]
 
-        def column_done_callback(col_name: str, col_profile) -> None:
+        def column_done_callback(col_name: str, col_profile: Any) -> None:
             """Called from the profiling thread after each column completes."""
             columns_done[0] += 1
             progress = 21 + int((columns_done[0] / col_count) * 10)   # 21% → 31%

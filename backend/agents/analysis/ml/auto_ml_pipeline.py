@@ -50,9 +50,9 @@ async def run_automl(
 def _run_automl_sync(df, target_col: str, schema: dict) -> dict:
     """Synchronous AutoML — runs in thread pool."""
     try:
-        from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
-        from sklearn.model_selection import cross_val_score
         import numpy as np
+        from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+        from sklearn.model_selection import cross_val_score
     except ImportError:
         return {"error": "scikit-learn not installed. Run: pip install scikit-learn"}
 
@@ -82,7 +82,7 @@ def _run_automl_sync(df, target_col: str, schema: dict) -> dict:
     if feature_df.empty or len(feature_df.columns) == 0:
         return {"error": "No usable features could be engineered from this dataset"}
 
-    X = feature_df.to_numpy()
+    x_data = feature_df.to_numpy()
 
     # Auto-detect task type
     n_unique = len(np.unique(y))
@@ -96,8 +96,8 @@ def _run_automl_sync(df, target_col: str, schema: dict) -> dict:
         scoring  = "r2"
 
     try:
-        scores = cross_val_score(model, X, y, cv=CV_FOLDS, scoring=scoring)
-        model.fit(X, y)
+        scores = cross_val_score(model, x_data, y, cv=CV_FOLDS, scoring=scoring)
+        model.fit(x_data, y)
         importances = dict(zip(
             feature_df.columns,
             model.feature_importances_.tolist(),

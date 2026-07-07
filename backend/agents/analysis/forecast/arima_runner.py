@@ -17,7 +17,7 @@ logger = structlog.get_logger(__name__)
 
 
 async def run_arima(
-    df,
+    df: Any,
     date_col: str,
     target_col: str,
     horizon: int = 30,
@@ -46,8 +46,8 @@ async def run_arima(
 
 
 def _run_arima_sync(
-    df, date_col: str, target_col: str, horizon: int, season_length: int
-) -> dict:
+    df: Any, date_col: str, target_col: str, horizon: int, season_length: int
+) -> dict[str, Any]:
     """Synchronous ARIMA fitting — called in a thread pool executor."""
     try:
         from statsforecast import StatsForecast

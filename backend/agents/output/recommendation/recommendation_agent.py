@@ -21,9 +21,8 @@ import re
 from typing import Any
 
 import structlog
-
-from backend.agents.base.base_agent import BaseAgent
 from backend.agents.base.agent_context import AgentContext
+from backend.agents.base.base_agent import BaseAgent
 from backend.agents.output.recommendation.impact_estimator import ImpactEstimator
 from backend.infrastructure.llm.model_id_registry import get_model_id
 
@@ -43,7 +42,7 @@ class RecommendationAgent(BaseAgent):
         llm_client: Claude Sonnet client for recommendation generation.
     """
 
-    def __init__(self, llm_client=None) -> None:
+    def __init__(self, llm_client: Any = None) -> None:
         super().__init__("recommendation")
         self._llm       = llm_client
         self._estimator = ImpactEstimator()
@@ -95,9 +94,9 @@ class RecommendationAgent(BaseAgent):
         )
 
         # Sort by priority: high → medium → low
-        _PRIORITY_ORDER = {"high": 0, "medium": 1, "low": 2}
+        priority_order = {"high": 0, "medium": 1, "low": 2}
         recommendations.sort(
-            key=lambda r: _PRIORITY_ORDER.get(r.get("priority", "low"), 2)
+             key=lambda r: priority_order.get(r.get("priority", "low"), 2)
         )
 
         # Emit each recommendation progressively
@@ -194,7 +193,7 @@ class RecommendationAgent(BaseAgent):
     def _parse_response(raw: str) -> list[dict]:
         text = raw.strip()
         if text.startswith("```"):
-            text = "\n".join(l for l in text.splitlines() if not l.startswith("```")).strip()
+             text = "\n".join(line for line in text.splitlines() if not line.startswith("`""`")).strip()
         try:
             data = json.loads(text)
             if isinstance(data, list):

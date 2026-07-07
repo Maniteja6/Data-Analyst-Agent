@@ -28,9 +28,8 @@ from enum import Enum
 from typing import Any
 
 import structlog
-
-from backend.agents.quality.security.injection_classifier import classify, InjectionResult
-from backend.agents.quality.security.pii_detector import detect_pii_sync, PIIResult
+from backend.agents.quality.security.injection_classifier import InjectionResult, classify
+from backend.agents.quality.security.pii_detector import PIIResult, detect_pii_sync
 
 logger = structlog.get_logger(__name__)
 

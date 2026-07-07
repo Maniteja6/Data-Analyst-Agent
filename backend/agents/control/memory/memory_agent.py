@@ -16,9 +16,8 @@ from __future__ import annotations
 from typing import Any
 
 import structlog
-
-from backend.agents.base.base_agent import BaseAgent
 from backend.agents.base.agent_context import AgentContext
+from backend.agents.base.base_agent import BaseAgent
 from backend.agents.control.memory.conversation_compressor import ConversationCompressor
 from backend.agents.control.memory.episodic_store import EpisodicStore
 
@@ -33,7 +32,7 @@ class MemoryAgent(BaseAgent):
         redis_client: Cache adapter for episodic storage (can be None in tests).
     """
 
-    def __init__(self, llm_client=None, redis_client=None) -> None:
+    def __init__(self, llm_client: Any = None, redis_client: Any = None) -> None:
         super().__init__("memory")
         self._compressor = ConversationCompressor(llm_client)
         self._store      = EpisodicStore(redis_client)

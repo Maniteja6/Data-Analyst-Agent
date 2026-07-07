@@ -46,7 +46,7 @@ async def run_prophet(
         return {"error": str(exc), "model": "Prophet", "predictions": []}
 
 
-def _run_prophet_sync(df, date_col: str, target_col: str, horizon: int) -> dict:
+def _run_prophet_sync(df: Any, date_col: str, target_col: str, horizon: int) -> dict[str, Any]:
     """Synchronous Prophet fitting — called in a thread pool executor."""
     try:
         from prophet import Prophet

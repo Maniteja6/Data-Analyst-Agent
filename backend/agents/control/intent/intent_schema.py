@@ -6,6 +6,7 @@ to invoke SQLAgent, ForecastAgent, RAGAgent, or return a direct answer.
 from __future__ import annotations
 
 from enum import Enum
+
 from pydantic import BaseModel, Field
 
 
@@ -50,7 +51,7 @@ class IntentClassification(BaseModel):
     search_query: str = ""
 
     @classmethod
-    def fallback(cls) -> "IntentClassification":
+    def fallback(cls) -> IntentClassification:
         """Return a safe fallback classification when the LLM fails."""
         return cls(
             intent=Intent.GENERAL_QUESTION,

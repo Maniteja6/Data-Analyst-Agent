@@ -24,7 +24,6 @@ Reference:
 from __future__ import annotations
 
 import structlog
-
 from backend.infrastructure.llm.model_id_registry import get_model_id
 
 logger = structlog.get_logger(__name__)

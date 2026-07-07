@@ -56,7 +56,7 @@ async def execute_query(
             timeout=timeout,
         )
         return result
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.error(
             "duckdb_timeout",
             timeout=timeout,

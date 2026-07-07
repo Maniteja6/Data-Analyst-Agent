@@ -12,7 +12,6 @@ Real-time integration:
 from __future__ import annotations
 
 import structlog
-
 from backend.agents.base.agent_context import AgentContext
 from backend.agents.base.agent_result import AgentResult
 

@@ -21,9 +21,8 @@ import json
 from typing import Any
 
 import structlog
-
-from backend.agents.base.base_agent import BaseAgent
 from backend.agents.base.agent_context import AgentContext
+from backend.agents.base.base_agent import BaseAgent
 from backend.agents.control.intent.intent_schema import (
     Intent,
     IntentClassification,
@@ -39,10 +38,22 @@ _SYSTEM = (
 )
 
 # Keyword-based pre-classifier to save LLM calls for obvious intents
-_SQL_KEYWORDS    = frozenset({"total", "sum", "average", "avg", "count", "group", "top", "filter", "where", "how many"})
-_FORECAST_WORDS  = frozenset({"forecast", "predict", "future", "trend", "next month", "next quarter", "projection"})
-_VIZ_WORDS       = frozenset({"chart", "graph", "plot", "visualise", "visualize", "show me a", "pie", "bar chart"})
-_ANOMALY_WORDS   = frozenset({"anomaly", "outlier", "unusual", "spike", "drop", "strange", "weird", "wrong"})
+_SQL_KEYWORDS = frozenset({
+    "total", "sum", "average", "avg", "count", "group", "top", "filter", "where",
+    "how many",
+})
+_FORECAST_WORDS = frozenset({
+    "forecast", "predict", "future", "trend", "next month", "next quarter",
+    "projection",
+})
+_VIZ_WORDS = frozenset({
+    "chart", "graph", "plot", "visualise", "visualize", "show me a", "pie",
+    "bar chart",
+})
+_ANOMALY_WORDS = frozenset({
+    "anomaly", "outlier", "unusual", "spike", "drop", "strange", "weird",
+    "wrong",
+})
 
 
 class IntentAgent(BaseAgent):
@@ -54,7 +65,7 @@ class IntentAgent(BaseAgent):
                        the LLM call for unambiguous intents.
     """
 
-    def __init__(self, llm_client, use_fast_path: bool = True) -> None:
+    def __init__(self, llm_client: Any, use_fast_path: bool = True) -> None:
         super().__init__("intent")
         self._llm       = llm_client
         self._fast_path = use_fast_path
@@ -165,8 +176,8 @@ Return ONLY valid JSON:
         """Parse LLM response, stripping any accidental markdown fences."""
         text = raw.strip()
         if text.startswith("```"):
-            lines = [l for l in text.splitlines() if not l.startswith("```")]
-            text  = "\n".join(lines).strip()
+            lines = [line for line in text.splitlines() if not line.startswith("```")]
+            text = "\n".join(lines).strip()
         return json.loads(text)
 
     @staticmethod

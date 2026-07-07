@@ -19,12 +19,10 @@ Progress mapping:
 from __future__ import annotations
 
 import asyncio
-from typing import Any
 
 import structlog
-
 from backend.agents.base.agent_context import AgentContext
-from backend.agents.base.agent_result  import AgentResult
+from backend.agents.base.agent_result import AgentResult
 from backend.agents.control.planner.plan_schema import ExecutionPlan, TaskNode
 
 logger = structlog.get_logger(__name__)

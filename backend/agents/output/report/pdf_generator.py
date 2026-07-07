@@ -29,9 +29,9 @@ logger = structlog.get_logger(__name__)
 
 
 async def export_to_pdf(
-    report: dict,
+    report: dict[str, Any],
     dataset_name: str = "Dataset",
-    sio=None,
+    sio: Any = None,
     dataset_id: str = "",
 ) -> bytes:
     """Generate a PDF from an InsightReport dict.
@@ -84,19 +84,24 @@ def _render_pdf(
     return _render_text_fallback(report, dataset_name)
 
 
-def _render_reportlab(report: dict, dataset_name: str, emit_fn) -> bytes:
+def _render_reportlab(report: dict[str, Any], dataset_name: str, emit_fn: Any) -> bytes:
     """Render using reportlab (pure Python PDF library)."""
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import cm
     from reportlab.platypus import (
-        HRFlowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
+        HRFlowable,
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
     )
 
-    VIOLET = colors.HexColor("#5B4FE8")
-    NAVY   = colors.HexColor("#1A1A3E")
-    LIGHT  = colors.HexColor("#F5F4F1")
+    violet = colors.HexColor("#5B4FE8")
+    navy = colors.HexColor("#1A1A3E")
+    light = colors.HexColor("#F5F4F1")
 
     buffer = io.BytesIO()
     doc    = SimpleDocTemplate(
@@ -112,9 +117,9 @@ def _render_reportlab(report: dict, dataset_name: str, emit_fn) -> bytes:
 
     # ── Styles ────────────────────────────────────────────────────────────
     h1 = ParagraphStyle("H1", parent=styles["Heading1"],
-                         textColor=NAVY, fontSize=22, spaceAfter=12)
+                         textColor=navy, fontSize=22, spaceAfter=12)
     h2 = ParagraphStyle("H2", parent=styles["Heading2"],
-                         textColor=VIOLET, fontSize=14, spaceAfter=8)
+                         textColor=violet, fontSize=14, spaceAfter=8)
     body = ParagraphStyle("Body", parent=styles["Normal"],
                           fontSize=10, leading=14, spaceAfter=6)
 
@@ -123,7 +128,7 @@ def _render_reportlab(report: dict, dataset_name: str, emit_fn) -> bytes:
         Spacer(1, 3*cm),
         Paragraph("DataPilot Analysis Report", h1),
         Paragraph(dataset_name, ParagraphStyle(
-            "Subtitle", parent=h1, fontSize=16, textColor=VIOLET
+            "Subtitle", parent=h1, fontSize=16, textColor=violet
         )),
         Spacer(1, 1*cm),
         Paragraph(
@@ -132,7 +137,7 @@ def _render_reportlab(report: dict, dataset_name: str, emit_fn) -> bytes:
             f"Anomalies: {len(report.get('anomaly_alerts', []))}",
             body
         ),
-        HRFlowable(width="100%", color=VIOLET, thickness=2),
+        HRFlowable(width="100%", color=violet, thickness=2),
         Spacer(1, 2*cm),
     ]
     emit_fn(1, "Cover")
@@ -215,7 +220,7 @@ def _render_reportlab(report: dict, dataset_name: str, emit_fn) -> bytes:
 def _render_text_fallback(report: dict, dataset_name: str) -> bytes:
     """Minimal text-based PDF fallback when reportlab is not installed."""
     lines = [
-        f"DATAPILOT ANALYSIS REPORT",
+        "DATAPILOT ANALYSIS REPORT",
         f"Dataset: {dataset_name}",
         f"Generated: {datetime.utcnow().isoformat()}",
         "",

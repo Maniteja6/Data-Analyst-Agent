@@ -13,8 +13,8 @@ Compression strategy:
 """
 from __future__ import annotations
 
+from alembic.environment import Any
 import structlog
-
 from backend.infrastructure.llm.model_id_registry import get_model_id
 
 logger = structlog.get_logger(__name__)
@@ -32,7 +32,7 @@ class ConversationCompressor:
                     When None, a placeholder summary is used (for tests).
     """
 
-    def __init__(self, llm_client=None) -> None:
+    def __init__(self, llm_client: Any = None) -> None:
         self._llm = llm_client
 
     def needs_compression(self, messages: list[dict]) -> bool:

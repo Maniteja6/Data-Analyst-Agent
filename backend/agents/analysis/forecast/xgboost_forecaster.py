@@ -25,7 +25,7 @@ LAG_DAYS = [1, 7, 14, 21]
 
 
 async def run_xgboost(
-    df,
+    df: Any,
     date_col: str,
     target_col: str,
     horizon: int = 30,
@@ -65,7 +65,6 @@ def _run_xgboost_sync(
         }
 
     import pandas as pd
-    import numpy as np
 
     # Convert to pandas and sort by date
     try:
@@ -93,7 +92,7 @@ def _run_xgboost_sync(
     pdf["month"]       = pdf["ds"].dt.month
 
     pdf = pdf.dropna().reset_index(drop=True)
-    feature_cols = [f"lag_{l}" for l in LAG_DAYS] + ["day_of_week", "month"]
+    feature_cols = [f"lag_{lag}" for lag in LAG_DAYS] + ["day_of_week", "month"]
 
     model = XGBRegressor(
         n_estimators=100,
@@ -115,8 +114,8 @@ def _run_xgboost_sync(
     for step in range(horizon):
         next_date  = last_date + pd.Timedelta(days=step + 1)
         row = {
-            f"lag_{l}": last_values[-(l)] if l <= len(last_values) else 0
-            for l in LAG_DAYS
+            f"lag_{lag}": last_values[-(lag)] if lag <= len(last_values) else 0
+            for lag in LAG_DAYS
         }
         row["day_of_week"] = next_date.dayofweek
         row["month"]       = next_date.month

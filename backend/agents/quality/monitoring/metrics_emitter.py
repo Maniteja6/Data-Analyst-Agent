@@ -19,7 +19,6 @@ Real-time design:
 from __future__ import annotations
 
 import structlog
-
 from backend.agents.base.agent_result import AgentResult
 
 logger = structlog.get_logger(__name__)
@@ -129,7 +128,7 @@ class MetricsEmitter:
     def _load_prometheus(self) -> dict | None:
         """Return a dict of Prometheus metric objects, or None if unavailable."""
         try:
-            from prometheus_client import Counter, Histogram, Gauge
+            from prometheus_client import Counter, Gauge, Histogram
 
             ns = self._ns
             return {

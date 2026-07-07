@@ -12,7 +12,7 @@ Real-time integration:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 # Bedrock pricing (USD per 1M tokens) used for cost estimation
@@ -51,7 +51,7 @@ class AgentResult:
     model_id:     str                  = ""
     metadata:     dict[str, Any]       = field(default_factory=dict)
     created_at:   datetime             = field(
-        default_factory=lambda: datetime.now(timezone.utc)
+        default_factory=lambda: datetime.now(UTC)
     )
 
     # ── Cost estimation ───────────────────────────────────────────────────
@@ -79,7 +79,7 @@ class AgentResult:
         token_input: int = 0,
         token_output: int = 0,
         model_id: str = "",
-    ) -> "AgentResult":
+    ) -> AgentResult:
         """Factory for successful results."""
         return cls(
             agent_name=agent_name,
@@ -97,7 +97,7 @@ class AgentResult:
         agent_name: str,
         error: str,
         duration_ms: int = 0,
-    ) -> "AgentResult":
+    ) -> AgentResult:
         """Factory for failed results."""
         return cls(
             agent_name=agent_name,

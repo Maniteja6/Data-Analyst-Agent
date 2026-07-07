@@ -25,15 +25,13 @@ import time
 from typing import Any
 
 import structlog
-
-from backend.agents.base.base_agent import BaseAgent
 from backend.agents.base.agent_context import AgentContext
+from backend.agents.base.base_agent import BaseAgent
+from backend.agents.data.schema.semantic_classifier import SemanticClassifier
 from backend.agents.data.schema.type_inferencer import (
     TypeInference,
     infer_all_columns,
-    infer_column,
 )
-from backend.agents.data.schema.semantic_classifier import SemanticClassifier
 
 logger = structlog.get_logger(__name__)
 

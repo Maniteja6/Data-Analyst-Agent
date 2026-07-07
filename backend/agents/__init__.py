@@ -89,13 +89,13 @@ __all__ = [
 
 
 def build_agent_registry(
-    llm_client=None,
-    stream_client=None,
-    storage=None,
-    embed_service=None,
-    qdrant=None,
-    redis_client=None,
-    sio=None,
+    llm_client: Any = None,
+    stream_client: Any = None,
+    storage: Any = None,
+    embed_service: Any = None,
+    qdrant: Any = None,
+    redis_client: Any = None,
+    sio: Any = None,
 ) -> dict[str, Any]:
     """Build the complete agent registry for OrchestratorAgent / DAGExecutor.
 
@@ -123,33 +123,33 @@ def build_agent_registry(
         Keys match AgentName enum values in plan_schema.py.
     """
     # ── Control agents ────────────────────────────────────────────────────
-    from backend.agents.control.intent.intent_agent          import IntentAgent
-    from backend.agents.control.memory.memory_agent          import MemoryAgent
-    from backend.agents.control.orchestrator.orchestrator_agent import OrchestratorAgent
-    from backend.agents.control.planner.planner_agent        import PlannerAgent
-
-    # ── Data agents ───────────────────────────────────────────────────────
-    from backend.agents.data.schema.schema_agent    import SchemaAgent
-    from backend.agents.data.profiling.profiling_agent import ProfilingAgent
-    from backend.agents.data.rag.rag_agent          import RAGAgent
+    from backend.agents.analysis.forecast.forecast_agent import ForecastAgent
+    from backend.agents.analysis.ml.ml_agent import MLAgent
+    from backend.agents.analysis.python.python_agent import PythonAgent
 
     # ── Analysis agents ───────────────────────────────────────────────────
-    from backend.agents.analysis.sql.sql_agent               import SQLAgent
-    from backend.agents.analysis.python.python_agent         import PythonAgent
-    from backend.agents.analysis.forecast.forecast_agent     import ForecastAgent
-    from backend.agents.analysis.ml.ml_agent                 import MLAgent
+    from backend.agents.analysis.sql.sql_agent import SQLAgent
     from backend.agents.analysis.visualization.visualization_agent import VisualizationAgent
+    from backend.agents.control.intent.intent_agent import IntentAgent
+    from backend.agents.control.memory.memory_agent import MemoryAgent
+    from backend.agents.control.orchestrator.orchestrator_agent import OrchestratorAgent
+    from backend.agents.control.planner.planner_agent import PlannerAgent
+    from backend.agents.data.profiling.profiling_agent import ProfilingAgent
+    from backend.agents.data.rag.rag_agent import RAGAgent
+
+    # ── Data agents ───────────────────────────────────────────────────────
+    from backend.agents.data.schema.schema_agent import SchemaAgent
 
     # ── Output agents ─────────────────────────────────────────────────────
-    from backend.agents.output.insight.insight_agent             import InsightAgent
+    from backend.agents.output.insight.insight_agent import InsightAgent
     from backend.agents.output.recommendation.recommendation_agent import RecommendationAgent
-    from backend.agents.output.report.report_agent               import ReportAgent
+    from backend.agents.output.report.report_agent import ReportAgent
 
     # ── Quality agents ────────────────────────────────────────────────────
-    from backend.agents.quality.critic.critic_agent           import CriticAgent
-    from backend.agents.quality.security.security_agent       import SecurityAgent
-    from backend.agents.quality.validation.validation_agent   import ValidationAgent
-    from backend.agents.quality.monitoring.monitoring_agent   import MonitoringAgent
+    from backend.agents.quality.critic.critic_agent import CriticAgent
+    from backend.agents.quality.monitoring.monitoring_agent import MonitoringAgent
+    from backend.agents.quality.security.security_agent import SecurityAgent
+    from backend.agents.quality.validation.validation_agent import ValidationAgent
 
     registry = {
         # ── Control ───────────────────────────────────────────────────────
@@ -196,7 +196,7 @@ def build_agent_registry(
     return registry
 
 
-def get_agent(name: str, registry: dict[str, Any]):
+def get_agent(name: str, registry: dict[str, Any]) -> Any:
     """Retrieve an agent from a registry by name.
 
     Args:

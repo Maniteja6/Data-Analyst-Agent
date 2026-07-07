@@ -16,10 +16,9 @@ from __future__ import annotations
 from typing import Any
 
 import structlog
-
-from backend.agents.base.base_agent import BaseAgent
 from backend.agents.base.agent_context import AgentContext
-from backend.agents.control.orchestrator.dag_executor     import DAGExecutor
+from backend.agents.base.base_agent import BaseAgent
+from backend.agents.control.orchestrator.dag_executor import DAGExecutor
 from backend.agents.control.orchestrator.result_aggregator import ResultAggregator
 
 logger = structlog.get_logger(__name__)

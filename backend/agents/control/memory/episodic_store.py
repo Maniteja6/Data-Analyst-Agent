@@ -25,8 +25,7 @@ Usage::
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
 
 import structlog
 
@@ -45,7 +44,7 @@ class EpisodicStore:
                       Accepts InMemoryCacheAdapter in tests.
     """
 
-    def __init__(self, redis_client=None) -> None:
+    def __init__(self, redis_client: Any = None) -> None:
         self._redis = redis_client
 
     # ── Message buffer ────────────────────────────────────────────────────
@@ -140,7 +139,7 @@ class EpisodicStore:
         ttl: int = META_TTL,
     ) -> None:
         """Persist session metadata (dataset_id, started_at, etc.)."""
-        meta.setdefault("updated_at", datetime.now(timezone.utc).isoformat())
+        meta.setdefault("updated_at", datetime.now(UTC).isoformat())
         await self._set(
             f"{_KEY_PREFIX}:{conversation_id}:meta",
             json.dumps(meta, default=str),
@@ -164,7 +163,7 @@ class EpisodicStore:
             conversation_id,
             {
                 "dataset_id":    dataset_id,
-                "started_at":    datetime.now(timezone.utc).isoformat(),
+                "started_at":    datetime.now(UTC).isoformat(),
                 "message_count": 0,
             },
         )

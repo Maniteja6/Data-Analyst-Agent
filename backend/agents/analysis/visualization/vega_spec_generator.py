@@ -10,6 +10,7 @@ Design decisions:
 - ``tooltip: [{"type": "quantitative"}, ...]`` gives hover detail by default
 """
 from __future__ import annotations
+
 from typing import Any
 
 BRAND_COLOUR = "#5B4FE8"

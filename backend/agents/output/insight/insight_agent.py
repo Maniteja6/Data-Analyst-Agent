@@ -29,9 +29,8 @@ import re
 from typing import Any
 
 import structlog
-
-from backend.agents.base.base_agent import BaseAgent
 from backend.agents.base.agent_context import AgentContext
+from backend.agents.base.base_agent import BaseAgent
 from backend.agents.output.insight.narrative_generator import NarrativeGenerator
 from backend.infrastructure.llm.model_id_registry import get_model_id
 
@@ -53,7 +52,7 @@ class InsightAgent(BaseAgent):
         stream_client: BedrockStreamAdapter for executive summary streaming.
     """
 
-    def __init__(self, llm_client=None, stream_client=None) -> None:
+    def __init__(self, llm_client: Any = None, stream_client: Any = None) -> None:
         super().__init__("insight")
         self._llm    = llm_client
         self._stream = stream_client
@@ -385,7 +384,7 @@ class InsightAgent(BaseAgent):
     def _parse_insights(raw: str) -> list[dict]:
         text = raw.strip()
         if text.startswith("```"):
-            text = "\n".join(l for l in text.splitlines() if not l.startswith("```")).strip()
+             text = "\n".join(line for line in text.splitlines() if not line.startswith("`""`")).strip()
         try:
             data = json.loads(text)
             if isinstance(data, list):

@@ -16,11 +16,10 @@ from __future__ import annotations
 from typing import Any
 
 import structlog
-
-from backend.agents.base.base_agent import BaseAgent
-from backend.agents.base.agent_context import AgentContext
 from backend.agents.analysis.ml.auto_ml_pipeline import run_automl
 from backend.agents.analysis.ml.model_registry import log_model
+from backend.agents.base.agent_context import AgentContext
+from backend.agents.base.base_agent import BaseAgent
 
 logger = structlog.get_logger(__name__)
 
@@ -30,7 +29,7 @@ MAX_ROWS = 50_000
 class MLAgent(BaseAgent):
     """Runs scikit-learn AutoML and returns structured results + narrative."""
 
-    def __init__(self, llm_client=None) -> None:
+    def __init__(self, llm_client: Any = None) -> None:
         super().__init__("ml")
         self._llm = llm_client
 

@@ -15,12 +15,11 @@ from __future__ import annotations
 from typing import Any
 
 import structlog
-
-from backend.agents.base.base_agent import BaseAgent
-from backend.agents.base.agent_context import AgentContext
 from backend.agents.analysis.python.code_generator import generate_code
-from backend.agents.analysis.python.sandboxed_executor import execute_code
 from backend.agents.analysis.python.output_parser import parse_output, to_markdown
+from backend.agents.analysis.python.sandboxed_executor import execute_code
+from backend.agents.base.agent_context import AgentContext
+from backend.agents.base.base_agent import BaseAgent
 
 logger = structlog.get_logger(__name__)
 
@@ -34,7 +33,7 @@ class PythonAgent(BaseAgent):
 
     SANDBOX_TIMEOUT = 60
 
-    def __init__(self, llm_client) -> None:
+    def __init__(self, llm_client: Any) -> None:
         super().__init__("python")
         self._llm = llm_client
 

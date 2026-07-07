@@ -12,10 +12,10 @@ from __future__ import annotations
 import asyncio
 import time
 from abc import ABC, abstractmethod
-from typing import Any, AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import Any
 
 import structlog
-
 from backend.agents.base.agent_context import AgentContext
 from backend.agents.base.agent_result import AgentResult
 from backend.shared.exceptions import AgentException

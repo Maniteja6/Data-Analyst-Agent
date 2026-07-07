@@ -12,21 +12,20 @@ from __future__ import annotations
 from typing import Any
 
 import structlog
-
-from backend.agents.base.base_agent import BaseAgent
-from backend.agents.base.agent_context import AgentContext
 from backend.agents.analysis.visualization.chart_type_selector import (
-    select_chart_type,
+    CAT_TYPES,
     DATE_TYPES,
     NUMERIC_TYPES,
-    CAT_TYPES,
+    select_chart_type,
 )
 from backend.agents.analysis.visualization.vega_spec_generator import (
-    build_line_spec,
     build_bar_spec,
-    build_scatter_spec,
     build_histogram_spec,
+    build_line_spec,
+    build_scatter_spec,
 )
+from backend.agents.base.agent_context import AgentContext
+from backend.agents.base.base_agent import BaseAgent
 
 logger = structlog.get_logger(__name__)
 
@@ -40,7 +39,7 @@ class VisualizationAgent(BaseAgent):
 
     MAX_DATA_POINTS = 500   # cap data sent to the frontend
 
-    def __init__(self, llm_client=None) -> None:
+    def __init__(self, llm_client: Any = None) -> None:
         super().__init__("visualization")
         self._llm = llm_client
 

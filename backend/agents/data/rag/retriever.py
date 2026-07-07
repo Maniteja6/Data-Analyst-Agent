@@ -40,12 +40,14 @@ class Retriever:
         embed_service: BedrockEmbeddingService instance.
     """
 
-    def __init__(self, qdrant=None, embed_service=None) -> None:
+    def __init__(self, qdrant: Any = None, embed_service: Any = None) -> None:
         if qdrant is None:
             from backend.infrastructure.vector_store.qdrant_adapter import QdrantAdapter
             qdrant = QdrantAdapter()
         if embed_service is None:
-            from backend.infrastructure.vector_store.bedrock_embedding_service import BedrockEmbeddingService
+            from backend.infrastructure.vector_store.bedrock_embedding_service import (
+                BedrockEmbeddingService,
+            )
             embed_service = BedrockEmbeddingService()
 
         self._qdrant = qdrant

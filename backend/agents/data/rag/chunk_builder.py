@@ -23,7 +23,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import structlog
-
 from backend.shared.utils.uuid_factory import new_uuid
 
 logger = structlog.get_logger(__name__)

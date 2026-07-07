@@ -19,10 +19,8 @@ Batching:
 from __future__ import annotations
 
 import json
-from typing import Any
 
 import structlog
-
 from backend.agents.data.schema.type_inferencer import TypeInference
 from backend.infrastructure.llm.model_id_registry import get_model_id
 
@@ -170,7 +168,7 @@ class SemanticClassifier:
         """Parse the LLM batch response into a column → type dict."""
         text = raw.strip()
         if text.startswith("```"):
-            text = "\n".join(l for l in text.splitlines() if not l.startswith("```")).strip()
+             text = "\n".join(line for line in text.splitlines() if not line.startswith("`""`")).strip()
 
         # Build fallback using current (pre-LLM) types
         fallback = {inf.column_name: inf.semantic_type for inf in inferences}

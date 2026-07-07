@@ -31,12 +31,11 @@ import asyncio
 from typing import Any
 
 import structlog
-
-from backend.agents.base.base_agent import BaseAgent
 from backend.agents.base.agent_context import AgentContext
+from backend.agents.base.base_agent import BaseAgent
 from backend.agents.data.rag.chunk_builder import ChunkBuilder, DataChunk
-from backend.agents.data.rag.hyde_expander  import HyDEExpander
-from backend.agents.data.rag.retriever       import Retriever
+from backend.agents.data.rag.hyde_expander import HyDEExpander
+from backend.agents.data.rag.retriever import Retriever
 
 logger = structlog.get_logger(__name__)
 
@@ -54,9 +53,9 @@ class RAGAgent(BaseAgent):
 
     def __init__(
         self,
-        llm_client=None,
-        embed_service=None,
-        qdrant=None,
+        llm_client: Any = None,
+        embed_service: Any = None,
+        qdrant: Any = None,
     ) -> None:
         super().__init__("rag")
         self._builder  = ChunkBuilder()
@@ -260,7 +259,9 @@ class RAGAgent(BaseAgent):
 
     async def _get_embed(self):
         if self._embed is None:
-            from backend.infrastructure.vector_store.bedrock_embedding_service import BedrockEmbeddingService
+            from backend.infrastructure.vector_store.bedrock_embedding_service import (
+                BedrockEmbeddingService,
+            )
             self._embed = BedrockEmbeddingService()
         return self._embed
 

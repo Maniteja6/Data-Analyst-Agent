@@ -7,13 +7,12 @@ showing which agents are pending, running, succeeded, or failed.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
-
 from backend.shared.utils.uuid_factory import new_uuid
+from pydantic import BaseModel, Field
 
 
 class AgentName(str, Enum):
@@ -67,16 +66,16 @@ class TaskNode(BaseModel):
 
     def mark_running(self) -> None:
         self.status     = TaskStatus.RUNNING
-        self.started_at = datetime.now(timezone.utc)
+        self.started_at = datetime.now(UTC)
 
     def mark_succeeded(self) -> None:
         self.status      = TaskStatus.SUCCEEDED
-        self.finished_at = datetime.now(timezone.utc)
+        self.finished_at = datetime.now(UTC)
 
     def mark_failed(self, error: str) -> None:
         self.status      = TaskStatus.FAILED
         self.error       = error
-        self.finished_at = datetime.now(timezone.utc)
+        self.finished_at = datetime.now(UTC)
 
     def mark_skipped(self) -> None:
         self.status = TaskStatus.SKIPPED
@@ -99,7 +98,7 @@ class ExecutionPlan(BaseModel):
     estimated_duration_seconds: int        = 30
     status:                     PlanStatus = PlanStatus.DRAFT
     created_at:                 datetime   = Field(
-        default_factory=lambda: datetime.now(timezone.utc)
+        default_factory=lambda: datetime.now(UTC)
     )
 
     # ── DAG traversal ─────────────────────────────────────────────────────
@@ -187,7 +186,7 @@ class ExecutionPlan(BaseModel):
         dataset_id:   str = "",
         has_datetime: bool = False,
         numeric_cols: int  = 0,
-    ) -> "ExecutionPlan":
+    ) -> ExecutionPlan:
         """Build a sensible default plan without calling the LLM.
 
         Used as the fallback when PlannerAgent fails to parse the LLM response.

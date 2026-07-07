@@ -17,7 +17,7 @@ WebSocket integration:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 
@@ -146,7 +146,7 @@ class AgentContext:
                 "progress":     progress,
                 "message":      message,
                 "step":         step,
-                "timestamp":    datetime.now(timezone.utc).isoformat(),
+                "timestamp":    datetime.now(UTC).isoformat(),
                 **(extra or {}),
             }
             await self._sio.emit(

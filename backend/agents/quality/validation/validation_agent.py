@@ -24,14 +24,12 @@ from __future__ import annotations
 from typing import Any
 
 import structlog
-
-from backend.agents.base.base_agent import BaseAgent
 from backend.agents.base.agent_context import AgentContext
+from backend.agents.base.base_agent import BaseAgent
+from backend.agents.quality.validation.bias_detector import bias_score, detect_bias
 from backend.agents.quality.validation.statistical_validator import (
     StatisticalValidator,
-    ValidationFailure,
 )
-from backend.agents.quality.validation.bias_detector import detect_bias, bias_score
 
 logger = structlog.get_logger(__name__)
 

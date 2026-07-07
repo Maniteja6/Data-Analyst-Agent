@@ -17,16 +17,14 @@ Retry strategy:
 """
 from __future__ import annotations
 
-import json
 from typing import Any
 
 import structlog
-
-from backend.agents.base.base_agent import BaseAgent
-from backend.agents.base.agent_context import AgentContext
-from backend.agents.analysis.sql.sql_generator import generate_sql
-from backend.agents.analysis.sql.sql_validator import validate, SQLValidationError
 from backend.agents.analysis.sql.duckdb_executor import execute_query
+from backend.agents.analysis.sql.sql_generator import generate_sql
+from backend.agents.analysis.sql.sql_validator import SQLValidationError, validate
+from backend.agents.base.agent_context import AgentContext
+from backend.agents.base.base_agent import BaseAgent
 from backend.analytics_engine.sql_engine.result_formatter import ResultFormatter
 
 logger = structlog.get_logger(__name__)
@@ -38,7 +36,7 @@ class SQLAgent(BaseAgent):
     ROW_LIMIT = 10_000
     TIMEOUT   = 30
 
-    def __init__(self, llm_client) -> None:
+    def __init__(self, llm_client: Any) -> None:
         super().__init__("sql")
         self._llm       = llm_client
         self._formatter = ResultFormatter()

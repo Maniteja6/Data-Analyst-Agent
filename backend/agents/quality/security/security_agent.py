@@ -31,14 +31,12 @@ from __future__ import annotations
 from typing import Any
 
 import structlog
-
-from backend.agents.base.base_agent import BaseAgent
 from backend.agents.base.agent_context import AgentContext
+from backend.agents.base.base_agent import BaseAgent
 from backend.agents.quality.security.governance_engine import (
-    GovernanceEngine,
     GovernanceDecision,
+    GovernanceEngine,
     Policy,
-    Action,
 )
 from backend.config.feature_flags import flags
 

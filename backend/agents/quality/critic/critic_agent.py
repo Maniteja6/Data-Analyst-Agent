@@ -36,9 +36,8 @@ import re
 from typing import Any
 
 import structlog
-
-from backend.agents.base.base_agent import BaseAgent
 from backend.agents.base.agent_context import AgentContext
+from backend.agents.base.base_agent import BaseAgent
 from backend.infrastructure.llm.model_id_registry import get_model_id
 
 logger = structlog.get_logger(__name__)
@@ -248,7 +247,7 @@ class CriticAgent(BaseAgent):
     def _parse_json(raw: str) -> dict | None:
         text = raw.strip()
         if text.startswith("```"):
-            text = "\n".join(l for l in text.splitlines() if not l.startswith("```")).strip()
+             text = "\n".join(line for line in text.splitlines() if not line.startswith("`""`")).strip()
         try:
             return json.loads(text)
         except json.JSONDecodeError:

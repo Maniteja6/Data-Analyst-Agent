@@ -24,8 +24,8 @@ def engineer_features(df, schema: dict, max_cat_cardinality: int = 10):
     Returns:
         Pandas DataFrame of numeric features ready for sklearn.
     """
-    import pandas as pd
     import numpy as np
+    import pandas as pd
 
     # Convert polars to pandas if needed
     try:

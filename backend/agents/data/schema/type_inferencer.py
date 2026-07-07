@@ -18,7 +18,6 @@ Coverage:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 
 @dataclass
@@ -147,18 +146,18 @@ def _infer_polars(df, col: str) -> TypeInference:
 
     # ── Numeric dispatch ──────────────────────────────────────────────────
 
-    _INT_TYPES   = (pl.Int8, pl.Int16, pl.Int32, pl.Int64,
+    int_types = (pl.Int8, pl.Int16, pl.Int32, pl.Int64,
                     pl.UInt8, pl.UInt16, pl.UInt32, pl.UInt64)
-    _FLOAT_TYPES = (pl.Float32, pl.Float64)
+    float_types = (pl.Float32, pl.Float64)
 
-    if dtype in _INT_TYPES:
+    if dtype in int_types:
         if any(kw in name for kw in _COUNT_KEYWORDS):
             return TypeInference(col, dtype_str, "numeric_count",   0.85, False, sample_vals, null_rate, unique_count)
         if any(kw in name for kw in _ID_KEYWORDS):
             return TypeInference(col, dtype_str, "identifier",      0.80, False, sample_vals, null_rate, unique_count)
         return TypeInference(col, dtype_str, "numeric_count",       0.70, False, sample_vals, null_rate, unique_count)
 
-    if dtype in _FLOAT_TYPES:
+    if dtype in float_types:
         if any(kw in name for kw in _COUNT_KEYWORDS):
             return TypeInference(col, dtype_str, "numeric_count",   0.80, False, sample_vals, null_rate, unique_count)
         return TypeInference(col, dtype_str, "numeric_measure",     0.75, False, sample_vals, null_rate, unique_count)

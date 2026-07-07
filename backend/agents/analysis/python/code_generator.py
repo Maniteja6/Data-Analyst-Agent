@@ -7,7 +7,7 @@ access or network calls inside the sandbox.
 from __future__ import annotations
 
 import structlog
-
+from typing import Any
 from backend.infrastructure.llm.model_id_registry import get_model_id
 
 logger = structlog.get_logger(__name__)
@@ -25,7 +25,7 @@ _SYSTEM = (
 )
 
 
-async def generate_code(task: str, schema: dict, llm_client) -> str:
+async def generate_code(task: str, schema: dict[str, Any], llm_client: Any) -> str:
     """Generate pandas analysis code for the given task.
 
     Args:

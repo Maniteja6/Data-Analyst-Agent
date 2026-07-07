@@ -9,6 +9,7 @@ Real-time design:
     are sent (Vega-Lite can compute display labels client-side).
 """
 from __future__ import annotations
+
 from typing import Any
 
 

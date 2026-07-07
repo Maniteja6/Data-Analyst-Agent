@@ -103,7 +103,7 @@ async def execute_code(
         stdout, stderr = await asyncio.wait_for(
             proc.communicate(), timeout=timeout
         )
-    except asyncio.TimeoutError:
+    except TimeoutError:
         proc.kill()
         await proc.wait()
         logger.warning("python_sandbox_timeout", timeout=timeout)

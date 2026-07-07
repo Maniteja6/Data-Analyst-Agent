@@ -33,8 +33,8 @@ DARK_TEXT    = "FF1E1E2E"
 
 
 async def export_to_excel(
-    report: dict,
-    sio=None,
+    report: dict[str, Any],
+    sio: Any = None,
     dataset_id: str = "",
 ) -> bytes:
     """Generate an XLSX workbook from an InsightReport dict.
@@ -54,17 +54,22 @@ async def export_to_excel(
 
 
 def _build_workbook(
-    report: dict,
-    sio,
+    report: dict[str, Any],
+    sio: Any,
     dataset_id: str,
-    loop,
+    loop: Any,
 ) -> bytes:
     """Synchronous workbook construction (runs in thread pool)."""
     try:
         from openpyxl import Workbook
         from openpyxl.styles import (
-            Alignment, Border, Fill, Font, GradientFill,
-            PatternFill, Side,
+            Alignment,
+            Border,
+            Fill,
+            Font,
+            GradientFill,
+            PatternFill,
+            Side,
         )
     except ImportError:
         return b"[XLSX export requires openpyxl: pip install openpyxl]"
@@ -90,7 +95,7 @@ def _build_workbook(
                 pass
 
     def _header_fill(ws, row, values: list, bg: str = BRAND_VIOLET):
-        from openpyxl.styles import Font, PatternFill, Alignment
+        from openpyxl.styles import Alignment, Font, PatternFill
         fill = PatternFill(fill_type="solid", fgColor=bg)
         font = Font(color=WHITE, bold=True, size=11)
         for col_idx, val in enumerate(values, start=1):

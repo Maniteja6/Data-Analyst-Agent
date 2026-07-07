@@ -6,7 +6,7 @@ syntactically correct DuckDB SQL referencing real column names.
 from __future__ import annotations
 
 import structlog
-
+from typing import Any
 from backend.infrastructure.llm.model_id_registry import get_model_id
 
 logger = structlog.get_logger(__name__)
@@ -20,8 +20,8 @@ _SYSTEM = (
 
 async def generate_sql(
     question: str,
-    schema: dict,
-    llm_client,
+    schema: dict[str, Any],
+    llm_client: Any,
     row_limit: int = 10_000,
 ) -> str:
     """Generate a DuckDB SELECT query for the given natural-language question.

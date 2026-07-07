@@ -15,10 +15,9 @@ import asyncio
 from typing import Any
 
 import structlog
-
 from backend.analytics_engine.statistics.correlation_engine import (
-    CorrelationEngine,
     CorrelationCoefficient,
+    CorrelationEngine,
 )
 
 logger = structlog.get_logger(__name__)

@@ -23,13 +23,13 @@ from __future__ import annotations
 
 import asyncio
 import time
+from datetime import UTC
 from typing import Any
 
 import structlog
-
-from backend.agents.base.base_agent import BaseAgent
 from backend.agents.base.agent_context import AgentContext
 from backend.agents.base.agent_result import AgentResult
+from backend.agents.base.base_agent import BaseAgent
 from backend.agents.quality.monitoring.metrics_emitter import MetricsEmitter
 from backend.agents.quality.monitoring.trace_instrumentor import add_span_event
 
@@ -183,9 +183,12 @@ class MonitoringAgent(BaseAgent):
     ) -> None:
         """Write agent execution records to Postgres audit table (non-blocking)."""
         try:
+            from datetime import datetime
+
             from backend.infrastructure.persistence.database import get_session
-            from backend.infrastructure.persistence.models.agent_execution_model import AgentExecutionModel
-            from datetime import datetime, timezone
+            from backend.infrastructure.persistence.models.agent_execution_model import (
+                AgentExecutionModel,
+            )
             from backend.shared.utils.uuid_factory import new_uuid
 
             async with get_session() as db_session:
@@ -200,7 +203,7 @@ class MonitoringAgent(BaseAgent):
                         cost_usd=result.estimated_cost_usd,
                         model_id=result.model_id or "",
                         error=result.error,
-                        created_at=datetime.now(timezone.utc),
+                        created_at=datetime.now(UTC),
                     )
                     db_session.add(record)
         except Exception as exc:

@@ -12,6 +12,7 @@ Usage::
         logger.warning("sql_rejected", reason=str(exc))
 """
 from __future__ import annotations
+
 import re
 
 

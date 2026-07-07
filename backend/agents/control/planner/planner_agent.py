@@ -21,10 +21,9 @@ import re
 from typing import Any
 
 import structlog
-
-from backend.agents.base.base_agent import BaseAgent
 from backend.agents.base.agent_context import AgentContext
-from backend.agents.control.planner.plan_schema import ExecutionPlan, TaskNode, AgentName
+from backend.agents.base.base_agent import BaseAgent
+from backend.agents.control.planner.plan_schema import AgentName, ExecutionPlan
 from backend.infrastructure.llm.model_id_registry import get_model_id
 from backend.shared.utils.uuid_factory import new_uuid
 
@@ -44,7 +43,7 @@ class PlannerAgent(BaseAgent):
         llm_client: Async LLM client (Claude Sonnet for planning quality).
     """
 
-    def __init__(self, llm_client) -> None:
+    def __init__(self, llm_client: Any) -> None:
         super().__init__("planner")
         self._llm = llm_client
 
@@ -226,7 +225,7 @@ Return ONLY valid JSON:
         text = raw.strip()
         # Strip markdown fences
         if text.startswith("```"):
-            text = "\n".join(l for l in text.splitlines() if not l.startswith("```")).strip()
+             text = "\n".join(line for line in text.splitlines() if not line.startswith("`""`")).strip()
         try:
             return json.loads(text)
         except json.JSONDecodeError:

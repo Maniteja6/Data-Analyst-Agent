@@ -13,18 +13,13 @@ import asyncio
 from typing import Any
 
 import structlog
-
-from backend.agents.base.base_agent import BaseAgent
-from backend.agents.base.agent_context import AgentContext
-from backend.agents.analysis.forecast.ts_detector import (
-    detect_time_series_columns,
-    detect_numeric_targets,
-    is_forecasting_viable,
-)
-from backend.agents.analysis.forecast.prophet_runner    import run_prophet
-from backend.agents.analysis.forecast.arima_runner      import run_arima
+from backend.agents.analysis.forecast.arima_runner import run_arima
+from backend.agents.analysis.forecast.model_selector import select_best_model
+from backend.agents.analysis.forecast.prophet_runner import run_prophet
+from backend.agents.analysis.forecast.ts_detector import is_forecasting_viable
 from backend.agents.analysis.forecast.xgboost_forecaster import run_xgboost
-from backend.agents.analysis.forecast.model_selector    import select_best_model
+from backend.agents.base.agent_context import AgentContext
+from backend.agents.base.base_agent import BaseAgent
 
 logger = structlog.get_logger(__name__)
 
@@ -40,7 +35,7 @@ class ForecastAgent(BaseAgent):
         horizon:    Forecast horizon in days (default: 30).
     """
 
-    def __init__(self, llm_client=None, horizon: int = 30) -> None:
+    def __init__(self, llm_client: Any | None = None, horizon: int = 30) -> None:
         super().__init__("forecast")
         self._llm     = llm_client
         self._horizon = horizon
