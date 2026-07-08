@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from backend.shared.entity import Entity
 
 
-class CleaningAction(str, Enum):
+class CleaningAction(StrEnum):
     """Types of cleaning operations that can be applied to a dataset."""
 
     REMOVE_DUPLICATES = "remove_duplicates"

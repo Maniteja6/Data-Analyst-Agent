@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 from backend.domain.analytics.value_objects.histogram import Histogram
 from backend.domain.analytics.value_objects.statistical_summary import StatisticalSummary
 from backend.shared.entity import Entity
 
 
-class ColumnKind(str, Enum):
+class ColumnKind(StrEnum):
     """Broad runtime type — used to decide which profiler to invoke."""
 
     NUMERIC = "numeric"

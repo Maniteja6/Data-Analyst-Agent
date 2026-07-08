@@ -9,14 +9,14 @@ showing which agents are pending, running, succeeded, or failed.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from backend.shared.utils.uuid_factory import new_uuid
 from pydantic import BaseModel, Field
 
 
-class AgentName(str, Enum):
+class AgentName(StrEnum):
     """Enumeration of all valid agent names in the execution plan."""
 
     SCHEMA = "schema"
@@ -37,7 +37,7 @@ class AgentName(str, Enum):
     MONITORING = "monitoring"
 
 
-class TaskStatus(str, Enum):
+class TaskStatus(StrEnum):
     PENDING = "pending"
     RUNNING = "running"
     SUCCEEDED = "succeeded"
@@ -45,7 +45,7 @@ class TaskStatus(str, Enum):
     SKIPPED = "skipped"
 
 
-class PlanStatus(str, Enum):
+class PlanStatus(StrEnum):
     DRAFT = "draft"
     RUNNING = "running"
     COMPLETE = "complete"

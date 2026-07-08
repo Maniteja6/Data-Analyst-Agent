@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 
 from backend.domain.intelligence.entities.task_node import AgentRole, TaskNode, TaskStatus
 from backend.domain.intelligence.events.agent_result_ready import AgentResultReady
@@ -15,7 +15,7 @@ from backend.domain.intelligence.exceptions import (
 from backend.shared.aggregate_root import AggregateRoot
 
 
-class PlanStatus(str, Enum):
+class PlanStatus(StrEnum):
     PENDING = "pending"
     RUNNING = "running"
     COMPLETE = "complete"

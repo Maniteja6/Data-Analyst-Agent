@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 from backend.shared.entity import Entity
 
 
-class TaskStatus(str, Enum):
+class TaskStatus(StrEnum):
     PENDING = "pending"
     RUNNING = "running"
     COMPLETE = "complete"
@@ -16,7 +16,7 @@ class TaskStatus(str, Enum):
     SKIPPED = "skipped"  # dependency failed; task was bypassed
 
 
-class AgentRole(str, Enum):
+class AgentRole(StrEnum):
     """Every agent name the Planner can schedule in an ExecutionPlan.
 
     Must match the keys in the agent_registry dict passed to DAGExecutor.

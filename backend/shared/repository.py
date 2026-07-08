@@ -11,13 +11,9 @@ depend on the abstract ``Repository``, not on SQLAlchemy or any other ORM.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Generic, TypeVar
-
-T = TypeVar("T")  # Entity / Aggregate type
-ID = TypeVar("ID")  # Identity type (str UUID in this codebase)
 
 
-class Repository(ABC, Generic[T, ID]):
+class Repository[T, ID](ABC):
     """Generic CRUD repository contract.
 
     All concrete repository implementations must live in the infrastructure
@@ -65,7 +61,7 @@ class Repository(ABC, Generic[T, ID]):
         """
 
 
-class ReadOnlyRepository(ABC, Generic[T, ID]):
+class ReadOnlyRepository[T, ID](ABC):
     """Read-only variant — used for query-side repositories that never mutate state."""
 
     @abstractmethod

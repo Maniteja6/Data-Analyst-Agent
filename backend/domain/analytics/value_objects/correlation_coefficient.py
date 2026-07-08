@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 from backend.shared.value_object import ValueObject
 
 
-class CorrelationMethod(str, Enum):
+class CorrelationMethod(StrEnum):
     PEARSON = "pearson"
     SPEARMAN = "spearman"
     KENDALL = "kendall"

@@ -18,7 +18,13 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from backend.agents.base.base_agent import BaseAgent
 
-__all__ = ["SQLAgent", "PythonAgent", "ForecastAgent", "MLAgent", "VisualizationAgent"]
+__all__ = [  # noqa: F822 — resolved lazily via __getattr__ below (PEP 562)
+    "SQLAgent",
+    "PythonAgent",
+    "ForecastAgent",
+    "MLAgent",
+    "VisualizationAgent",
+]
 
 
 def __getattr__(name: str) -> type[BaseAgent]:

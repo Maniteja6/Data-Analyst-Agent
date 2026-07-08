@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 from backend.shared.value_object import ValueObject
 
 
-class Role(str, Enum):
+class Role(StrEnum):
     """The speaker role for a conversation message.
 
     Mapped directly to the Bedrock Converse API ``role`` field:

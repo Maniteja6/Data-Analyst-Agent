@@ -25,7 +25,7 @@ Governance policies (configurable per environment):
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 import structlog
@@ -35,13 +35,13 @@ from backend.agents.quality.security.pii_detector import PIIResult, detect_pii_s
 logger = structlog.get_logger(__name__)
 
 
-class Action(str, Enum):
+class Action(StrEnum):
     ALLOW = "allow"
     SANITISE = "sanitise"
     BLOCK = "block"
 
 
-class Policy(str, Enum):
+class Policy(StrEnum):
     STRICT = "strict"
     MODERATE = "moderate"
     PERMISSIVE = "permissive"

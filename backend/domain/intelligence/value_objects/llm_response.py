@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 from backend.shared.value_object import ValueObject
 
 
-class ResponseType(str, Enum):
+class ResponseType(StrEnum):
     TEXT = "text"  # plain prose answer
     JSON = "json"  # structured JSON (insight list, SQL, Vega spec, etc.)
     SQL = "sql"  # a SQL SELECT statement

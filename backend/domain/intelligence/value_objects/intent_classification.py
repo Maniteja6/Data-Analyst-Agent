@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 from backend.shared.value_object import ValueObject
 
 
-class Intent(str, Enum):
+class Intent(StrEnum):
     """Supported chat query intent types.
 
     The Intent Agent classifies each incoming user message into one of these

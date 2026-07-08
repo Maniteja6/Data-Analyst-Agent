@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 
-class DatasetStatus(str, Enum):
+class DatasetStatus(StrEnum):
     """Ordered lifecycle states of a Dataset aggregate.
 
     State machine (valid transitions only):

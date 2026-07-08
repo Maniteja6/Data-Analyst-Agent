@@ -4,17 +4,17 @@ into typed AnomalyAlert entities with severity and business context."""
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 
-class AnomalySeverity(str, Enum):
+class AnomalySeverity(StrEnum):
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
     LOW = "low"
 
 
-class AnomalyType(str, Enum):
+class AnomalyType(StrEnum):
     OUTLIER = "outlier"
     MISSING_PATTERN = "missing_pattern"
     SCHEMA_DRIFT = "schema_drift"

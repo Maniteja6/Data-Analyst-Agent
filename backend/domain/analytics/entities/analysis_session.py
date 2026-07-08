@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 
 from backend.domain.analytics.entities.cleaning_report import CleaningReport
 from backend.domain.analytics.entities.data_profile import DataProfile
@@ -15,7 +15,7 @@ from backend.domain.analytics.exceptions import InvalidSessionStateError
 from backend.shared.aggregate_root import AggregateRoot
 
 
-class SessionStatus(str, Enum):
+class SessionStatus(StrEnum):
     PENDING = "pending"
     PROFILING = "profiling"
     PROFILED = "profiled"

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 
-class SemanticType(str, Enum):
+class SemanticType(StrEnum):
     """Domain-level semantic type of a dataset column.
 
     Inferred by the SchemaAgent (LLM + rule-based heuristics).
