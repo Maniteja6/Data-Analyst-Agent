@@ -1,0 +1,42 @@
+# Keep Docker build contexts small and prevent host-installed dependencies
+# (Windows/macOS node_modules, Python venvs) from overwriting what each
+# Dockerfile installs fresh inside the container.
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+npm-debug.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Version control / CI
+.git/
+.github/
+
+# Local env / secrets
+.env
+.env.*
+!.env.example
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Docs and misc (not needed inside the image)
+*.md
+notebooks/
+terraform/
