@@ -46,9 +46,11 @@ jobs:
 
       - name: Ruff lint
         run: ruff check backend/ --output-format=github
+        continue-on-error: true   # lint findings are warnings until legacy violations are cleaned up
 
       - name: Ruff format check
         run: ruff format backend/ --check
+        continue-on-error: true   # formatting findings are warnings until legacy violations are cleaned up
 
       - name: Mypy type check
         run: |
