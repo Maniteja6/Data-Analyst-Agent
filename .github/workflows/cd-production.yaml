@@ -33,10 +33,10 @@ jobs:
     strategy:
       matrix:
         image:
-          - { name: api,       dockerfile: deploy/docker/Dockerfile.api }
-          - { name: worker,    dockerfile: deploy/docker/Dockerfile.worker }
-          - { name: analytics, dockerfile: deploy/docker/Dockerfile.analytics }
-          - { name: frontend,  dockerfile: deploy/docker/Dockerfile.frontend }
+          - { name: api,       dockerfile: deploy/docker/api.Dockerfile }
+          - { name: worker,    dockerfile: deploy/docker/worker.Dockerfile }
+          - { name: analytics, dockerfile: deploy/docker/analytics.Dockerfile }
+          - { name: frontend,  dockerfile: deploy/docker/frontend.Dockerfile }
     steps:
       - uses: actions/checkout@v4
         with:

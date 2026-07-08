@@ -41,13 +41,13 @@ x-api-image: &api-image
   image: datapilot/api:${IMAGE_TAG:-latest}
   build:
     context: ../..
-    dockerfile: deploy/docker/Dockerfile.api
+    dockerfile: deploy/docker/api.Dockerfile
 
 x-worker-image: &worker-image
   image: datapilot/worker:${IMAGE_TAG:-latest}
   build:
     context: ../..
-    dockerfile: deploy/docker/Dockerfile.worker
+    dockerfile: deploy/docker/worker.Dockerfile
 
 services:
 
@@ -56,7 +56,7 @@ services:
     image: datapilot/frontend:${IMAGE_TAG:-latest}
     build:
       context: ../..
-      dockerfile: deploy/docker/Dockerfile.frontend
+      dockerfile: deploy/docker/frontend.Dockerfile
     ports:
       - "8080:8080"
     depends_on:

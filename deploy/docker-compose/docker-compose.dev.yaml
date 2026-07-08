@@ -55,7 +55,7 @@ services:
   api:
     build:
       context: ../..
-      dockerfile: deploy/docker/Dockerfile.api
+      dockerfile: deploy/docker/api.Dockerfile
       target: production
     volumes:
       - ../../backend:/app/backend   # mount source for hot reload
