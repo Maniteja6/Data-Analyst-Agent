@@ -11,13 +11,13 @@ depend on the abstract ``Repository``, not on SQLAlchemy or any other ORM.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-
-from abc import ABC, abstractmethod
-from typing import TypeVar, Generic
+from typing import Generic, TypeVar
 
 # Define TypeVars explicitly for 3.11 compatibility
 T = TypeVar("T")
 ID = TypeVar("ID")
+
+
 class Repository(Generic[T, ID], ABC):
     """Generic CRUD repository contract.
 
