@@ -19,10 +19,12 @@ import math
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from typing import TypeAlias
+
     import pandas as pd
     import polars as pl
 
-    SeriesT = pl.Series | pd.Series
+    SeriesT: TypeAlias = pl.Series | pd.Series
 
 
 class StatisticsCalculator:

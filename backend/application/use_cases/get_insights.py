@@ -38,7 +38,7 @@ class GetInsightsUseCase:
         if report is None:
             raise InsightReportNotFoundException(query.dataset_id)
 
-        result = report.to_dict() if hasattr(report, "to_dict") else report
+        result = report.to_dict()
         if query.use_cache:
             await self._cache.set_json(f"insights:{query.dataset_id}", result, ttl=86400)
         return result

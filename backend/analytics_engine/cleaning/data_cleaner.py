@@ -15,11 +15,13 @@ from backend.domain.analytics.entities.cleaning_report import CleaningReport
 from backend.shared.utils.uuid_factory import new_uuid
 
 if TYPE_CHECKING:
+    from typing import TypeAlias
+
     import pandas as pd
     import polars as pl
     from backend.domain.analytics.entities.data_profile import DataProfile
 
-    DataFrameT = pl.DataFrame | pd.DataFrame
+    DataFrameT: TypeAlias = pl.DataFrame | pd.DataFrame
 
 logger = structlog.get_logger(__name__)
 

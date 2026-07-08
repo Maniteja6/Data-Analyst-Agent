@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
 if TYPE_CHECKING:
+    from typing import TypeAlias
+
     import pandas as pd
     import polars as pl
 
-    DataFrameT = pl.DataFrame | pd.DataFrame
+    DataFrameT: TypeAlias = pl.DataFrame | pd.DataFrame
 
 logger = structlog.get_logger(__name__)
 
@@ -18,7 +20,7 @@ logger = structlog.get_logger(__name__)
 class TrendAnalyzer:
     """Detects trends in time-series numeric columns."""
 
-    def detect_trend(self, df: DataFrameT, date_col: str, value_col: str) -> dict:
+    def detect_trend(self, df: DataFrameT, date_col: str, value_col: str) -> dict[str, Any]:
         """Fit a linear trend to a time-series column.
 
         Returns slope, R², and direction.
@@ -26,12 +28,13 @@ class TrendAnalyzer:
         try:
             import numpy as np
             import pandas as pd
+            import polars as pl
 
             # Get pandas Series regardless of input type
-            try:
+            if isinstance(df, pl.DataFrame):
                 dates = pd.to_datetime(df[date_col].to_list())
                 values = df[value_col].to_list()
-            except AttributeError:
+            else:
                 dates = pd.to_datetime(df[date_col])
                 values = df[value_col].values
 

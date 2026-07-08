@@ -7,10 +7,12 @@ from typing import TYPE_CHECKING
 import structlog
 
 if TYPE_CHECKING:
+    from typing import TypeAlias
+
     import pandas as pd
     import polars as pl
 
-    DataFrameT = pl.DataFrame | pd.DataFrame
+    DataFrameT: TypeAlias = pl.DataFrame | pd.DataFrame
 
 logger = structlog.get_logger(__name__)
 

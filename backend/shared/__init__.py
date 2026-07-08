@@ -19,8 +19,8 @@ Sub-packages:
     utils/
         uuid_factory.py    — new_uuid() → str   (uuid4 as string)
         hash_utils.py      — llm_cache_key(model_id, prompt) → SHA-256 hex
-                              content_hash(data: bytes) → SHA-256 hex
-        datetime_utils.py  — utcnow(), format_iso(), parse_iso()
+                              sha256_of_bytes(data: bytes) → SHA-256 hex
+        datetime_utils.py  — utcnow(), to_iso8601(), from_iso8601()
 
 Dependency rule:
     Zero imports from any other backend sub-package.

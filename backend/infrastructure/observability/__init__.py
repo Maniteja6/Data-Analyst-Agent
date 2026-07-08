@@ -6,7 +6,7 @@ All 11 Prometheus metrics defined in prometheus_metrics.py; imported by MetricsE
 AuditLogger:          append-only writes to agent_executions Postgres table.
 """
 
+from backend.config.logging_config import configure_logging
 from backend.infrastructure.observability.otel_setup import setup_otel
-from backend.infrastructure.observability.structured_logger import configure_logging
 
 __all__ = ["configure_logging", "setup_otel"]

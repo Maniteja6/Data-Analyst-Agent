@@ -11,11 +11,13 @@ import structlog
 from backend.config.settings import get_settings
 
 if TYPE_CHECKING:
+    from typing import TypeAlias
+
     import duckdb
     import pandas as pd
     import polars as pl
 
-    DataFrameT = pl.DataFrame | pd.DataFrame
+    DataFrameT: TypeAlias = pl.DataFrame | pd.DataFrame
 
 logger = structlog.get_logger(__name__)
 

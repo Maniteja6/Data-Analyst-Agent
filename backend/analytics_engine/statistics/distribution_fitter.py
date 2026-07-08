@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
 if TYPE_CHECKING:
+    from typing import TypeAlias
+
     import pandas as pd
     import polars as pl
 
-    DataFrameT = pl.DataFrame | pd.DataFrame
+    DataFrameT: TypeAlias = pl.DataFrame | pd.DataFrame
 
 logger = structlog.get_logger(__name__)
 
@@ -21,7 +23,7 @@ _DISTRIBUTIONS = ["norm", "expon", "lognorm", "gamma", "beta"]
 class DistributionFitter:
     """Fits scipy distributions to numeric columns and returns the best fit."""
 
-    def fit(self, df: DataFrameT, column: str) -> dict:
+    def fit(self, df: DataFrameT, column: str) -> dict[str, Any]:
         """Return the best-fitting distribution name and parameters."""
         try:
             from scipy import stats as scipy_stats

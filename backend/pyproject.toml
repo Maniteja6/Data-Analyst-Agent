@@ -150,6 +150,7 @@ ignore = [
     "S105",   # hardcoded password (false positives in config)
     "S106",   # hardcoded password as kwarg (false positives: Prometheus "token_type" labels)
     "B008",   # do not perform function calls in argument defaults (FastAPI Depends)
+    "UP040",  # `type` statement (PEP 695) is 3.12+ only; local dev venv is Python 3.11.9
 ]
 
 [tool.ruff.lint.per-file-ignores]
