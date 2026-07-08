@@ -10,10 +10,10 @@ from HTTP header → Kafka message → Redis pub/sub → Socket.IO event.
     ExportReportCommand     — dataset_id, session_id, format (pdf|xlsx|pptx|json)
 """
 
-from backend.application.commands.export_report import ExportReportCommand
-from backend.application.commands.run_analysis import RunAnalysisCommand
-from backend.application.commands.send_message import SendMessageCommand
-from backend.application.commands.upload_dataset import UploadDatasetCommand
+from backend.application.commands.export_report_command import ExportReportCommand
+from backend.application.commands.run_analysis_command import RunAnalysisCommand
+from backend.application.commands.send_message_command import SendMessageCommand
+from backend.application.commands.upload_dataset_command import UploadDatasetCommand
 
 __all__ = [
     "UploadDatasetCommand",

@@ -8,6 +8,8 @@ from enum import StrEnum
 
 from backend.domain.intelligence.entities.task_node import AgentRole, TaskNode, TaskStatus
 from backend.domain.intelligence.events.agent_result_ready import AgentResultReady
+from backend.domain.intelligence.events.execution_plan_created import ExecutionPlanCreated
+from backend.domain.intelligence.events.execution_plan_failed import ExecutionPlanFailed
 from backend.domain.intelligence.exceptions import (
     DAGCycleDetectedError,
     InvalidExecutionPlanError,
@@ -142,9 +144,20 @@ class ExecutionPlan(AggregateRoot):
     def _check_completion(self) -> None:
         all_terminal = all(t.is_terminal for t in self.tasks)
         if all_terminal:
-            any_failed = any(t.status == TaskStatus.FAILED for t in self.tasks)
-            self.status = PlanStatus.FAILED if any_failed else PlanStatus.COMPLETE
+            failed = [t for t in self.tasks if t.status == TaskStatus.FAILED]
+            self.status = PlanStatus.FAILED if failed else PlanStatus.COMPLETE
             self.completed_at = datetime.now(UTC)
+            if failed:
+                self._record_event(
+                    ExecutionPlanFailed(
+                        plan_id=self.id,
+                        session_id=self.session_id,
+                        dataset_id=self.dataset_id,
+                        failed_task_ids=[t.id for t in failed],
+                        reason=f"{len(failed)} task(s) failed: "
+                        f"{', '.join(t.agent.value for t in failed)}",
+                    )
+                )
 
     # ── Query helpers ─────────────────────────────────────────────────────
 
@@ -311,7 +324,17 @@ class ExecutionPlan(AggregateRoot):
             )
         )
 
-        return cls(id=plan_id, session_id=session_id, dataset_id=dataset_id, tasks=tasks)
+        plan = cls(id=plan_id, session_id=session_id, dataset_id=dataset_id, tasks=tasks)
+        plan._record_event(
+            ExecutionPlanCreated(
+                plan_id=plan_id,
+                session_id=session_id,
+                dataset_id=dataset_id,
+                trigger=plan.trigger,
+                task_count=len(tasks),
+            )
+        )
+        return plan
 
     def to_dict(self) -> dict:
         return {

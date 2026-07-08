@@ -1,17 +1,29 @@
-"""Z-score anomaly detector — flags values that deviate from the column mean.
+"""Z-score anomaly detector — flags values that deviate from the column median.
 
-The Z-score measures how many standard deviations a value is from the
-column mean. A Z-score of ±3 is the classical 99.7% confidence boundary
-under a normal distribution.
+Uses the "modified Z-score" (Iglewicz & Hoaglin): median and MAD (median
+absolute deviation) in place of mean and standard deviation. A classical
+mean/std Z-score is vulnerable to exactly the values it's trying to
+detect — one extreme outlier inflates the mean and std enough to mask
+its own Z-score (e.g. a single 999 among values around 10-12 can pull
+its own Z-score under a threshold of 3, since the outlier itself
+dominates the standard deviation it's being measured against). Median
+and MAD are robust order statistics that a single extreme value can't
+meaningfully distort.
+
+    modified_z = 0.6745 * (x - median) / MAD
+
+The 0.6745 constant makes the modified Z-score comparable in scale to a
+classical Z-score under normality (0.6745 ≈ the 0.75 quantile of the
+standard normal distribution).
 
 Strengths:
-  - Fast: single-pass statistics (mean, std)
-  - Interpretable: Z-score magnitude maps directly to probability under normality
+  - Robust to the outlier it's detecting — one extreme value doesn't
+    mask itself the way it would with mean/std
+  - Interpretable: same threshold semantics as a classical Z-score
   - Low false-positive rate for normally distributed data
 
 Weaknesses:
-  - Assumes approximate normality; fails for highly skewed distributions
-  - Sensitive to extreme outliers distorting the mean itself
+  - Assumes approximate unimodality; less meaningful for multimodal data
   - Not appropriate for categorical or boolean columns
 
 When to prefer over IQR:
@@ -85,18 +97,20 @@ class ZScoreDetector:
         if series.len() < 10:
             return []
 
-        mean = series.mean()
-        std = series.std()
-        if std is None or std == 0:
+        median = series.median()
+        if median is None:
+            return []
+        mad = (series - median).abs().median()
+        if mad is None or mad == 0:
             return []
 
-        # Compute Z-scores for the full (non-null) column
+        # Compute modified Z-scores for the full (non-null) column
         col_data = df[column].to_list()
         results = []
         for idx, val in enumerate(col_data):
             if val is None:
                 continue
-            z = (val - mean) / std
+            z = 0.6745 * (val - median) / mad
             if abs(z) >= self._threshold:
                 confidence = abs(z) / (abs(z) + self._threshold)
                 results.append(
@@ -125,17 +139,17 @@ class ZScoreDetector:
         if len(series) < 10:
             return []
 
-        mean = series.mean()
-        std = series.std()
-        if std == 0:
+        median = series.median()
+        mad = (series - median).abs().median()
+        if mad == 0:
             return []
 
-        z_scores = ((df[column] - mean) / std).abs()
+        z_scores = (0.6745 * (df[column] - median) / mad).abs()
         mask = z_scores >= self._threshold
         flagged = df[mask].head(self._max_results)
         results = []
         for idx, row in flagged.iterrows():
-            z = (row[column] - mean) / std
+            z = 0.6745 * (row[column] - median) / mad
             confidence = abs(z) / (abs(z) + self._threshold)
             results.append(
                 ZScoreAnomaly(

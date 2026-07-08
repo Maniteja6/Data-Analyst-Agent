@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from backend.domain.workspace.entities.message import Message
+from backend.domain.workspace.events.conversation_created import ConversationCreated
 from backend.domain.workspace.events.memory_consolidated import MemoryConsolidated
 from backend.domain.workspace.events.message_added import MessageAdded
 from backend.domain.workspace.exceptions import (
@@ -196,13 +197,21 @@ class Conversation(AggregateRoot):
         from backend.shared.utils.datetime_utils import utcnow
 
         now = utcnow()
-        return cls(
+        conversation = cls(
             id=conversation_id,
             dataset_id=dataset_id,
             title=title or "New conversation",
             created_at=now,
             updated_at=now,
         )
+        conversation._record_event(
+            ConversationCreated(
+                conversation_id=conversation_id,
+                dataset_id=dataset_id,
+                title=conversation.title,
+            )
+        )
+        return conversation
 
     def to_dict(self) -> dict:
         return {

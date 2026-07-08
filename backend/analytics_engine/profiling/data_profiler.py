@@ -127,12 +127,21 @@ class DataProfiler:
         unique_count = self._unique_count(df, column, is_polars)
         sample_vals = self._sample_values(df, column, is_polars)
 
+        try:
+            from backend.agents.data.schema.type_inferencer import infer_column
+
+            semantic_type = infer_column(df, column, is_polars).semantic_type
+        except Exception as exc:
+            logger.debug("semantic_type_inference_failed", column=column, error=str(exc))
+            semantic_type = "unknown"
+
         cp = ColumnProfile(
             id=new_uuid(),
             session_id="",
             column_name=column,
             data_type=data_type,
             kind=kind,
+            semantic_type=semantic_type,
             total_rows=total_rows,
             null_count=null_count,
             unique_count=unique_count,

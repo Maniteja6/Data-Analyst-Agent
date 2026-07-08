@@ -66,6 +66,11 @@ class IQRDetector:
         max_results: Cap on anomalies per column.
     """
 
+    # Unlike Z-score (which needs a reasonably large sample for mean/std to
+    # be meaningful), Tukey fences only need enough points to interpolate
+    # Q1 and Q3 — 4 is the practical minimum for a non-degenerate quartile split.
+    MIN_SAMPLES = 4
+
     def __init__(self, multiplier: float = 1.5, max_results: int = 100) -> None:
         self._multiplier = multiplier
         self._max_results = max_results
@@ -79,7 +84,7 @@ class IQRDetector:
 
     def _detect_polars(self, df: DataFrameT, column: str) -> list[IQRAnomaly]:
         series = df[column].drop_nulls()
-        if series.len() < 10:
+        if series.len() < self.MIN_SAMPLES:
             return []
 
         q1 = series.quantile(0.25)
@@ -125,7 +130,7 @@ class IQRDetector:
 
     def _detect_pandas(self, df: DataFrameT, column: str) -> list[IQRAnomaly]:
         series = df[column].dropna()
-        if len(series) < 10:
+        if len(series) < self.MIN_SAMPLES:
             return []
 
         q1 = series.quantile(0.25)

@@ -33,6 +33,9 @@ Topic routing (matches KafkaEventBus.EVENT_TOPIC_MAP):
     InsightReportGenerated   → insight.report-generated
     ForecastCompleted        → insight.report-generated
     AgentResultReady         → agent.result
+    ExecutionPlanCreated     → agent.result
+    ExecutionPlanFailed      → agent.result
+    ConversationCreated      → chat.message
     MessageAdded             → chat.message
     MemoryConsolidated       → chat.message
 
@@ -84,7 +87,10 @@ EVENT_TOPIC_MAP: dict[str, str] = {
     "AnomalyAlertRaised": "anomaly.detected",
     # Agent orchestration
     "AgentResultReady": "agent.result",
+    "ExecutionPlanCreated": "agent.result",
+    "ExecutionPlanFailed": "agent.result",
     # Chat / workspace
+    "ConversationCreated": "chat.message",
     "MessageAdded": "chat.message",
     "MemoryConsolidated": "chat.message",
 }

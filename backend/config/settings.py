@@ -18,9 +18,10 @@ Usage::
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Annotated
 
 from pydantic import Field, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -59,10 +60,20 @@ class Settings(BaseSettings):
     api_port: int = Field(8000, ge=1, le=65535, description="Bind port for uvicorn")
     api_workers: int = Field(4, ge=1, description="Number of uvicorn worker processes")
     api_reload: bool = Field(False, description="Enable hot-reload (development only)")
-    cors_origins: list[str] = Field(
+    cors_origins: Annotated[list[str], NoDecode] = Field(
         default=["http://localhost:3000", "http://localhost:5173"],
         description="Allowed CORS origins for the browser frontend",
     )
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def split_cors_origins(cls, v: object) -> list[str]:
+        """Accept a comma-separated string (the .env format) as well as a
+        real list, instead of requiring JSON-array syntax in .env files."""
+        if isinstance(v, str):
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
+        return v  # type: ignore[return-value]
+
     enable_swagger: bool = Field(
         True, description="Expose /docs and /redoc (disable in production)"
     )
@@ -306,7 +317,7 @@ class Settings(BaseSettings):
     @field_validator("app_env")
     @classmethod
     def validate_app_env(cls, v: str) -> str:
-        allowed = {"development", "staging", "production"}
+        allowed = {"development", "test", "staging", "production"}
         if v not in allowed:
             raise ValueError(f"app_env must be one of {allowed}, got '{v}'")
         return v

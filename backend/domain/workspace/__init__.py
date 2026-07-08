@@ -4,7 +4,7 @@ Aggregate: Conversation (messages JSONB; build_bedrock_messages();
            build_system_prompt(schema_summary, rag_context))
 Entity:    Message (role, content, citations, visualizations)
 VO:        MessageRole (USER | ASSISTANT | SYSTEM)
-Events:    ConversationCreated, MessageSent
+Events:    ConversationCreated, MessageAdded, MemoryConsolidated
 """
 
 from backend.domain.workspace.entities.conversation import Conversation

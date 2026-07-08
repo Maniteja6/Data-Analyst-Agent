@@ -3,42 +3,15 @@ into typed AnomalyAlert entities with severity and business context."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from enum import StrEnum
-
-
-class AnomalySeverity(StrEnum):
-    CRITICAL = "critical"
-    HIGH = "high"
-    MEDIUM = "medium"
-    LOW = "low"
-
-
-class AnomalyType(StrEnum):
-    OUTLIER = "outlier"
-    MISSING_PATTERN = "missing_pattern"
-    SCHEMA_DRIFT = "schema_drift"
-    RULE_VIOLATION = "rule_violation"
-    DISTRIBUTION_SHIFT = "distribution_shift"
-
-
-@dataclass
-class ClassifiedAnomaly:
-    """A raw anomaly detection result enriched with domain context."""
-
-    column_name: str
-    anomaly_type: AnomalyType
-    severity: AnomalySeverity
-    description: str
-    affected_rows: int
-    detection_method: str
-    confidence: float
-    raw_value: str | None = None
-    suggested_action: str | None = None
+from backend.domain.analytics.entities.anomaly_alert import (
+    AnomalyAlert,
+    AnomalySeverity,
+    AnomalyType,
+)
 
 
 class AnomalyClassifier:
-    """Classifies raw detector dicts into ``ClassifiedAnomaly`` objects.
+    """Classifies raw detector dicts into ``AnomalyAlert`` entities.
 
     Rules:
     - Z-score |z| > 5   → HIGH,   |z| 3-5 → MEDIUM
@@ -50,7 +23,7 @@ class AnomalyClassifier:
 
     ESCALATION_CONFIDENCE_THRESHOLD = 0.9
 
-    def classify(self, raw: dict) -> ClassifiedAnomaly:
+    def classify(self, raw: dict) -> AnomalyAlert:
         method = raw.get("detection_method", "Unknown")
         base_sev = self._base_severity(raw)
         confidence = float(raw.get("confidence", 0.7))
@@ -64,7 +37,7 @@ class AnomalyClassifier:
         )
         suggested = self._suggest_action(raw.get("anomaly_type", "outlier"), raw.get("column", ""))
 
-        return ClassifiedAnomaly(
+        return AnomalyAlert(
             column_name=raw.get("column", "__unknown__"),
             anomaly_type=AnomalyType(raw.get("anomaly_type", "outlier")),
             severity=base_sev,
@@ -76,7 +49,7 @@ class AnomalyClassifier:
             suggested_action=suggested,
         )
 
-    def classify_batch(self, raw_list: list[dict]) -> list[ClassifiedAnomaly]:
+    def classify_batch(self, raw_list: list[dict]) -> list[AnomalyAlert]:
         return [self.classify(r) for r in raw_list]
 
     # ── Private helpers ───────────────────────────────────────────────────

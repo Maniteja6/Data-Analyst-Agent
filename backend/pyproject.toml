@@ -180,6 +180,7 @@ exclude                   = ["backend/infrastructure/persistence/migrations/"]
 # ── Pytest ────────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
 asyncio_mode   = "auto"
+pythonpath     = [".."]  # repo root, so `from backend.x import y` resolves (backend/ has no __init__.py)
 testpaths      = ["backend/tests"]
 python_files   = "test_*.py"
 python_classes = "Test*"
