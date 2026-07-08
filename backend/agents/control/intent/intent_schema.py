@@ -6,12 +6,12 @@ to invoke SQLAgent, ForecastAgent, RAGAgent, or return a direct answer.
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
 
-class Intent(str, Enum):
+class Intent(StrEnum):
     """Enumeration of all supported user intents."""
 
     STATISTICAL_QUESTION = "statistical_question"
