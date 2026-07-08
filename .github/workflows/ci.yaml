@@ -150,7 +150,7 @@ jobs:
         run: pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Run Alembic migrations
-        run: alembic upgrade head
+        run: alembic -c backend/alembic.ini upgrade head
 
       - name: Run integration tests
         run: |
