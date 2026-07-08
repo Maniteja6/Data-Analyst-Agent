@@ -53,7 +53,7 @@ class SendMessageUseCase:
         # Load insight report for system prompt context
         insight_summary = ""
         cached_report = await self._cache.get_json(f"insights:{cmd.dataset_id}")
-        if cached_report:
+        if isinstance(cached_report, dict):
             insight_summary = cached_report.get("executive_summary", "")
 
         # Append user message

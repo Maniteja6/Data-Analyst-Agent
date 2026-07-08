@@ -30,7 +30,7 @@ class GetInsightsUseCase:
     async def execute(self, query: GetInsightsQuery) -> dict:
         if query.use_cache:
             cached = await self._cache.get_json(f"insights:{query.dataset_id}")
-            if cached:
+            if isinstance(cached, dict):
                 logger.debug("insights_cache_hit", dataset_id=query.dataset_id)
                 return cached
 

@@ -20,7 +20,7 @@ from __future__ import annotations
 import asyncio
 import io
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import structlog
 from backend.analytics_engine.ingestion.format_detector import FileFormatInfo, FormatDetector
@@ -163,10 +163,10 @@ class FileReader:
             import pandas as pd
 
             engine = "xlrd" if filename.endswith(".xls") else "openpyxl"
-            kwargs = {"engine": engine}
+            pandas_kwargs: dict[str, Any] = {"engine": engine}
             if sample_rows:
-                kwargs["nrows"] = sample_rows
-            return pd.read_excel(io.BytesIO(raw), **kwargs)
+                pandas_kwargs["nrows"] = sample_rows
+            return pd.read_excel(io.BytesIO(raw), **pandas_kwargs)
 
     def _parse_parquet(self, raw: bytes, sample_rows: int | None) -> pl.DataFrame | pd.DataFrame:
         try:

@@ -44,6 +44,7 @@ import structlog
 from backend.config.settings import get_settings
 
 if TYPE_CHECKING:
+    from aiokafka import AIOKafkaConsumer
     from aiokafka.structs import ConsumerRecord
 
 logger = structlog.get_logger(__name__)
@@ -82,7 +83,7 @@ class KafkaConsumerBase:
         self._sasl_username = settings.kafka_sasl_username
         self._sasl_password = settings.kafka_sasl_password
         self._auto_offset_reset = auto_offset_reset
-        self._consumer = None
+        self._consumer: AIOKafkaConsumer | None = None
         self._running = False
 
     # ── Lifecycle ─────────────────────────────────────────────────────────

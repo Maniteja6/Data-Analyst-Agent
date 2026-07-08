@@ -79,7 +79,7 @@ wrong room.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from backend.agents.base.base_agent import BaseAgent
@@ -191,7 +191,8 @@ def build_agent_registry(
 
     # Wire OrchestratorAgent's registry back to the full dict so it can
     # call sub-agents by name in nested invocations
-    registry["orchestrator"]._executor._registry = registry
+    orchestrator = cast(OrchestratorAgent, registry["orchestrator"])
+    orchestrator._executor._registry = registry
 
     return registry
 

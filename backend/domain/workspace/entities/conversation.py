@@ -92,9 +92,10 @@ class Conversation(AggregateRoot):
             )
         )
 
-        # Trigger memory compression when buffer is getting large
-        if self.needs_compression:
-            self._record_event(MessageAdded.__class__)  # handled by MemoryAgent via event bus
+        # Compression itself is triggered independently by MemoryAgent via
+        # ConversationCompressor.needs_compression() on the chat pipeline —
+        # self.needs_compression here is only a read-only status flag (see
+        # to_dict()), not a domain event trigger.
 
     def apply_memory_summary(self, summary: str) -> None:
         """Store a compressed memory summary and trim the message buffer.

@@ -33,6 +33,7 @@ from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
 import structlog
+from backend.application.ports.cache_port import ICacheService
 
 if TYPE_CHECKING:
     import redis.asyncio as redis
@@ -40,7 +41,7 @@ if TYPE_CHECKING:
 logger = structlog.get_logger(__name__)
 
 
-class RedisCacheAdapter:
+class RedisCacheAdapter(ICacheService):
     """Async Redis cache adapter.
 
     All public methods are fully async so they can be awaited inside
@@ -87,7 +88,9 @@ class RedisCacheAdapter:
     async def close(self) -> None:
         """Close the Redis connection pool."""
         if self._redis is not None:
-            await self._redis.aclose()
+            # aclose() is the non-deprecated async close on redis-py 5.x;
+            # mypy's bundled stub for this version doesn't know about it yet.
+            await self._redis.aclose()  # type: ignore[attr-defined]
             self._redis = None
 
     # ── String get / set ─────────────────────────────────────────────────
@@ -296,9 +299,10 @@ class RedisCacheAdapter:
     async def get_job_status(self, job_id: str) -> dict:
         """Read a job status entry by job_id."""
         data = await self.hgetall(f"job:{job_id}")
-        if data and "progress" in data:
-            data["progress"] = int(data["progress"])
-        return data
+        result: dict[str, Any] = dict(data)
+        if "progress" in result:
+            result["progress"] = int(result["progress"])
+        return result
 
     async def invalidate_insights(self, dataset_id: str) -> None:
         """Delete the insight cache entry for a dataset.

@@ -43,7 +43,7 @@ async def on_schema_inferred(
         # Schema-only indexing — profile is not yet available
         # Pass a minimal profile-like object with just the schema columns
         class _MinimalProfile:
-            column_profiles = []
+            column_profiles: list = []
             row_count = event.get("row_count", 0)
             column_count = event.get("column_count", 0)
             completeness_score = 1.0

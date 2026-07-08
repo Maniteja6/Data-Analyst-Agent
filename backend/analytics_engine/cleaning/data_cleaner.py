@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 import structlog
 from backend.analytics_engine.cleaning.duplicate_remover import DuplicateRemover
@@ -19,9 +19,18 @@ if TYPE_CHECKING:
 
     import pandas as pd
     import polars as pl
-    from backend.domain.analytics.entities.data_profile import DataProfile
 
     DataFrameT: TypeAlias = pl.DataFrame | pd.DataFrame
+
+
+class _ProfileLike(Protocol):
+    """Structural shape actually used by DataCleaner — satisfied by both the
+    real DataProfile entity and lightweight orchestration-layer proxies
+    (e.g. cleaning_node.py, which only has a plain dict at hand)."""
+
+    @property
+    def column_profiles(self) -> object: ...
+
 
 logger = structlog.get_logger(__name__)
 
@@ -48,7 +57,7 @@ class DataCleaner:
     async def clean(
         self,
         df: DataFrameT,
-        profile: DataProfile,
+        profile: _ProfileLike,
         session_id: str = "",
         dataset_id: str = "",
     ) -> tuple:
@@ -67,7 +76,7 @@ class DataCleaner:
         )
 
     def _clean_sync(
-        self, df: DataFrameT, profile: DataProfile, session_id: str, dataset_id: str
+        self, df: DataFrameT, profile: _ProfileLike, session_id: str, dataset_id: str
     ) -> tuple:
         all_steps = []
         rows_before = len(df)
@@ -131,9 +140,9 @@ class DataCleaner:
     @staticmethod
     def _strip_whitespace(df: DataFrameT, col_profiles: list) -> DataFrameT:
         """Strip leading/trailing whitespace from string columns."""
-        try:
-            import polars as pl
+        import polars as pl
 
+        try:
             if isinstance(df, pl.DataFrame):
                 str_cols = [
                     cp.column_name
@@ -147,6 +156,10 @@ class DataCleaner:
                 return df
         except Exception as exc:
             logger.debug("whitespace_strip_polars_failed", error=str(exc))
+        if isinstance(df, pl.DataFrame):
+            # The polars branch above raised before returning — nothing more we
+            # can safely do here since the pandas-only fallback below would crash.
+            return df
         try:
             str_cols = df.select_dtypes(include="object").columns.tolist()
             for c in str_cols:

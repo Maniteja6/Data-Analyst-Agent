@@ -126,7 +126,8 @@ async def _generate_report_async(
     storage = S3StorageAdapter()
 
     # ── Load InsightReport from cache (fast) or Postgres (fallback) ───────
-    report_data = await cache.get_json(f"insights:{dataset_id}")
+    cached = await cache.get_json(f"insights:{dataset_id}")
+    report_data = cached if isinstance(cached, dict) else None
     if not report_data:
         report_data = await _load_report_from_db(dataset_id, session_id)
 

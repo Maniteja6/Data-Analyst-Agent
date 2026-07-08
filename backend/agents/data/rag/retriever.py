@@ -131,7 +131,7 @@ class Retriever:
         merged: dict[str, dict] = {}
         counts: dict[str, int] = {}
         for results in all_results:
-            if isinstance(results, Exception):
+            if isinstance(results, BaseException):
                 continue
             for r in results:
                 chunk_id = r.get("id", "")

@@ -37,8 +37,10 @@ import json
 import time
 from typing import Any
 
+from backend.application.ports.cache_port import ICacheService
 
-class InMemoryCacheAdapter:
+
+class InMemoryCacheAdapter(ICacheService):
     """Thread-safe async in-memory cache with TTL support.
 
     All public methods match the ``RedisCacheAdapter`` interface so the
@@ -204,9 +206,10 @@ class InMemoryCacheAdapter:
 
     async def get_job_status(self, job_id: str) -> dict:
         data = await self.hgetall(f"job:{job_id}")
-        if data and "progress" in data:
-            data["progress"] = int(data["progress"])
-        return data
+        result: dict[str, Any] = dict(data)
+        if "progress" in result:
+            result["progress"] = int(result["progress"])
+        return result
 
     async def invalidate_insights(self, dataset_id: str) -> None:
         await self.delete(f"insights:{dataset_id}")

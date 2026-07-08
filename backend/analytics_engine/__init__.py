@@ -307,7 +307,7 @@ async def profile_with_events(
 
     profile = await loop.run_in_executor(
         None,
-        lambda: profiler._profile_sync_with_callback(
+        lambda: profiler._profile_sync(
             df,
             session_id=session_id,
             dataset_id=dataset_id,

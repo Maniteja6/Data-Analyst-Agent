@@ -102,7 +102,7 @@ class ProfilingAgent(BaseAgent):
         # Run profiling in thread pool with the callback
         profile = await loop.run_in_executor(
             _PROFILING_POOL,
-            lambda: self._profiler._profile_sync_with_callback(
+            lambda: self._profiler._profile_sync(
                 df,
                 session_id=context.session_id,
                 dataset_id=context.dataset_id,
@@ -110,7 +110,7 @@ class ProfilingAgent(BaseAgent):
             ),
         )
 
-        profile_dict = profile.to_dict() if hasattr(profile, "to_dict") else profile
+        profile_dict = profile.to_dict()
         context.profile = profile_dict
 
         # Emit profiling:complete

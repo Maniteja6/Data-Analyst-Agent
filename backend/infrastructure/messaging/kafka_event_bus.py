@@ -53,11 +53,14 @@ Usage::
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
 from backend.config.settings import get_settings
 from backend.shared.domain_event import DomainEvent
+
+if TYPE_CHECKING:
+    from aiokafka import AIOKafkaProducer
 
 logger = structlog.get_logger(__name__)
 
@@ -119,7 +122,7 @@ class KafkaEventBus:
         self._sasl_username = settings.kafka_sasl_username
         self._sasl_password = settings.kafka_sasl_password
         self._use_avro = use_avro
-        self._producer = None
+        self._producer: AIOKafkaProducer | None = None
         self._started = False
 
     # ── Lifecycle ─────────────────────────────────────────────────────────
@@ -239,6 +242,7 @@ class KafkaEventBus:
         )
 
         # Serialise payload
+        payload: bytes | dict[str, Any]
         if self._use_avro:
             from backend.infrastructure.messaging.avro.serializer import get_avro_serializer
 

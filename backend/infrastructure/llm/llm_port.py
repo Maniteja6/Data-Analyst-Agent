@@ -70,6 +70,8 @@ class ILLMService(ABC):
         max_tokens: int | None = None,
     ) -> AsyncGenerator[str, None]:
         """Stream response tokens one-by-one."""
+        raise NotImplementedError
+        yield  # pragma: no cover — makes this an async generator function for typing purposes
 
     @abstractmethod
     async def embed(self, text: str) -> list[float]:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -53,8 +54,20 @@ class DataProfiler:
         )
         return result
 
-    def _profile_sync(self, df: DataFrameT, session_id: str, dataset_id: str) -> DataProfile:
-        """Synchronous profiling implementation run in a thread."""
+    def _profile_sync(
+        self,
+        df: DataFrameT,
+        session_id: str,
+        dataset_id: str,
+        column_callback: Callable[[str, ColumnProfile], None] | None = None,
+    ) -> DataProfile:
+        """Synchronous profiling implementation run in a thread.
+
+        Args:
+            column_callback: Optional hook invoked with (column_name, ColumnProfile)
+                immediately after each column finishes, used to stream
+                ``profiling:column_complete`` Socket.IO events in real time.
+        """
         column_profiles: list[ColumnProfile] = []
 
         try:
@@ -72,6 +85,8 @@ class DataProfiler:
             try:
                 col_profile = self._profile_column(df, col, row_count, is_polars)
                 column_profiles.append(col_profile)
+                if column_callback is not None:
+                    column_callback(col, col_profile)
             except Exception as exc:
                 logger.warning("column_profile_failed", column=col, error=str(exc))
 

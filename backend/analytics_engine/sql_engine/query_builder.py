@@ -63,7 +63,7 @@ class QueryBuilder:
         if agg_func not in self._ALLOWED_AGG_FUNCS:
             raise ValueError(f"Unsupported aggregation function: {agg_func!r}")
 
-        select_parts = []
+        select_parts: list[str] = []
         if group_by:
             select_parts.extend(self._quote(c) for c in group_by)
         if column:

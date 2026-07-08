@@ -177,8 +177,8 @@ def _build_workbook(
     # ── Sheet 4: Recommendations ──────────────────────────────────────────
     ws4 = wb.create_sheet("Recommendations")
     _header_fill(ws4, 1, ["Priority", "Title", "Situation", "Action", "Est. Impact"])
-    for col, width in [("A", 12), ("B", 30), ("C", 45), ("D", 50), ("E", 25)]:
-        ws4.column_dimensions[col].width = width
+    for col_letter, width in [("A", 12), ("B", 30), ("C", 45), ("D", 50), ("E", 25)]:
+        ws4.column_dimensions[col_letter].width = width
 
     for i, rec in enumerate(report.get("recommendations", []), start=2):
         ws4.cell(row=i, column=1, value=rec.get("priority", "").upper())

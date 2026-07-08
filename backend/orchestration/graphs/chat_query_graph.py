@@ -204,7 +204,7 @@ def _route_by_intent(state: ChatState) -> str:
     """Route based on intent classification."""
     intent = state.get("intent", {})
     if state.get("injection_detected"):
-        return END  # type: ignore[return-value]
+        return END
     if intent.get("requires_sql"):
         return "sql"
     return "rag"

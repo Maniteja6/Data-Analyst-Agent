@@ -19,12 +19,21 @@ Estimation strategy:
 
 from __future__ import annotations
 
+from typing import TypedDict
+
 import structlog
 
 logger = structlog.get_logger(__name__)
 
+
+class _ImpactRange(TypedDict):
+    min_pct: float
+    max_pct: float
+    label: str
+
+
 # Base impact ranges by insight severity (percentage improvement estimates)
-_IMPACT_RANGES = {
+_IMPACT_RANGES: dict[str, _ImpactRange] = {
     "high": {"min_pct": 10.0, "max_pct": 25.0, "label": "Significant"},
     "medium": {"min_pct": 3.0, "max_pct": 10.0, "label": "Moderate"},
     "low": {"min_pct": 1.0, "max_pct": 5.0, "label": "Minor"},

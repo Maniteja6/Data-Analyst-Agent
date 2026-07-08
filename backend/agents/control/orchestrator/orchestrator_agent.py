@@ -18,7 +18,7 @@ import contextlib
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from backend.domain.intelligence.entities.execution_plan import ExecutionPlan
+    from backend.agents.control.planner.plan_schema import ExecutionPlan
 
 import structlog
 from backend.agents.base.agent_context import AgentContext

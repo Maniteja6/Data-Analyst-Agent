@@ -402,7 +402,7 @@ class InsightAgent(BaseAgent):
         completeness = profile.get("completeness_score", 1.0)
         dup_count = profile.get("duplicate_count", 0)
 
-        insights = [
+        insights: list[dict] = [
             {
                 "headline": f"Dataset contains {row_count:,} rows across {col_count} columns",
                 "explanation": "Basic dataset dimensions are confirmed and ready for analysis.",

@@ -31,11 +31,12 @@ Usage::
 from __future__ import annotations
 
 import structlog
+from backend.application.ports.job_port import IJobService
 
 logger = structlog.get_logger(__name__)
 
 
-class CeleryJobAdapter:
+class CeleryJobAdapter(IJobService):
     """Concrete IJobService implementation backed by Celery.
 
     All ``enqueue_*`` methods are synchronous (return immediately) because
@@ -199,7 +200,7 @@ class CeleryJobAdapter:
         logger.info("task_revoked", task_id=task_id, terminate=terminate)
 
 
-class NullJobAdapter:
+class NullJobAdapter(IJobService):
     """No-op IJobService implementation used in unit tests and local dev
     without a running broker.
 
