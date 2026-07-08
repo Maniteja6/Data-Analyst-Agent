@@ -51,8 +51,12 @@ jobs:
         run: ruff format backend/ --check
 
       - name: Mypy type check
+        env:
+          MYPYPATH: .
         run: |
           mypy backend/ \
+            --config-file backend/pyproject.toml \
+            --explicit-package-bases \
             --ignore-missing-imports \
             --no-strict-optional \
             --exclude 'backend/tests/' \
