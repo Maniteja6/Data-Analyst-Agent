@@ -12,8 +12,13 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
+from abc import ABC, abstractmethod
+from typing import TypeVar, Generic
 
-class Repository[T, ID](ABC):
+# Define TypeVars explicitly for 3.11 compatibility
+T = TypeVar("T")
+ID = TypeVar("ID")
+class Repository(Generic[T, ID], ABC):
     """Generic CRUD repository contract.
 
     All concrete repository implementations must live in the infrastructure
@@ -61,7 +66,7 @@ class Repository[T, ID](ABC):
         """
 
 
-class ReadOnlyRepository[T, ID](ABC):
+class ReadOnlyRepository(Generic[T, ID], ABC):
     """Read-only variant — used for query-side repositories that never mutate state."""
 
     @abstractmethod
