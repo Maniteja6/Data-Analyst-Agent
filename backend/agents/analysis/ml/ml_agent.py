@@ -11,6 +11,7 @@ Pipeline:
     5. Generate LLM narrative
     6. Return structured result
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -29,13 +30,13 @@ MAX_ROWS = 50_000
 class MLAgent(BaseAgent):
     """Runs scikit-learn AutoML and returns structured results + narrative."""
 
-    def __init__(self, llm_client: Any = None) -> None:
+    def __init__(self, llm_client: Any = None) -> None:  # noqa: ANN401
         super().__init__("ml")
         self._llm = llm_client
 
-    async def _execute(self, context: AgentContext, **kwargs: Any) -> dict:
+    async def _execute(self, context: AgentContext, **kwargs: Any) -> dict:  # noqa: ANN401
         schema = context.schema or {}
-        cols   = schema.get("columns", [])
+        cols = schema.get("columns", [])
 
         # ── Auto-select target column ────────────────────────────────────
         priority = {"currency": 0, "numeric_measure": 1, "numeric_count": 2}
@@ -46,13 +47,14 @@ class MLAgent(BaseAgent):
         if not candidates:
             return {
                 "skipped": True,
-                "reason":  "No suitable numeric target column found for ML",
+                "reason": "No suitable numeric target column found for ML",
             }
 
         target_col = candidates[0]["name"]
 
         # ── Load dataset ──────────────────────────────────────────────────
         from backend.analytics_engine.ingestion.file_reader import FileReader
+
         df = await FileReader().read(context.storage_key, sample_rows=MAX_ROWS)
 
         logger.info("ml_agent_starting", target=target_col, schema_cols=len(cols))
@@ -64,7 +66,7 @@ class MLAgent(BaseAgent):
             logger.warning("ml_agent_failed", error=result["error"])
             return {
                 "skipped": False,
-                "error":   result["error"],
+                "error": result["error"],
             }
 
         # ── Log to MLflow (non-blocking, optional) ────────────────────────
@@ -96,6 +98,7 @@ class MLAgent(BaseAgent):
             )
         try:
             from backend.infrastructure.llm.model_id_registry import get_model_id
+
             top_features = list((result.get("feature_importances") or {}).keys())[:3]
             prompt = (
                 f"Write 3 sentences for a business executive summarising "
@@ -107,8 +110,6 @@ class MLAgent(BaseAgent):
                 f"Top 3 predictive features: {top_features}\n"
                 "Be specific. Quantify impact where possible. No jargon."
             )
-            return await self._llm.complete(
-                prompt=prompt, model_id=get_model_id("planner")
-            )
+            return await self._llm.complete(prompt=prompt, model_id=get_model_id("planner"))
         except Exception:
             return f"AutoML completed for target: {result.get('target')}."

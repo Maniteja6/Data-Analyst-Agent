@@ -15,6 +15,7 @@ Usage::
         --suites sql insight \\
         --output eval_report.json
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -31,18 +32,18 @@ logger = structlog.get_logger("datapilot.eval")
 
 class EvalResult:
     def __init__(self, suite: str, case_id: str, passed: bool, score: float, details: dict) -> None:
-        self.suite   = suite
+        self.suite = suite
         self.case_id = case_id
-        self.passed  = passed
-        self.score   = score
+        self.passed = passed
+        self.score = score
         self.details = details
 
     def to_dict(self) -> dict:
         return {
-            "suite":   self.suite,
+            "suite": self.suite,
             "case_id": self.case_id,
-            "passed":  self.passed,
-            "score":   self.score,
+            "passed": self.passed,
+            "score": self.score,
             "details": self.details,
         }
 
@@ -65,7 +66,7 @@ class EvalRunner:
         duration = round(time.monotonic() - start, 2)
 
         # Aggregate
-        total  = len(all_results)
+        total = len(all_results)
         passed = sum(1 for r in all_results if r.passed)
         avg_score = round(sum(r.score for r in all_results) / total, 4) if total else 0.0
 
@@ -74,13 +75,13 @@ class EvalRunner:
             by_suite.setdefault(r.suite, []).append(r.to_dict())
 
         report = {
-            "total_cases":    total,
-            "passed":         passed,
-            "failed":         total - passed,
-            "pass_rate":      round(passed / total, 4) if total else 0.0,
-            "avg_score":      avg_score,
-            "duration_s":     duration,
-            "suites":         by_suite,
+            "total_cases": total,
+            "passed": passed,
+            "failed": total - passed,
+            "pass_rate": round(passed / total, 4) if total else 0.0,
+            "avg_score": avg_score,
+            "duration_s": duration,
+            "suites": by_suite,
         }
         logger.info(
             "eval_complete",
@@ -94,12 +95,15 @@ class EvalRunner:
         try:
             if suite_name == "sql":
                 from backend.tests.evals.sql_agent_eval.sql_eval import SQLAgentEval
+
                 return await SQLAgentEval().run()
             if suite_name == "insight":
                 from backend.tests.evals.insight_agent_eval.insight_eval import InsightAgentEval
+
                 return await InsightAgentEval().run()
             if suite_name == "forecast":
                 from backend.tests.evals.forecast_agent_eval.forecast_eval import ForecastAgentEval
+
                 return await ForecastAgentEval().run()
         except (ImportError, Exception) as exc:
             logger.warning("eval_suite_failed", suite=suite_name, error=str(exc))
@@ -123,6 +127,7 @@ async def main(suites: list[str], output: str | None) -> None:
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(description="Run DataPilot agent evals")
     parser.add_argument("--suites", nargs="*", default=["sql", "insight", "forecast"])
     parser.add_argument("--output", default=None, help="Path to write JSON report")

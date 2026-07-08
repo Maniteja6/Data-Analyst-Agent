@@ -33,10 +33,11 @@ Usage::
     tracker.total_output_tokens  # 192
     tracker.grand_total_tokens   # 960
 """
+
 from __future__ import annotations
 
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 import structlog
@@ -47,9 +48,10 @@ logger = structlog.get_logger(__name__)
 @dataclass
 class ModelUsage:
     """Per-model token usage accumulator."""
-    input_tokens:  int = 0
+
+    input_tokens: int = 0
     output_tokens: int = 0
-    call_count:    int = 0
+    call_count: int = 0
 
     @property
     def total_tokens(self) -> int:
@@ -57,9 +59,9 @@ class ModelUsage:
 
     def to_dict(self) -> dict[str, int]:
         return {
-            "input":      self.input_tokens,
-            "output":     self.output_tokens,
-            "total":      self.total_tokens,
+            "input": self.input_tokens,
+            "output": self.output_tokens,
+            "total": self.total_tokens,
             "call_count": self.call_count,
         }
 
@@ -93,9 +95,9 @@ class TokenTracker:
         """
         with self._lock:
             usage = self._usage.setdefault(model, ModelUsage())
-            usage.input_tokens  += input_tokens
+            usage.input_tokens += input_tokens
             usage.output_tokens += output_tokens
-            usage.call_count    += 1
+            usage.call_count += 1
 
     # ── Aggregated views ──────────────────────────────────────────────────
 
@@ -145,12 +147,12 @@ class TokenTracker:
     def grand_summary(self) -> dict[str, Any]:
         """Return aggregated totals across all models."""
         return {
-            "total_input_tokens":  self.total_input_tokens,
+            "total_input_tokens": self.total_input_tokens,
             "total_output_tokens": self.total_output_tokens,
-            "grand_total_tokens":  self.grand_total_tokens,
-            "total_call_count":    self.total_call_count,
-            "models_used":         self.models_used,
-            "per_model":           self.summary(),
+            "grand_total_tokens": self.grand_total_tokens,
+            "total_call_count": self.total_call_count,
+            "models_used": self.models_used,
+            "per_model": self.summary(),
         }
 
     # ── Lifecycle ─────────────────────────────────────────────────────────
@@ -188,6 +190,7 @@ class TokenTracker:
         """
         try:
             from backend.infrastructure.observability.prometheus_metrics import llm_tokens_total
+
             with self._lock:
                 for model, usage in self._usage.items():
                     llm_tokens_total.labels(
@@ -200,5 +203,5 @@ class TokenTracker:
                         model=model,
                         token_type="output",
                     ).inc(usage.output_tokens)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("token_usage_metrics_emit_failed", error=str(exc))

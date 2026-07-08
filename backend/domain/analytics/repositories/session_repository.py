@@ -1,10 +1,11 @@
 """SessionRepository — abstract port for AnalysisSession persistence."""
+
 from __future__ import annotations
 
 from abc import abstractmethod
 
-from backend.shared.repository import Repository
 from backend.domain.analytics.entities.analysis_session import AnalysisSession, SessionStatus
+from backend.shared.repository import Repository
 
 
 class SessionRepository(Repository[AnalysisSession, str]):

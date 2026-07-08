@@ -1,13 +1,16 @@
 """WebSocket chat handler — processes chat messages via Socket.IO."""
+
 from __future__ import annotations
 
 import uuid
+from typing import Any
+
 import structlog
 
 logger = structlog.get_logger(__name__)
 
 
-async def handle_chat_message(sio, sid: str, data: dict) -> None:
+async def handle_chat_message(sio: Any, sid: str, data: dict) -> None:  # noqa: ANN401
     """Handle a ``chat_message`` Socket.IO event.
 
     Expected data:
@@ -19,26 +22,28 @@ async def handle_chat_message(sio, sid: str, data: dict) -> None:
         ``chat:error``    — on failure
     """
     conversation_id = data.get("conversation_id", "")
-    dataset_id      = data.get("dataset_id", "")
-    content         = data.get("content", "")
-    stream          = data.get("stream", False)
+    dataset_id = data.get("dataset_id", "")
+    content = data.get("content", "")
+    stream = data.get("stream", False)
 
     if not conversation_id or not content:
-        await sio.emit("chat:error", {"message": "conversation_id and content are required"}, to=sid)
+        await sio.emit(
+            "chat:error", {"message": "conversation_id and content are required"}, to=sid
+        )
         return
 
     try:
+        from backend.application.commands.send_message_command import SendMessageCommand
+        from backend.application.use_cases.send_message import SendMessageUseCase
+        from backend.infrastructure.cache.redis_cache_adapter import get_redis_cache
+        from backend.infrastructure.llm.llm_port import BedrockLLMService
         from backend.infrastructure.persistence.database import get_session
-        from backend.infrastructure.persistence.repositories.postgres_conversation_repository import (
+        from backend.infrastructure.persistence.repositories.postgres_conversation_repository import (  # noqa: E501
             PostgresConversationRepository,
         )
         from backend.infrastructure.persistence.repositories.postgres_dataset_repository import (
             PostgresDatasetRepository,
         )
-        from backend.infrastructure.cache.redis_cache_adapter import get_redis_cache
-        from backend.infrastructure.llm.llm_port import BedrockLLMService
-        from backend.application.use_cases.send_message import SendMessageUseCase
-        from backend.application.commands.send_message_command import SendMessageCommand
 
         async with get_session() as db_session:
             use_case = SendMessageUseCase(

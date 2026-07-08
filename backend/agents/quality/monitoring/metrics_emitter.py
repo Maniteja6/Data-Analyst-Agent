@@ -16,7 +16,10 @@ Real-time design:
     ``emit_pipeline_metrics()`` is the primary method called by MonitoringAgent.
     ``emit_ws_event()`` is called by the WebSocket handlers for connection tracking.
 """
+
 from __future__ import annotations
+
+import contextlib
 
 import structlog
 from backend.agents.base.agent_result import AgentResult
@@ -32,7 +35,7 @@ class MetricsEmitter:
     """
 
     def __init__(self, namespace: str = "datapilot") -> None:
-        self._ns   = namespace
+        self._ns = namespace
         self._prom = self._load_prometheus()
 
     def emit_agent_metrics(self, result: AgentResult) -> None:
@@ -84,10 +87,10 @@ class MetricsEmitter:
     def emit_pipeline_metrics(
         self,
         dataset_id: str,
-        succeeded:  int,
-        failed:     int,
-        total_ms:   int,
-        cost_usd:   float,
+        succeeded: int,
+        failed: int,
+        total_ms: int,
+        cost_usd: float,
     ) -> None:
         """Emit end-of-pipeline aggregate metrics."""
         if not self._prom:
@@ -106,10 +109,8 @@ class MetricsEmitter:
         """Track WebSocket message events."""
         if not self._prom:
             return
-        try:
+        with contextlib.suppress(Exception):
             self._prom["ws_messages_total"].labels(event=event).inc()
-        except Exception:
-            pass
 
     def emit_rag_metrics(self, query_ms: int, chunks_retrieved: int, top_score: float) -> None:
         """Track RAG retrieval performance."""
@@ -120,15 +121,15 @@ class MetricsEmitter:
             m["rag_retrieval_ms"].observe(query_ms)
             m["rag_chunks_retrieved"].observe(chunks_retrieved)
             m["rag_top_score"].observe(top_score)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("rag_metrics_emit_failed", error=str(exc))
 
     # ── Prometheus setup ──────────────────────────────────────────────────
 
     def _load_prometheus(self) -> dict | None:
         """Return a dict of Prometheus metric objects, or None if unavailable."""
         try:
-            from prometheus_client import Counter, Gauge, Histogram
+            from prometheus_client import Counter, Histogram
 
             ns = self._ns
             return {

@@ -1,13 +1,21 @@
 """DuckDBManager — manages per-request DuckDB connections for in-process SQL."""
+
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from typing import TYPE_CHECKING
 
 import structlog
-
 from backend.config.settings import get_settings
+
+if TYPE_CHECKING:
+    import duckdb
+    import pandas as pd
+    import polars as pl
+
+    DataFrameT = pl.DataFrame | pd.DataFrame
 
 logger = structlog.get_logger(__name__)
 
@@ -26,10 +34,10 @@ class DuckDBManager:
     def __init__(self) -> None:
         settings = get_settings()
         self._memory_limit = settings.duckdb_memory_limit
-        self._threads      = settings.duckdb_threads
+        self._threads = settings.duckdb_threads
 
     @asynccontextmanager
-    async def session(self, df=None, table_name: str = "df") -> AsyncGenerator:
+    async def session(self, df: DataFrameT | None = None, table_name: str = "df") -> AsyncGenerator:
         """Async context manager that yields a DuckDB connection with the DataFrame registered.
 
         Args:
@@ -52,8 +60,9 @@ class DuckDBManager:
         finally:
             await loop.run_in_executor(None, conn.close)
 
-    def _create_connection(self):
+    def _create_connection(self) -> duckdb.DuckDBPyConnection:
         import duckdb
+
         conn = duckdb.connect(database=":memory:")
         conn.execute(f"SET memory_limit='{self._memory_limit}'")
         conn.execute(f"SET threads={self._threads}")
@@ -62,7 +71,7 @@ class DuckDBManager:
     async def execute_query(
         self,
         sql: str,
-        df=None,
+        df: DataFrameT | None = None,
         table_name: str = "df",
         row_limit: int | None = None,
     ) -> list[dict]:
@@ -81,7 +90,7 @@ class DuckDBManager:
             sql = sql.rstrip(";") + f" LIMIT {row_limit}"
 
         async with self.session(df, table_name) as conn:
-            loop   = asyncio.get_event_loop()
+            loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(
                 None,
                 lambda: self._run_query(conn, sql),
@@ -89,8 +98,8 @@ class DuckDBManager:
             return result
 
     @staticmethod
-    def _run_query(conn, sql: str) -> list[dict]:
-        rel     = conn.execute(sql)
+    def _run_query(conn: duckdb.DuckDBPyConnection, sql: str) -> list[dict]:
+        rel = conn.execute(sql)
         columns = [desc[0] for desc in rel.description]
-        rows    = rel.fetchall()
-        return [dict(zip(columns, row)) for row in rows]
+        rows = rel.fetchall()
+        return [dict(zip(columns, row, strict=False)) for row in rows]

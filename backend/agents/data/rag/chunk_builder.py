@@ -17,6 +17,7 @@ Chunking strategy:
     Column description chunks are ~50-80 tokens. Profile summaries are ~200 tokens.
     HyDE expansion during retrieval adds context so chunks can be compact.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -31,12 +32,13 @@ logger = structlog.get_logger(__name__)
 @dataclass
 class DataChunk:
     """One unit of text to be embedded and stored in Qdrant."""
-    id:           str
-    dataset_id:   str
-    chunk_type:   str           # column_description | profile_summary | insight | correlation
-    content:      str           # text that will be embedded
-    column_name:  str | None = None
-    metadata:     dict[str, Any] = field(default_factory=dict)
+
+    id: str
+    dataset_id: str
+    chunk_type: str  # column_description | profile_summary | insight | correlation
+    content: str  # text that will be embedded
+    column_name: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class ChunkBuilder:
@@ -67,18 +69,20 @@ class ChunkBuilder:
                 f"Sample values: {col.get('sample_values', [])[:5]}\n"
                 f"Is primary key: {col.get('is_primary_key', False)}"
             )
-            chunks.append(DataChunk(
-                id=new_uuid(),
-                dataset_id=dataset_id,
-                chunk_type="column_description",
-                content=content,
-                column_name=col["name"],
-                metadata={
-                    "semantic_type": col.get("semantic_type"),
-                    "null_rate":     col.get("null_rate"),
-                    "unique_count":  col.get("unique_count"),
-                },
-            ))
+            chunks.append(
+                DataChunk(
+                    id=new_uuid(),
+                    dataset_id=dataset_id,
+                    chunk_type="column_description",
+                    content=content,
+                    column_name=col["name"],
+                    metadata={
+                        "semantic_type": col.get("semantic_type"),
+                        "null_rate": col.get("null_rate"),
+                        "unique_count": col.get("unique_count"),
+                    },
+                )
+            )
 
         logger.debug("schema_chunks_built", dataset_id=dataset_id, count=len(chunks))
         return chunks
@@ -105,16 +109,18 @@ class ChunkBuilder:
             f"Duplicate rows: {profile.get('duplicate_count', 0)}\n"
             f"Has time series: {profile.get('has_time_series', False)}"
         )
-        chunks = [DataChunk(
-            id=new_uuid(),
-            dataset_id=dataset_id,
-            chunk_type="profile_summary",
-            content=content,
-            metadata={
-                "row_count":         profile.get("row_count"),
-                "completeness_score": profile.get("completeness_score"),
-            },
-        )]
+        chunks = [
+            DataChunk(
+                id=new_uuid(),
+                dataset_id=dataset_id,
+                chunk_type="profile_summary",
+                content=content,
+                metadata={
+                    "row_count": profile.get("row_count"),
+                    "completeness_score": profile.get("completeness_score"),
+                },
+            )
+        ]
 
         # One chunk per numeric column with statistics
         for col_profile in profile.get("column_profiles", []):
@@ -129,14 +135,16 @@ class ChunkBuilder:
                 f"Median (P50): {stats.get('p50')}\n"
                 f"Skewness: {stats.get('skewness')}"
             )
-            chunks.append(DataChunk(
-                id=new_uuid(),
-                dataset_id=dataset_id,
-                chunk_type="column_statistics",
-                content=content,
-                column_name=col_profile.get("column_name"),
-                metadata={"stats": stats},
-            ))
+            chunks.append(
+                DataChunk(
+                    id=new_uuid(),
+                    dataset_id=dataset_id,
+                    chunk_type="column_statistics",
+                    content=content,
+                    column_name=col_profile.get("column_name"),
+                    metadata={"stats": stats},
+                )
+            )
 
         logger.debug("profile_chunks_built", dataset_id=dataset_id, count=len(chunks))
         return chunks
@@ -157,16 +165,18 @@ class ChunkBuilder:
                 f"Business impact: {insight.get('business_impact', 'unknown')}\n"
                 f"Related columns: {insight.get('source_columns', [])}"
             )
-            chunks.append(DataChunk(
-                id=new_uuid(),
-                dataset_id=dataset_id,
-                chunk_type="insight",
-                content=content,
-                metadata={
-                    "business_impact": insight.get("business_impact"),
-                    "confidence":      insight.get("confidence"),
-                },
-            ))
+            chunks.append(
+                DataChunk(
+                    id=new_uuid(),
+                    dataset_id=dataset_id,
+                    chunk_type="insight",
+                    content=content,
+                    metadata={
+                        "business_impact": insight.get("business_impact"),
+                        "confidence": insight.get("confidence"),
+                    },
+                )
+            )
         return chunks
 
     # ── Correlation chunks ────────────────────────────────────────────────
@@ -180,34 +190,36 @@ class ChunkBuilder:
         chunks = []
         for corr in correlations:
             if abs(corr.get("r", 0)) < 0.5:
-                continue   # skip weak correlations
+                continue  # skip weak correlations
             direction = "positive" if corr.get("r", 0) > 0 else "negative"
             content = (
                 f"Correlation: '{corr.get('column_a')}' and '{corr.get('column_b')}' "
                 f"have a {corr.get('strength', '')} {direction} correlation "
                 f"(r = {corr.get('r', 0):.3f})."
             )
-            chunks.append(DataChunk(
-                id=new_uuid(),
-                dataset_id=dataset_id,
-                chunk_type="correlation",
-                content=content,
-                metadata={"r": corr.get("r"), "strength": corr.get("strength")},
-            ))
+            chunks.append(
+                DataChunk(
+                    id=new_uuid(),
+                    dataset_id=dataset_id,
+                    chunk_type="correlation",
+                    content=content,
+                    metadata={"r": corr.get("r"), "strength": corr.get("strength")},
+                )
+            )
         return chunks
 
     def to_qdrant_dicts(self, chunks: list[DataChunk]) -> list[dict]:
         """Convert DataChunk objects to Qdrant point dicts (ready for upsert)."""
         return [
             {
-                "id":         chunk.id,
+                "id": chunk.id,
                 "dataset_id": chunk.dataset_id,
                 "chunk_type": chunk.chunk_type,
-                "content":    chunk.content,
+                "content": chunk.content,
                 "column_name": chunk.column_name,
-                "payload":    {
-                    "content":     chunk.content,
-                    "chunk_type":  chunk.chunk_type,
+                "payload": {
+                    "content": chunk.content,
+                    "chunk_type": chunk.chunk_type,
                     "column_name": chunk.column_name,
                     **chunk.metadata,
                 },

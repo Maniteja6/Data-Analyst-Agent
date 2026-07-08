@@ -14,8 +14,10 @@ Plan generation:
     5. Validate the DAG for cycles and unknown dependencies
     6. Emit plan:ready via Socket.IO
 """
+
 from __future__ import annotations
 
+import contextlib
 import json
 import re
 from typing import Any
@@ -43,7 +45,7 @@ class PlannerAgent(BaseAgent):
         llm_client: Async LLM client (Claude Sonnet for planning quality).
     """
 
-    def __init__(self, llm_client: Any) -> None:
+    def __init__(self, llm_client: Any) -> None:  # noqa: ANN401
         super().__init__("planner")
         self._llm = llm_client
 
@@ -51,7 +53,7 @@ class PlannerAgent(BaseAgent):
         self,
         context: AgentContext,
         trigger: str = "dataset_ready",
-        **kwargs: Any,
+        **kwargs: Any,  # noqa: ANN401
     ) -> dict:
         """Generate an ExecutionPlan for the given trigger.
 
@@ -99,14 +101,12 @@ class PlannerAgent(BaseAgent):
         # Emit plan:ready to Socket.IO so frontend can render the pipeline graph
         ws_payload = plan.to_ws_event()
         if context._sio:
-            try:
+            with contextlib.suppress(Exception):
                 await context._sio.emit(
                     "plan:ready",
                     {**ws_payload, "correlation_id": context.correlation_id},
                     room=f"dataset:{context.dataset_id}",
                 )
-            except Exception:
-                pass
 
         logger.info(
             "plan_generated",
@@ -135,7 +135,7 @@ class PlannerAgent(BaseAgent):
             )
             data = self._parse_json(raw)
             if data and "tasks" in data:
-                data.setdefault("plan_id",    new_uuid())
+                data.setdefault("plan_id", new_uuid())
                 data.setdefault("session_id", session_id)
                 data.setdefault("dataset_id", dataset_id)
                 # Validate task agent names
@@ -161,14 +161,13 @@ class PlannerAgent(BaseAgent):
         if not context.schema:
             return "Schema not yet available.", False, 0
 
-        cols         = context.schema.get("columns", [])
+        cols = context.schema.get("columns", [])
         has_datetime = any(c.get("semantic_type") in ("date", "datetime") for c in cols)
         numeric = {"currency", "numeric_measure", "numeric_count", "percentage"}
-        num_count    = sum(1 for c in cols if c.get("semantic_type") in numeric)
+        num_count = sum(1 for c in cols if c.get("semantic_type") in numeric)
 
         col_lines = "\n".join(
-            f"  {c['name']} ({c.get('semantic_type', c.get('data_type', '?'))})"
-            for c in cols[:15]
+            f"  {c['name']} ({c.get('semantic_type', c.get('data_type', '?'))})" for c in cols[:15]
         )
         summary = (
             f"{len(cols)} columns; "
@@ -207,15 +206,23 @@ Return ONLY valid JSON:
   "trigger": "{trigger}",
   "estimated_duration_seconds": 45,
   "tasks": [
-    {{"task_id": "t_schema",   "agent": "schema",    "depends_on": [],              "priority": 1, "config": {{}}}},
-    {{"task_id": "t_profile",  "agent": "profiling", "depends_on": ["t_schema"],    "priority": 1, "config": {{}}}},
-    {{"task_id": "t_clean",    "agent": "cleaning",  "depends_on": ["t_profile"],   "priority": 1, "config": {{}}}},
-    {{"task_id": "t_sql",      "agent": "sql",       "depends_on": ["t_clean"],     "priority": 2, "config": {{}}}},
-    {{"task_id": "t_rag",      "agent": "rag",       "depends_on": ["t_profile"],   "priority": 2, "config": {{"index_dataset": true}}}},
-    {{"task_id": "t_insight",  "agent": "insight",   "depends_on": ["t_sql","t_rag"], "priority": 3, "config": {{}}}},
-    {{"task_id": "t_critic",   "agent": "critic",    "depends_on": ["t_insight"],   "priority": 4, "config": {{}}}},
-    {{"task_id": "t_rec",      "agent": "recommendation","depends_on": ["t_critic"],"priority": 5, "config": {{}}}},
-    {{"task_id": "t_report",   "agent": "report",    "depends_on": ["t_rec"],       "priority": 6, "config": {{}}}}
+    {{"task_id": "t_schema", "agent": "schema", "depends_on": [], "priority": 1, "config": {{}}}},
+    {{"task_id": "t_profile", "agent": "profiling", "depends_on": ["t_schema"],
+     "priority": 1, "config": {{}}}},
+    {{"task_id": "t_clean", "agent": "cleaning", "depends_on": ["t_profile"],
+     "priority": 1, "config": {{}}}},
+    {{"task_id": "t_sql", "agent": "sql", "depends_on": ["t_clean"],
+     "priority": 2, "config": {{}}}},
+    {{"task_id": "t_rag", "agent": "rag", "depends_on": ["t_profile"], "priority": 2,
+     "config": {{"index_dataset": true}}}},
+    {{"task_id": "t_insight", "agent": "insight", "depends_on": ["t_sql","t_rag"], "priority": 3,
+     "config": {{}}}},
+    {{"task_id": "t_critic", "agent": "critic", "depends_on": ["t_insight"],
+     "priority": 4, "config": {{}}}},
+    {{"task_id": "t_rec", "agent": "recommendation", "depends_on": ["t_critic"], "priority": 5,
+     "config": {{}}}},
+    {{"task_id": "t_report", "agent": "report", "depends_on": ["t_rec"],
+     "priority": 6, "config": {{}}}}
   ]
 }}"""
 
@@ -225,7 +232,9 @@ Return ONLY valid JSON:
         text = raw.strip()
         # Strip markdown fences
         if text.startswith("```"):
-             text = "\n".join(line for line in text.splitlines() if not line.startswith("`""`")).strip()
+            text = "\n".join(
+                line for line in text.splitlines() if not line.startswith("``")
+            ).strip()
         try:
             return json.loads(text)
         except json.JSONDecodeError:

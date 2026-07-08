@@ -1,10 +1,17 @@
 """ExportReportUseCase — enqueues report generation and returns the job ID."""
+
 from __future__ import annotations
 
-import structlog
+from typing import TYPE_CHECKING
 
+import structlog
 from backend.application.commands.export_report_command import ExportReportCommand
 from backend.domain.insight.exceptions import InsightReportNotFoundException
+
+if TYPE_CHECKING:
+    from backend.application.ports.cache_port import ICacheService
+    from backend.application.ports.job_port import IJobService
+    from backend.domain.insight.repositories.insight_repository import InsightRepository
 
 logger = structlog.get_logger(__name__)
 
@@ -17,10 +24,12 @@ class ExportReportUseCase:
     ``GET /api/v1/jobs/<job_id>`` for the download URL.
     """
 
-    def __init__(self, insight_repo, job_service, cache) -> None:
+    def __init__(
+        self, insight_repo: InsightRepository, job_service: IJobService, cache: ICacheService
+    ) -> None:
         self._insight_repo = insight_repo
-        self._job_service  = job_service
-        self._cache        = cache
+        self._job_service = job_service
+        self._cache = cache
 
     async def execute(self, cmd: ExportReportCommand) -> dict:
         # Check cache first (avoids DB hit for common case)
@@ -37,8 +46,8 @@ class ExportReportUseCase:
         )
         logger.info("export_enqueued", dataset_id=cmd.dataset_id, format=cmd.format, job_id=job_id)
         return {
-            "job_id":     job_id,
-            "format":     cmd.format,
+            "job_id": job_id,
+            "format": cmd.format,
             "dataset_id": cmd.dataset_id,
-            "status":     "queued",
+            "status": "queued",
         }

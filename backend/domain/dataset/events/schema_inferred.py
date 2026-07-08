@@ -1,4 +1,5 @@
 """SchemaInferred domain event."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -27,15 +28,17 @@ class SchemaInferred(DomainEvent):
         row_count:    Number of rows in the inference sample.
     """
 
-    dataset_id:   str = ""
+    dataset_id: str = ""
     column_count: int = 0
-    row_count:    int = 0
+    row_count: int = 0
 
     def to_dict(self) -> dict:
         base = super().to_dict()
-        base.update({
-            "dataset_id":   self.dataset_id,
-            "column_count": self.column_count,
-            "row_count":    self.row_count,
-        })
+        base.update(
+            {
+                "dataset_id": self.dataset_id,
+                "column_count": self.column_count,
+                "row_count": self.row_count,
+            }
+        )
         return base

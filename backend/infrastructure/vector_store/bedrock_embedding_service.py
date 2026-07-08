@@ -24,13 +24,18 @@ Usage::
     vector = await embed.embed("Total revenue column, Float64, 0.3% null rate")
     vectors = await embed.embed_batch(["col_a description…", "col_b description…"])
 """
+
 from __future__ import annotations
 
 import asyncio
 import json
 from functools import lru_cache
+from typing import TYPE_CHECKING, Any
 
 import structlog
+
+if TYPE_CHECKING:
+    from backend.infrastructure.cache.redis_cache_adapter import RedisCacheAdapter
 
 logger = structlog.get_logger(__name__)
 
@@ -43,14 +48,14 @@ class BedrockEmbeddingService:
     re-embedding identical texts.
     """
 
-    _MAX_INPUT_TOKENS = 8192   # Titan Embed v2 limit
-    _MAX_CHARS        = 32_000  # ~8k tokens at ~4 chars/token; safe truncation point
+    _MAX_INPUT_TOKENS = 8192  # Titan Embed v2 limit
+    _MAX_CHARS = 32_000  # ~8k tokens at ~4 chars/token; safe truncation point
 
     def __init__(
         self,
         dimensions: int = 1536,
         normalize: bool = True,
-        cache=None,
+        cache: RedisCacheAdapter | None = None,
     ) -> None:
         """
         Args:
@@ -60,15 +65,16 @@ class BedrockEmbeddingService:
                         When None, caching is disabled.
         """
         self._dimensions = dimensions
-        self._normalize  = normalize
-        self._cache      = cache
-        self._client     = None   # lazily initialised
+        self._normalize = normalize
+        self._cache = cache
+        self._client = None  # lazily initialised
 
     # ── Client factory ────────────────────────────────────────────────────
 
-    def _get_client(self):
+    def _get_client(self) -> Any:  # noqa: ANN401 — boto3 client has no static type without stubs
         if self._client is None:
             from backend.infrastructure.llm.bedrock.bedrock_client import get_bedrock_runtime_client
+
             self._client = get_bedrock_runtime_client()
         return self._client
 
@@ -76,6 +82,7 @@ class BedrockEmbeddingService:
 
     def _cache_key(self, text: str) -> str:
         from backend.shared.utils.hash_utils import sha256_of_string
+
         return f"embed:{self._dimensions}:{sha256_of_string(text)}"
 
     async def _get_cached(self, text: str) -> list[float] | None:
@@ -89,7 +96,7 @@ class BedrockEmbeddingService:
             await self._cache.set(
                 self._cache_key(text),
                 json.dumps(vector),
-                ttl=86400,   # 24-hour cache
+                ttl=86400,  # 24-hour cache
             )
 
     # ── Embedding ─────────────────────────────────────────────────────────
@@ -116,16 +123,19 @@ class BedrockEmbeddingService:
 
         # Bedrock call (blocking boto3 → thread pool)
         from backend.config.bedrock_config import get_bedrock_config
-        cfg    = get_bedrock_config()
+
+        cfg = get_bedrock_config()
         client = self._get_client()
 
-        body = json.dumps({
-            "inputText":  text,
-            "dimensions": self._dimensions,
-            "normalize":  self._normalize,
-        })
+        body = json.dumps(
+            {
+                "inputText": text,
+                "dimensions": self._dimensions,
+                "normalize": self._normalize,
+            }
+        )
 
-        loop     = asyncio.get_event_loop()
+        loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(
             None,
             lambda: client.invoke_model(
@@ -184,7 +194,8 @@ class BedrockEmbeddingService:
         Useful for testing retrieval quality in evals.
         """
         import math
-        dot   = sum(a * b for a, b in zip(vec_a, vec_b))
+
+        dot = sum(a * b for a, b in zip(vec_a, vec_b, strict=False))
         mag_a = math.sqrt(sum(a * a for a in vec_a))
         mag_b = math.sqrt(sum(b * b for b in vec_b))
         if mag_a == 0 or mag_b == 0:

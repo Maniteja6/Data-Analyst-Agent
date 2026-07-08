@@ -1,12 +1,13 @@
 """DataProfile entity — full statistical profile of a dataset."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from backend.shared.entity import Entity
 from backend.domain.analytics.entities.column_profile import ColumnProfile
 from backend.domain.analytics.value_objects.correlation_coefficient import CorrelationCoefficient
+from backend.shared.entity import Entity
 
 
 @dataclass
@@ -31,16 +32,16 @@ class DataProfile(Entity):
         profiled_at:          UTC timestamp when profiling completed.
     """
 
-    session_id:         str
-    dataset_id:         str
-    row_count:          int
-    column_count:       int
-    duplicate_count:    int                          = 0
-    completeness_score: float                        = 1.0
-    consistency_score:  float                        = 1.0
-    column_profiles:    list[ColumnProfile]          = field(default_factory=list)
-    correlations:       list[CorrelationCoefficient] = field(default_factory=list)
-    profiled_at:        datetime | None              = None
+    session_id: str
+    dataset_id: str
+    row_count: int
+    column_count: int
+    duplicate_count: int = 0
+    completeness_score: float = 1.0
+    consistency_score: float = 1.0
+    column_profiles: list[ColumnProfile] = field(default_factory=list)
+    correlations: list[CorrelationCoefficient] = field(default_factory=list)
+    profiled_at: datetime | None = None
 
     # ── Derived helpers ───────────────────────────────────────────────────
 
@@ -70,16 +71,19 @@ class DataProfile(Entity):
     @property
     def numeric_columns(self) -> list[ColumnProfile]:
         from backend.domain.analytics.entities.column_profile import ColumnKind
+
         return [c for c in self.column_profiles if c.kind == ColumnKind.NUMERIC]
 
     @property
     def datetime_columns(self) -> list[ColumnProfile]:
         from backend.domain.analytics.entities.column_profile import ColumnKind
+
         return [c for c in self.column_profiles if c.kind == ColumnKind.DATETIME]
 
     @property
     def categorical_columns(self) -> list[ColumnProfile]:
         from backend.domain.analytics.entities.column_profile import ColumnKind
+
         return [c for c in self.column_profiles if c.kind == ColumnKind.TEXT]
 
     @property
@@ -94,17 +98,17 @@ class DataProfile(Entity):
 
     def to_dict(self) -> dict:
         return {
-            "id":                 self.id,
-            "session_id":         self.session_id,
-            "dataset_id":         self.dataset_id,
-            "row_count":          self.row_count,
-            "column_count":       self.column_count,
-            "duplicate_count":    self.duplicate_count,
+            "id": self.id,
+            "session_id": self.session_id,
+            "dataset_id": self.dataset_id,
+            "row_count": self.row_count,
+            "column_count": self.column_count,
+            "duplicate_count": self.duplicate_count,
             "completeness_score": self.completeness_score,
-            "consistency_score":  self.consistency_score,
-            "overall_quality":    self.overall_quality_score,
-            "quality_grade":      self.quality_grade,
-            "has_time_series":    self.has_time_series,
-            "column_profiles":    [c.to_dict() for c in self.column_profiles],
-            "profiled_at":        self.profiled_at.isoformat() if self.profiled_at else None,
+            "consistency_score": self.consistency_score,
+            "overall_quality": self.overall_quality_score,
+            "quality_grade": self.quality_grade,
+            "has_time_series": self.has_time_series,
+            "column_profiles": [c.to_dict() for c in self.column_profiles],
+            "profiled_at": self.profiled_at.isoformat() if self.profiled_at else None,
         }

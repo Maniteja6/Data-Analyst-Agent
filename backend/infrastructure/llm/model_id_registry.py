@@ -27,15 +27,16 @@ Usage::
     model_id = get_model_id("insight")  # returns Sonnet model ID
     model_id = get_model_id("unknown")  # returns Sonnet (safe default)
 """
+
 from __future__ import annotations
 
-from backend.infrastructure.llm.bedrock.model_configs.claude_haiku  import FAST_AGENT_ROLES
+from backend.infrastructure.llm.bedrock.model_configs.claude_haiku import FAST_AGENT_ROLES
 from backend.infrastructure.llm.bedrock.model_configs.claude_sonnet import PRIMARY_AGENT_ROLES
 
 # Combined role → tier mapping derived from the model config modules.
 # This is the authoritative registry; model configs declare which roles
 # they own and the registry enforces the mapping.
-_FAST_ROLES    = FAST_AGENT_ROLES
+_FAST_ROLES = FAST_AGENT_ROLES
 _PRIMARY_ROLES = PRIMARY_AGENT_ROLES
 
 # Roles not listed in either set fall back to the primary model.
@@ -53,13 +54,14 @@ def get_model_id(role: str) -> str:
         Bedrock model ID string, e.g. ``'anthropic.claude-haiku-4-5'``.
     """
     from backend.config.bedrock_config import get_bedrock_config
-    cfg  = get_bedrock_config()
+
+    cfg = get_bedrock_config()
     role = role.lower()
 
     if role in _FAST_ROLES:
         return cfg.bedrock_model_id_fast
 
-    if role in _PRIMARY_ROLES or True:   # default: all unknown roles → primary
+    if True:  # default: all unknown roles → primary
         return cfg.bedrock_model_id_primary
 
 
@@ -98,5 +100,5 @@ def override_for_testing(role: str, model_id: str) -> None:
 
 def restore_defaults_for_testing() -> None:
     """Restore model ID mappings to their defaults after a test override."""
-    globals()["_FAST_ROLES"]    = FAST_AGENT_ROLES
+    globals()["_FAST_ROLES"] = FAST_AGENT_ROLES
     globals()["_PRIMARY_ROLES"] = PRIMARY_AGENT_ROLES

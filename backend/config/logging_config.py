@@ -15,6 +15,7 @@ The ``bind_contextvars`` helpers from structlog are used by the
 ``CorrelationIdMiddleware`` to attach ``correlation_id`` to every log
 line emitted during a request, without passing it as a parameter.
 """
+
 from __future__ import annotations
 
 import logging
@@ -42,22 +43,16 @@ def configure_logging(log_level: str = "INFO", *, json_logs: bool | None = None)
         # Merge any key-value pairs bound via structlog.contextvars
         # (e.g. correlation_id bound by CorrelationIdMiddleware)
         structlog.contextvars.merge_contextvars,
-
         # Add the log level as a string field: {"level": "info"}
         structlog.stdlib.add_log_level,
-
         # Add the logger name: {"logger": "backend.api.routers.datasets"}
         structlog.stdlib.add_logger_name,
-
         # Add ISO-8601 timestamp: {"timestamp": "2024-11-01T14:32:00.123456Z"}
         structlog.processors.TimeStamper(fmt="iso", utc=True),
-
         # Render positional args in log calls: logger.info("msg %s", value)
         structlog.stdlib.PositionalArgumentsFormatter(),
-
         # Render stack_info if present
         structlog.processors.StackInfoRenderer(),
-
         # Format exc_info tracebacks into the event dict
         structlog.processors.format_exc_info,
     ]
@@ -66,6 +61,7 @@ def configure_logging(log_level: str = "INFO", *, json_logs: bool | None = None)
     # Auto-detect: pretty in dev, JSON in staging/production.
     # Can be overridden by the caller.
     from backend.config.settings import get_settings
+
     settings = get_settings()
     use_json = json_logs if json_logs is not None else (settings.app_env != "development")
 

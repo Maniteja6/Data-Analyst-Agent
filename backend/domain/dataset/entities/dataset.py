@@ -1,27 +1,27 @@
 """Dataset aggregate root — the central entity of the dataset bounded context."""
+
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import UTC, datetime
 
-from backend.shared.aggregate_root import AggregateRoot
-from backend.domain.dataset.value_objects.dataset_status import DatasetStatus
-from backend.domain.dataset.value_objects.semantic_type import SemanticType
-from backend.domain.dataset.events.dataset_uploaded import DatasetUploaded
-from backend.domain.dataset.events.dataset_ready import DatasetReady
 from backend.domain.dataset.events.dataset_failed import DatasetFailed
+from backend.domain.dataset.events.dataset_ready import DatasetReady
+from backend.domain.dataset.events.dataset_uploaded import DatasetUploaded
 from backend.domain.dataset.events.schema_inferred import SchemaInferred
 from backend.domain.dataset.exceptions import InvalidStatusTransitionError
-
+from backend.domain.dataset.value_objects.dataset_status import DatasetStatus
+from backend.domain.dataset.value_objects.semantic_type import SemanticType
+from backend.shared.aggregate_root import AggregateRoot
 
 # Valid state machine transitions
 _TRANSITIONS: dict[DatasetStatus, set[DatasetStatus]] = {
-    DatasetStatus.UPLOADED:  {DatasetStatus.PROFILING, DatasetStatus.FAILED},
-    DatasetStatus.PROFILING: {DatasetStatus.PROFILED,  DatasetStatus.FAILED},
-    DatasetStatus.PROFILED:  {DatasetStatus.CLEANING,  DatasetStatus.FAILED},
-    DatasetStatus.CLEANING:  {DatasetStatus.READY,     DatasetStatus.FAILED},
-    DatasetStatus.READY:     set(),
-    DatasetStatus.FAILED:    set(),
+    DatasetStatus.UPLOADED: {DatasetStatus.PROFILING, DatasetStatus.FAILED},
+    DatasetStatus.PROFILING: {DatasetStatus.PROFILED, DatasetStatus.FAILED},
+    DatasetStatus.PROFILED: {DatasetStatus.CLEANING, DatasetStatus.FAILED},
+    DatasetStatus.CLEANING: {DatasetStatus.READY, DatasetStatus.FAILED},
+    DatasetStatus.READY: set(),
+    DatasetStatus.FAILED: set(),
 }
 
 
@@ -58,20 +58,20 @@ class Dataset(AggregateRoot):
         updated_at:       UTC timestamp of last status change.
     """
 
-    id:               str
-    project_id:       str | None
-    original_name:    str
-    storage_key:      str
-    size_bytes:       int
-    mime_type:        str
-    status:           DatasetStatus    = DatasetStatus.UPLOADED
-    row_count:        int | None       = None
-    column_count:     int | None       = None
-    checksum_sha256:  str | None       = None
-    schema_json:      dict | None      = None
-    error_message:    str | None       = None
-    created_at:       datetime | None  = None
-    updated_at:       datetime | None  = None
+    id: str
+    project_id: str | None
+    original_name: str
+    storage_key: str
+    size_bytes: int
+    mime_type: str
+    status: DatasetStatus = DatasetStatus.UPLOADED
+    row_count: int | None = None
+    column_count: int | None = None
+    checksum_sha256: str | None = None
+    schema_json: dict | None = None
+    error_message: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     def __post_init__(self) -> None:
         super().__init__()
@@ -83,8 +83,8 @@ class Dataset(AggregateRoot):
         allowed = _TRANSITIONS.get(self.status, set())
         if target not in allowed:
             raise InvalidStatusTransitionError(self.status, target)
-        self.status     = target
-        self.updated_at = datetime.now(timezone.utc)
+        self.status = target
+        self.updated_at = datetime.now(UTC)
 
     # ── Domain methods ────────────────────────────────────────────────────
 
@@ -109,15 +109,17 @@ class Dataset(AggregateRoot):
             row_count:    Row count sampled during schema inference.
             column_count: Number of columns found in the dataset.
         """
-        self.schema_json  = {"columns": columns, "column_count": column_count}
-        self.row_count    = row_count
+        self.schema_json = {"columns": columns, "column_count": column_count}
+        self.row_count = row_count
         self.column_count = column_count
-        self.updated_at   = datetime.now(timezone.utc)
-        self._record_event(SchemaInferred(
-            dataset_id=self.id,
-            column_count=column_count,
-            row_count=row_count,
-        ))
+        self.updated_at = datetime.now(UTC)
+        self._record_event(
+            SchemaInferred(
+                dataset_id=self.id,
+                column_count=column_count,
+                row_count=row_count,
+            )
+        )
 
     def complete_profiling(self) -> None:
         """Called after DataProfiler finishes. Transitions to PROFILED."""
@@ -136,7 +138,7 @@ class Dataset(AggregateRoot):
             schema:       Optional updated schema_json if cleaning changed types.
         """
         self._transition(DatasetStatus.READY)
-        self.row_count    = row_count
+        self.row_count = row_count
         self.column_count = column_count
         if schema:
             self.schema_json = schema
@@ -185,7 +187,7 @@ class Dataset(AggregateRoot):
 
     @property
     def size_mb(self) -> float:
-        return round(self.size_bytes / (1024 ** 2), 2)
+        return round(self.size_bytes / (1024**2), 2)
 
     # ── Factory ───────────────────────────────────────────────────────────
 
@@ -200,7 +202,7 @@ class Dataset(AggregateRoot):
         size_bytes: int,
         mime_type: str,
         checksum_sha256: str | None = None,
-    ) -> "Dataset":
+    ) -> Dataset:
         """Factory method — creates a new Dataset in UPLOADED state.
 
         Emits ``DatasetUploaded`` so the Kafka consumer can trigger the
@@ -209,7 +211,7 @@ class Dataset(AggregateRoot):
         All creation must go through this factory to ensure the event is
         always emitted when a new dataset is persisted.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         dataset = cls(
             id=id,
             project_id=project_id,
@@ -222,11 +224,13 @@ class Dataset(AggregateRoot):
             created_at=now,
             updated_at=now,
         )
-        dataset._record_event(DatasetUploaded(
-            dataset_id=id,
-            storage_key=storage_key,
-            filename=original_name,
-            size_bytes=size_bytes,
-            mime_type=mime_type,
-        ))
+        dataset._record_event(
+            DatasetUploaded(
+                dataset_id=id,
+                storage_key=storage_key,
+                filename=original_name,
+                size_bytes=size_bytes,
+                mime_type=mime_type,
+            )
+        )
         return dataset

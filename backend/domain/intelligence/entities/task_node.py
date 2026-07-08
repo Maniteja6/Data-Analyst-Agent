@@ -1,4 +1,5 @@
 """TaskNode entity — one node in an agent execution DAG."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -8,11 +9,11 @@ from backend.shared.entity import Entity
 
 
 class TaskStatus(str, Enum):
-    PENDING   = "pending"
-    RUNNING   = "running"
-    COMPLETE  = "complete"
-    FAILED    = "failed"
-    SKIPPED   = "skipped"   # dependency failed; task was bypassed
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETE = "complete"
+    FAILED = "failed"
+    SKIPPED = "skipped"  # dependency failed; task was bypassed
 
 
 class AgentRole(str, Enum):
@@ -20,22 +21,23 @@ class AgentRole(str, Enum):
 
     Must match the keys in the agent_registry dict passed to DAGExecutor.
     """
-    SCHEMA         = "schema"
-    PROFILING      = "profiling"
-    CLEANING       = "cleaning"
-    RAG            = "rag"
-    SQL            = "sql"
-    PYTHON         = "python"
-    FORECAST       = "forecast"
-    ML             = "ml"
-    VISUALIZATION  = "visualization"
-    INSIGHT        = "insight"
-    CRITIC         = "critic"
+
+    SCHEMA = "schema"
+    PROFILING = "profiling"
+    CLEANING = "cleaning"
+    RAG = "rag"
+    SQL = "sql"
+    PYTHON = "python"
+    FORECAST = "forecast"
+    ML = "ml"
+    VISUALIZATION = "visualization"
+    INSIGHT = "insight"
+    CRITIC = "critic"
     RECOMMENDATION = "recommendation"
-    REPORT         = "report"
-    VALIDATION     = "validation"
-    SECURITY       = "security"
-    MONITORING     = "monitoring"
+    REPORT = "report"
+    VALIDATION = "validation"
+    SECURITY = "security"
+    MONITORING = "monitoring"
 
 
 @dataclass
@@ -60,15 +62,15 @@ class TaskNode(Entity):
         error:       Error message. Set when status → FAILED.
     """
 
-    plan_id:     str
-    agent:       AgentRole
-    depends_on:  list[str]  = field(default_factory=list)
-    priority:    int         = 1
-    status:      TaskStatus  = TaskStatus.PENDING
-    config:      dict        = field(default_factory=dict)
-    result_key:  str         = ""
-    duration_ms: int | None  = None
-    error:       str | None  = None
+    plan_id: str
+    agent: AgentRole
+    depends_on: list[str] = field(default_factory=list)
+    priority: int = 1
+    status: TaskStatus = TaskStatus.PENDING
+    config: dict = field(default_factory=dict)
+    result_key: str = ""
+    duration_ms: int | None = None
+    error: str | None = None
 
     def __post_init__(self) -> None:
         if not self.result_key:
@@ -80,12 +82,12 @@ class TaskNode(Entity):
         self.status = TaskStatus.RUNNING
 
     def mark_complete(self, duration_ms: int) -> None:
-        self.status      = TaskStatus.COMPLETE
+        self.status = TaskStatus.COMPLETE
         self.duration_ms = duration_ms
 
     def mark_failed(self, error: str, duration_ms: int | None = None) -> None:
-        self.status      = TaskStatus.FAILED
-        self.error       = error
+        self.status = TaskStatus.FAILED
+        self.error = error
         self.duration_ms = duration_ms
 
     def mark_skipped(self) -> None:
@@ -112,14 +114,14 @@ class TaskNode(Entity):
 
     def to_dict(self) -> dict:
         return {
-            "id":          self.id,
-            "plan_id":     self.plan_id,
-            "agent":       self.agent.value,
-            "depends_on":  self.depends_on,
-            "priority":    self.priority,
-            "status":      self.status.value,
-            "config":      self.config,
-            "result_key":  self.result_key,
+            "id": self.id,
+            "plan_id": self.plan_id,
+            "agent": self.agent.value,
+            "depends_on": self.depends_on,
+            "priority": self.priority,
+            "status": self.status.value,
+            "config": self.config,
+            "result_key": self.result_key,
             "duration_ms": self.duration_ms,
-            "error":       self.error,
+            "error": self.error,
         }

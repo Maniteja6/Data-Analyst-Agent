@@ -1,11 +1,12 @@
 """Message entity — one turn in a Conversation."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from backend.domain.workspace.value_objects.message_role import MessageRole
 from backend.shared.entity import Entity
-from backend.domain.workspace.value_objects.message_role import MessageRole, Role
 
 
 @dataclass
@@ -35,15 +36,15 @@ class Message(Entity):
     """
 
     conversation_id: str
-    role:            MessageRole
-    content:         str
+    role: MessageRole
+    content: str
 
-    token_count:    int | None     = None
-    agent_trace:    dict | None    = None
-    citations:      list[dict]     = field(default_factory=list)
-    visualizations: list[dict]     = field(default_factory=list)
-    created_at:     datetime | None = None
-    is_streaming:   bool            = False
+    token_count: int | None = None
+    agent_trace: dict | None = None
+    citations: list[dict] = field(default_factory=list)
+    visualizations: list[dict] = field(default_factory=list)
+    created_at: datetime | None = None
+    is_streaming: bool = False
 
     # ── Derived helpers ───────────────────────────────────────────────────
 
@@ -77,28 +78,29 @@ class Message(Entity):
             ``{'role': 'user'/'assistant', 'content': [{'text': '...'}]}``
         """
         return {
-            "role":    self.role.bedrock_role,
+            "role": self.role.bedrock_role,
             "content": [{"text": self.content}],
         }
 
     def to_dict(self) -> dict:
         return {
-            "id":              self.id,
+            "id": self.id,
             "conversation_id": self.conversation_id,
-            "role":            str(self.role),
-            "content":         self.content,
-            "token_count":     self.token_count,
-            "citations":       self.citations,
-            "visualizations":  self.visualizations,
-            "is_streaming":    self.is_streaming,
-            "created_at":      self.created_at.isoformat() if self.created_at else None,
+            "role": str(self.role),
+            "content": self.content,
+            "token_count": self.token_count,
+            "citations": self.citations,
+            "visualizations": self.visualizations,
+            "is_streaming": self.is_streaming,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
     # ── Factory ───────────────────────────────────────────────────────────
 
     @classmethod
-    def user_message(cls, conversation_id: str, content: str) -> "Message":
+    def user_message(cls, conversation_id: str, content: str) -> Message:
         from backend.shared.utils.datetime_utils import utcnow
+
         return cls(
             conversation_id=conversation_id,
             role=MessageRole.user(),
@@ -114,8 +116,9 @@ class Message(Entity):
         citations: list[dict] | None = None,
         visualizations: list[dict] | None = None,
         agent_trace: dict | None = None,
-    ) -> "Message":
+    ) -> Message:
         from backend.shared.utils.datetime_utils import utcnow
+
         return cls(
             conversation_id=conversation_id,
             role=MessageRole.assistant(),

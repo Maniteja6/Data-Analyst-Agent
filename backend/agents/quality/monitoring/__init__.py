@@ -16,6 +16,9 @@ from backend.agents.quality.monitoring.trace_instrumentor import (
 )
 
 __all__ = [
-    "MonitoringAgent", "MetricsEmitter",
-    "agent_span", "pipeline_span", "websocket_span",
+    "MonitoringAgent",
+    "MetricsEmitter",
+    "agent_span",
+    "pipeline_span",
+    "websocket_span",
 ]

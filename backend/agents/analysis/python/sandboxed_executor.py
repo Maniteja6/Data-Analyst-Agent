@@ -10,6 +10,7 @@ Security model:
 The wrapper script provides the df variable and captures the ``result``
 variable as JSON on stdout.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -22,7 +23,7 @@ import structlog
 logger = structlog.get_logger(__name__)
 
 TIMEOUT_SECONDS = 60
-MAX_INPUT_ROWS  = 50_000
+MAX_INPUT_ROWS = 50_000
 MAX_OUTPUT_CHARS = 10_000
 
 _WRAPPER_TEMPLATE = """\
@@ -76,13 +77,14 @@ async def execute_code(
 
     # Pre-flight: block obvious dangerous imports
     from backend.agents.analysis.python.code_generator import validate_imports
+
     blocked = validate_imports(code)
     if blocked:
         logger.warning("python_blocked_imports", modules=blocked)
         return {
-            "result":      None,
-            "code":        code,
-            "error":       f"Blocked import(s): {blocked}",
+            "result": None,
+            "code": code,
+            "error": f"Blocked import(s): {blocked}",
             "duration_ms": 0,
         }
 
@@ -93,24 +95,24 @@ async def execute_code(
     )
 
     start = time.monotonic()
-    proc  = await asyncio.create_subprocess_exec(
-        "python3", "-c", wrapped,
+    proc = await asyncio.create_subprocess_exec(
+        "python3",
+        "-c",
+        wrapped,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
 
     try:
-        stdout, stderr = await asyncio.wait_for(
-            proc.communicate(), timeout=timeout
-        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
     except TimeoutError:
         proc.kill()
         await proc.wait()
         logger.warning("python_sandbox_timeout", timeout=timeout)
         return {
-            "result":      None,
-            "code":        code,
-            "error":       f"Execution timed out after {timeout}s",
+            "result": None,
+            "code": code,
+            "error": f"Execution timed out after {timeout}s",
             "duration_ms": timeout * 1000,
         }
 
@@ -125,9 +127,9 @@ async def execute_code(
             stderr=stderr_text[:500],
         )
         return {
-            "result":      None,
-            "code":        code,
-            "error":       stderr_text[:500] or f"Process exited with code {proc.returncode}",
+            "result": None,
+            "code": code,
+            "error": stderr_text[:500] or f"Process exited with code {proc.returncode}",
             "duration_ms": duration_ms,
         }
 
@@ -140,16 +142,16 @@ async def execute_code(
             duration_ms=duration_ms,
         )
         return {
-            "result":      result_value,
-            "code":        code,
-            "error":       None,
+            "result": result_value,
+            "code": code,
+            "error": None,
             "duration_ms": duration_ms,
         }
     except json.JSONDecodeError:
         # Return raw stdout as a string result
         return {
-            "result":      stdout_text[:MAX_OUTPUT_CHARS],
-            "code":        code,
-            "error":       None,
+            "result": stdout_text[:MAX_OUTPUT_CHARS],
+            "code": code,
+            "error": None,
             "duration_ms": duration_ms,
         }

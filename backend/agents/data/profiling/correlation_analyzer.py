@@ -9,10 +9,18 @@ Real-time design:
     Results are filtered to |r| ≥ min_abs_r to avoid flooding the Socket.IO
     channel with weak correlations that the user doesn't care about.
 """
+
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+import contextlib
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
+
+    DataFrameT = pl.DataFrame | pd.DataFrame
 
 import structlog
 from backend.analytics_engine.statistics.correlation_engine import (
@@ -35,16 +43,16 @@ class CorrelationAnalyzer:
     def __init__(
         self,
         min_abs_r: float = 0.3,
-        sio: Any = None,
+        sio: Any = None,  # noqa: ANN401
         dataset_id: str = "",
     ) -> None:
-        self._engine    = CorrelationEngine(min_abs_r=min_abs_r)
-        self._sio       = sio
+        self._engine = CorrelationEngine(min_abs_r=min_abs_r)
+        self._sio = sio
         self._dataset_id = dataset_id
 
     async def analyze(
         self,
-        df,
+        df: DataFrameT,
         numeric_columns: list[str],
     ) -> list[dict]:
         """Compute pairwise correlations and emit real-time pair events.
@@ -60,7 +68,7 @@ class CorrelationAnalyzer:
             return []
 
         # Run correlation computation in thread pool (CPU-bound numpy)
-        loop    = asyncio.get_event_loop()
+        loop = asyncio.get_event_loop()
         results = await loop.run_in_executor(
             None,
             self._engine.compute,
@@ -75,7 +83,7 @@ class CorrelationAnalyzer:
 
             # Emit per-pair real-time event
             if self._sio and self._dataset_id:
-                try:
+                with contextlib.suppress(Exception):
                     await self._sio.emit(
                         "correlation:pair_complete",
                         {
@@ -84,8 +92,6 @@ class CorrelationAnalyzer:
                         },
                         room=f"dataset:{self._dataset_id}",
                     )
-                except Exception:
-                    pass
 
         logger.info(
             "correlation_analysis_complete",
@@ -95,7 +101,7 @@ class CorrelationAnalyzer:
         )
         return dicts
 
-    def analyze_sync(self, df, numeric_columns: list[str]) -> list[dict]:
+    def analyze_sync(self, df: DataFrameT, numeric_columns: list[str]) -> list[dict]:
         """Synchronous version for use inside thread pool callbacks."""
         if len(numeric_columns) < 2:
             return []
@@ -106,15 +112,13 @@ class CorrelationAnalyzer:
     def _to_dict(corr: CorrelationCoefficient) -> dict:
         r = corr.value
         return {
-            "column_a":  corr.column_a,
-            "column_b":  corr.column_b,
-            "r":         r,
-            "r_squared": round(r ** 2, 6),
-            "strength":  (
-                "very_strong" if abs(r) >= 0.9
-                else "strong"  if abs(r) >= 0.7
-                else "moderate"
+            "column_a": corr.column_a,
+            "column_b": corr.column_b,
+            "r": r,
+            "r_squared": round(r**2, 6),
+            "strength": (
+                "very_strong" if abs(r) >= 0.9 else "strong" if abs(r) >= 0.7 else "moderate"
             ),
             "direction": "positive" if r > 0 else "negative",
-            "sample_n":  getattr(corr, "sample_size", 0),
+            "sample_n": getattr(corr, "sample_size", 0),
         }

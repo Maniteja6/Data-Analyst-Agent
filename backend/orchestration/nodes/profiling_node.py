@@ -1,4 +1,5 @@
 """ProfilingNode — runs DataProfiler and stores the DataProfile in state."""
+
 from __future__ import annotations
 
 import structlog
@@ -15,13 +16,13 @@ async def profiling_node(state: PipelineState) -> dict:
     """
     ctx = state.get("context", {})
     try:
-        from backend.analytics_engine.profiling.data_profiler import DataProfiler
         from backend.analytics_engine.ingestion.file_reader import FileReader
+        from backend.analytics_engine.profiling.data_profiler import DataProfiler
 
-        reader   = FileReader()
-        df       = await reader.read(ctx["storage_key"])
+        reader = FileReader()
+        df = await reader.read(ctx["storage_key"])
         profiler = DataProfiler()
-        profile  = await profiler.profile(
+        profile = await profiler.profile(
             df,
             session_id=ctx.get("session_id", ""),
             dataset_id=ctx.get("dataset_id", ""),

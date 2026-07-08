@@ -19,6 +19,7 @@ Usage::
     # Later, inside an agent's _execute():
     result = await context.tool_registry.invoke("run_sql", sql=sql, storage_key=key)
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -70,9 +71,11 @@ class ToolRegistry:
             async def describe_column(col_name: str) -> str:
                 ...
         """
+
         def decorator(fn: Callable) -> Callable:
             self.register(name, fn)
             return fn
+
         return decorator
 
     def unregister(self, name: str) -> bool:
@@ -81,7 +84,7 @@ class ToolRegistry:
 
     # ── Invocation ────────────────────────────────────────────────────────
 
-    async def invoke(self, name: str, **kwargs: Any) -> Any:
+    async def invoke(self, name: str, **kwargs: Any) -> Any:  # noqa: ANN401
         """Invoke a registered tool by name.
 
         Args:
@@ -98,8 +101,7 @@ class ToolRegistry:
         fn = self._tools.get(name)
         if fn is None:
             raise ValueError(
-                f"Tool '{name}' is not registered. "
-                f"Available tools: {self.list_tools()}"
+                f"Tool '{name}' is not registered. Available tools: {self.list_tools()}"
             )
 
         start = time.monotonic()
@@ -107,9 +109,7 @@ class ToolRegistry:
             if asyncio.iscoroutinefunction(fn):
                 result = await fn(**kwargs)
             else:
-                result = await asyncio.get_event_loop().run_in_executor(
-                    None, lambda: fn(**kwargs)
-                )
+                result = await asyncio.get_event_loop().run_in_executor(None, lambda: fn(**kwargs))
 
             duration_ms = int((time.monotonic() - start) * 1000)
             logger.debug("tool_invoked", name=name, duration_ms=duration_ms)
@@ -121,7 +121,7 @@ class ToolRegistry:
             logger.error("tool_invocation_failed", name=name, error=str(exc))
             raise
 
-    async def invoke_safe(self, name: str, default: Any = None, **kwargs: Any) -> Any:
+    async def invoke_safe(self, name: str, default: Any = None, **kwargs: Any) -> Any:  # noqa: ANN401
         """Invoke a tool and return ``default`` on any exception.
 
         Useful inside agents where a tool failure should not abort the pipeline.

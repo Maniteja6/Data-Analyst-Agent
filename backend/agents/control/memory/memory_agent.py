@@ -11,6 +11,7 @@ Real-time design:
     Both operations are async and non-blocking. Failures are soft — the
     pipeline continues even if Redis is unavailable.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -32,10 +33,10 @@ class MemoryAgent(BaseAgent):
         redis_client: Cache adapter for episodic storage (can be None in tests).
     """
 
-    def __init__(self, llm_client: Any = None, redis_client: Any = None) -> None:
+    def __init__(self, llm_client: Any = None, redis_client: Any = None) -> None:  # noqa: ANN401
         super().__init__("memory")
         self._compressor = ConversationCompressor(llm_client)
-        self._store      = EpisodicStore(redis_client)
+        self._store = EpisodicStore(redis_client)
 
     # ── Agent execute (post-message, called by pipeline) ──────────────────
 
@@ -45,7 +46,7 @@ class MemoryAgent(BaseAgent):
         conversation_id: str = "",
         new_user_message: dict | None = None,
         new_assistant_message: dict | None = None,
-        **kwargs: Any,
+        **kwargs: Any,  # noqa: ANN401
     ) -> dict:
         """Process memory after one round-trip of chat.
 
@@ -79,13 +80,13 @@ class MemoryAgent(BaseAgent):
             messages.append(new_assistant_message)
 
         compressed = False
-        summary    = ""
+        summary = ""
 
         # Compress when approaching the context limit
         if self._compressor.needs_compression(messages):
-            messages   = await self._compressor.compress_and_replace(messages)
+            messages = await self._compressor.compress_and_replace(messages)
             compressed = True
-            summary    = self._extract_summary(messages)
+            summary = self._extract_summary(messages)
             await self._store.save_memory(conversation_id, summary)
             logger.info(
                 "memory_compressed",
@@ -98,8 +99,8 @@ class MemoryAgent(BaseAgent):
         context.conversation_history = messages
 
         return {
-            "compressed":    compressed,
-            "summary":       summary,
+            "compressed": compressed,
+            "summary": summary,
             "message_count": len(messages),
         }
 

@@ -15,18 +15,31 @@ Shutdown order (reverse):
   2. Redis bridge cancelled
   3. Database engine disposed
 """
+
 from __future__ import annotations
 
 import asyncio
-from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager, suppress
 
 import structlog
+from backend.api.middleware.correlation_id import CorrelationIdMiddleware
+from backend.api.middleware.error_handler import register_exception_handlers
+from backend.api.middleware.rate_limiting import RateLimitMiddleware
+from backend.api.middleware.request_logging import RequestLoggingMiddleware
+from backend.api.middleware.security_headers import SecurityHeadersMiddleware
+from backend.api.routers.conversations import router as conversations_router
+from backend.api.routers.datasets import router as datasets_router
+from backend.api.routers.exports import router as exports_router
+from backend.api.routers.health import router as health_router
+from backend.api.routers.insights import router as insights_router
+from backend.api.routers.jobs import router as jobs_router
+from backend.api.websocket.ws_server import socket_app
+from backend.config.feature_flags import flags
+from backend.config.logging_config import configure_logging
+from backend.config.settings import get_settings
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
-from backend.config.settings import get_settings
-from backend.config.logging_config import configure_logging
-from backend.config.feature_flags import flags
 
 logger = structlog.get_logger(__name__)
 
@@ -37,8 +50,9 @@ settings = get_settings()
 # Application lifespan
 # ---------------------------------------------------------------------------
 
+
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Application startup and shutdown lifecycle."""
 
     # ── 1. Logging ────────────────────────────────────────────────────────
@@ -47,18 +61,23 @@ async def lifespan(app: FastAPI):
 
     # ── 2. OpenTelemetry ──────────────────────────────────────────────────
     if settings.otel_enabled:
-        from backend.infrastructure.observability.otel_setup import setup_otel, instrument_fastapi
-        setup_otel(service_name=settings.otel_service_name, endpoint=settings.otel_exporter_otlp_endpoint)
+        from backend.infrastructure.observability.otel_setup import instrument_fastapi, setup_otel
+
+        setup_otel(
+            service_name=settings.otel_service_name, endpoint=settings.otel_exporter_otlp_endpoint
+        )
         instrument_fastapi(app)
 
     # ── 3. Database ───────────────────────────────────────────────────────
     from backend.infrastructure.persistence.database import get_engine
-    get_engine()   # initialise connection pool
+
+    get_engine()  # initialise connection pool
 
     # ── 4. ClickHouse ─────────────────────────────────────────────────────
     if flags.clickhouse_enabled:
         try:
             from backend.infrastructure.analytics_db.clickhouse_client import get_clickhouse_client
+
             await get_clickhouse_client().ensure_schema()
         except Exception as exc:
             logger.warning("clickhouse_init_failed", error=str(exc))
@@ -67,6 +86,7 @@ async def lifespan(app: FastAPI):
     if flags.rag_enabled:
         try:
             from backend.infrastructure.vector_store.collection_manager import CollectionManager
+
             await CollectionManager().initialise()
         except Exception as exc:
             logger.warning("qdrant_init_failed", error=str(exc))
@@ -74,6 +94,7 @@ async def lifespan(app: FastAPI):
     # ── 6. Redis warmup ───────────────────────────────────────────────────
     try:
         from backend.infrastructure.cache.redis_cache_adapter import get_redis_cache
+
         await get_redis_cache().ping()
         logger.info("redis_ready")
     except Exception as exc:
@@ -82,34 +103,44 @@ async def lifespan(app: FastAPI):
     # ── 7. Kafka consumers ────────────────────────────────────────────────
     consumer_tasks: list[asyncio.Task] = []
     if flags.kafka_enabled:
-        from backend.infrastructure.messaging.consumers.dataset_uploaded_consumer import DatasetUploadedConsumer
-        from backend.infrastructure.messaging.consumers.analytics_completed_consumer import AnalyticsCompletedConsumer
-        from backend.infrastructure.messaging.consumers.insight_generated_consumer import InsightGeneratedConsumer
+        from backend.infrastructure.messaging.consumers.analytics_completed_consumer import (
+            AnalyticsCompletedConsumer,
+        )
+        from backend.infrastructure.messaging.consumers.dataset_uploaded_consumer import (
+            DatasetUploadedConsumer,
+        )
+        from backend.infrastructure.messaging.consumers.insight_generated_consumer import (
+            InsightGeneratedConsumer,
+        )
 
-        for Consumer in [DatasetUploadedConsumer, AnalyticsCompletedConsumer, InsightGeneratedConsumer]:
-            task = asyncio.create_task(Consumer().run())
+        for consumer_cls in [
+            DatasetUploadedConsumer,
+            AnalyticsCompletedConsumer,
+            InsightGeneratedConsumer,
+        ]:
+            task = asyncio.create_task(consumer_cls().run())
             consumer_tasks.append(task)
         logger.info("kafka_consumers_started", count=len(consumer_tasks))
 
     # ── 8. Redis → Socket.IO bridge ───────────────────────────────────────
     from backend.api.websocket.ws_server import start_redis_subscriber
+
     await start_redis_subscriber()
 
     logger.info("datapilot_ready", version=settings.app_version)
 
-    yield   # application runs here
+    yield  # application runs here
 
     # ── Shutdown ──────────────────────────────────────────────────────────
     logger.info("datapilot_shutting_down")
 
     for task in consumer_tasks:
         task.cancel()
-        try:
+        with suppress(asyncio.CancelledError, Exception):
             await task
-        except (asyncio.CancelledError, Exception):
-            pass
 
     from backend.infrastructure.persistence.database import dispose_engine
+
     await dispose_engine()
     logger.info("datapilot_stopped")
 
@@ -120,9 +151,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="DataPilot API",
-    description="AI-powered data analytics platform. Upload datasets, chat with your data, and generate business insights.",
+    description=(
+        "AI-powered data analytics platform. Upload datasets, chat with your data, "
+        "and generate business insights."
+    ),
     version=settings.app_version,
-    docs_url="/docs"  if settings.enable_swagger else None,
+    docs_url="/docs" if settings.enable_swagger else None,
     redoc_url="/redoc" if settings.enable_swagger else None,
     lifespan=lifespan,
 )
@@ -137,12 +171,6 @@ app.add_middleware(
     expose_headers=["X-Correlation-ID", "X-Response-Time-Ms"],
 )
 
-from backend.api.middleware.correlation_id   import CorrelationIdMiddleware
-from backend.api.middleware.request_logging  import RequestLoggingMiddleware
-from backend.api.middleware.security_headers import SecurityHeadersMiddleware
-from backend.api.middleware.rate_limiting    import RateLimitMiddleware
-from backend.api.middleware.error_handler    import register_exception_handlers
-
 app.add_middleware(CorrelationIdMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
@@ -150,13 +178,6 @@ app.add_middleware(RateLimitMiddleware)
 register_exception_handlers(app)
 
 # ── Routers ───────────────────────────────────────────────────────────────
-from backend.api.routers.health        import router as health_router
-from backend.api.routers.datasets      import router as datasets_router
-from backend.api.routers.insights      import router as insights_router
-from backend.api.routers.conversations import router as conversations_router
-from backend.api.routers.exports       import router as exports_router
-from backend.api.routers.jobs          import router as jobs_router
-
 app.include_router(health_router)
 app.include_router(datasets_router)
 app.include_router(insights_router)
@@ -167,8 +188,8 @@ app.include_router(jobs_router)
 # ── Prometheus metrics ────────────────────────────────────────────────────
 if settings.prometheus_enabled:
     from prometheus_fastapi_instrumentator import Instrumentator
+
     Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 # ── Socket.IO WebSocket mount ─────────────────────────────────────────────
-from backend.api.websocket.ws_server import socket_app
 app.mount("/ws", socket_app)

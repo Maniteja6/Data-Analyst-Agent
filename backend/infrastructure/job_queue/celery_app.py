@@ -38,12 +38,15 @@ Starting workers::
     celery -A backend.infrastructure.job_queue.celery_app worker \\
         --queues=reports --concurrency=2 --hostname=reports@%h
 """
+
 from __future__ import annotations
 
-from celery import Celery
-from celery.schedules import crontab
+from typing import Any
 
 from backend.config.settings import get_settings
+from celery import Celery
+from celery.schedules import crontab
+from celery.signals import task_failure, task_postrun, task_prerun, worker_ready
 
 settings = get_settings()
 
@@ -68,41 +71,37 @@ celery_app = Celery(
 
 celery_app.conf.update(
     # Serialisation — JSON only (no pickle; avoids arbitrary code execution)
-    task_serializer    = "json",
-    result_serializer  = "json",
-    accept_content     = ["json"],
-
+    task_serializer="json",
+    result_serializer="json",
+    accept_content=["json"],
     # Time limits
-    task_soft_time_limit = settings.celery_task_soft_time_limit,   # SIGTERM → raise SoftTimeLimitExceeded
-    task_time_limit      = settings.celery_task_time_limit,        # SIGKILL
-
+    # task_soft_time_limit: SIGTERM → raises SoftTimeLimitExceeded
+    task_soft_time_limit=settings.celery_task_soft_time_limit,
+    task_time_limit=settings.celery_task_time_limit,  # SIGKILL
     # Time zone
-    timezone   = "UTC",
-    enable_utc = True,
-
+    timezone="UTC",
+    enable_utc=True,
     # Result expiry — keep results for 1 hour (enough for the frontend to poll)
-    result_expires = 3600,
-
+    result_expires=3600,
     # Worker behaviour
-    worker_prefetch_multiplier = 1,   # one task per worker slot (prevents memory spikes on analysis tasks)
-    task_acks_late             = True, # acknowledge only after success (allows retry on worker crash)
-    task_reject_on_worker_lost = True, # requeue if the worker process dies mid-task
-
+    # worker_prefetch_multiplier=1: one task per worker slot (prevents memory
+    # spikes on analysis tasks)
+    worker_prefetch_multiplier=1,
+    task_acks_late=True,  # acknowledge only after success (allows retry on worker crash)
+    task_reject_on_worker_lost=True,  # requeue if the worker process dies mid-task
     # Task routing — each task module → dedicated queue
-    task_routes = {
+    task_routes={
         "backend.infrastructure.job_queue.tasks.analysis_tasks.*": {"queue": "analysis"},
-        "backend.infrastructure.job_queue.tasks.agent_tasks.*":    {"queue": "agents"},
-        "backend.infrastructure.job_queue.tasks.report_tasks.*":   {"queue": "reports"},
+        "backend.infrastructure.job_queue.tasks.agent_tasks.*": {"queue": "agents"},
+        "backend.infrastructure.job_queue.tasks.report_tasks.*": {"queue": "reports"},
     },
-
     # Default queue for tasks not matched by task_routes
-    task_default_queue    = "celery",
-    task_default_exchange = "celery",
-
+    task_default_queue="celery",
+    task_default_exchange="celery",
     # Beat schedule — periodic maintenance tasks
-    beat_schedule = {
+    beat_schedule={
         "cleanup-stale-jobs": {
-            "task":     "analysis.cleanup_stale_jobs",
+            "task": "analysis.cleanup_stale_jobs",
             "schedule": crontab(minute="*/30"),  # every 30 minutes
         },
     },
@@ -112,22 +111,20 @@ celery_app.conf.update(
 # Signal handlers — for structured logging and OpenTelemetry tracing
 # ---------------------------------------------------------------------------
 
-from celery.signals import (
-    task_prerun, task_postrun, task_failure, worker_ready
-)
-
 
 @worker_ready.connect
-def on_worker_ready(sender, **kwargs):
+def on_worker_ready(sender: Any, **kwargs: Any) -> None:  # noqa: ANN401 — Celery signal payload
     import structlog
+
     structlog.get_logger("celery.worker").info(
         "celery_worker_ready", queues=list(sender.app.amqp.queues.keys())
     )
 
 
 @task_prerun.connect
-def on_task_prerun(task_id, task, *args, **kwargs):
+def on_task_prerun(task_id: str, task: Any, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401 — Celery signal payload
     import structlog
+
     structlog.contextvars.bind_contextvars(
         celery_task_id=task_id,
         celery_task_name=task.name,
@@ -135,8 +132,16 @@ def on_task_prerun(task_id, task, *args, **kwargs):
 
 
 @task_postrun.connect
-def on_task_postrun(task_id, task, retval, state, *args, **kwargs):
+def on_task_postrun(
+    task_id: str,
+    task: Any,  # noqa: ANN401
+    retval: Any,  # noqa: ANN401
+    state: str,
+    *args: Any,  # noqa: ANN401
+    **kwargs: Any,  # noqa: ANN401
+) -> None:
     import structlog
+
     structlog.get_logger("celery.task").info(
         "celery_task_complete",
         task_id=task_id,
@@ -147,8 +152,16 @@ def on_task_postrun(task_id, task, retval, state, *args, **kwargs):
 
 
 @task_failure.connect
-def on_task_failure(task_id, exception, traceback, sender, *args, **kwargs):
+def on_task_failure(
+    task_id: str,
+    exception: BaseException,
+    traceback: Any,  # noqa: ANN401
+    sender: Any,  # noqa: ANN401
+    *args: Any,  # noqa: ANN401
+    **kwargs: Any,  # noqa: ANN401
+) -> None:
     import structlog
+
     structlog.get_logger("celery.task").error(
         "celery_task_failed",
         task_id=task_id,

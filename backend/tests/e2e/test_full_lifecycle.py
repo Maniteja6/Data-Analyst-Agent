@@ -7,8 +7,10 @@ These tests require:
 
 Skip unless ``E2E_ENABLED=true`` is set.
 """
-import os
+
 import io
+import os
+
 import pytest
 
 E2E_ENABLED = os.environ.get("E2E_ENABLED") == "true"
@@ -23,10 +25,9 @@ SAMPLE_CSV = b"""date,region,product,revenue,units
 
 @pytest.mark.e2e
 class TestFullLifecycle:
-
     @skip_e2e
     @pytest.mark.asyncio
-    async def test_upload_then_get_status(self, async_client):
+    async def test_upload_then_get_status(self, async_client) -> None:
         """Upload → verify UPLOADED status → check job_id present."""
         resp = await async_client.post(
             "/api/v1/datasets/upload",
@@ -35,16 +36,22 @@ class TestFullLifecycle:
         assert resp.status_code == 201
         data = resp.json()
         assert "dataset_id" in data
-        assert "job_id"     in data
+        assert "job_id" in data
 
         dataset_id = data["dataset_id"]
         status_resp = await async_client.get(f"/api/v1/datasets/{dataset_id}")
         assert status_resp.status_code == 200
-        assert status_resp.json()["status"] in ("uploaded", "profiling", "profiled", "cleaning", "ready")
+        assert status_resp.json()["status"] in (
+            "uploaded",
+            "profiling",
+            "profiled",
+            "cleaning",
+            "ready",
+        )
 
     @skip_e2e
     @pytest.mark.asyncio
-    async def test_job_status_polling(self, async_client):
+    async def test_job_status_polling(self, async_client) -> None:
         """Upload → get job_id → poll job status → eventually complete."""
         resp = await async_client.post(
             "/api/v1/datasets/upload",
@@ -57,20 +64,20 @@ class TestFullLifecycle:
         job_resp = await async_client.get(f"/api/v1/jobs/{job_id}")
         assert job_resp.status_code == 200
         data = job_resp.json()
-        assert "status"   in data
+        assert "status" in data
         assert "progress" in data
 
     @skip_e2e
     @pytest.mark.asyncio
-    async def test_health_and_readiness(self, async_client):
+    async def test_health_and_readiness(self, async_client) -> None:
         health = await async_client.get("/health")
-        ready  = await async_client.get("/ready")
+        ready = await async_client.get("/ready")
         assert health.status_code == 200
-        assert ready.status_code  in (200, 503)   # 503 if a dependency is down
+        assert ready.status_code in (200, 503)  # 503 if a dependency is down
 
     @skip_e2e
     @pytest.mark.asyncio
-    async def test_delete_dataset(self, async_client):
+    async def test_delete_dataset(self, async_client) -> None:
         resp = await async_client.post(
             "/api/v1/datasets/upload",
             files={"file": ("del_test.csv", io.BytesIO(SAMPLE_CSV), "text/csv")},

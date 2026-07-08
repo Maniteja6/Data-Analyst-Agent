@@ -1,4 +1,5 @@
 """DatasetUploaded domain event."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -25,19 +26,21 @@ class DatasetUploaded(DomainEvent):
         mime_type:    Detected MIME type string.
     """
 
-    dataset_id:  str = ""
+    dataset_id: str = ""
     storage_key: str = ""
-    filename:    str = ""
-    size_bytes:  int = 0
-    mime_type:   str = ""
+    filename: str = ""
+    size_bytes: int = 0
+    mime_type: str = ""
 
     def to_dict(self) -> dict:
         base = super().to_dict()
-        base.update({
-            "dataset_id":  self.dataset_id,
-            "storage_key": self.storage_key,
-            "filename":    self.filename,
-            "size_bytes":  self.size_bytes,
-            "mime_type":   self.mime_type,
-        })
+        base.update(
+            {
+                "dataset_id": self.dataset_id,
+                "storage_key": self.storage_key,
+                "filename": self.filename,
+                "size_bytes": self.size_bytes,
+                "mime_type": self.mime_type,
+            }
+        )
         return base

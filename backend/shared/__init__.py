@@ -1,16 +1,17 @@
 """Shared kernel — base classes and utilities used across all bounded contexts."""
+
 """Shared kernel — cross-cutting utilities imported by every backend layer.
 
 Modules (all pure stdlib, zero I/O):
     domain_event.py     — DomainEvent(event_type, aggregate_id, occurred_at,
                             correlation_id, payload) with to_dict() / from_dict()
     exceptions.py       — Exception hierarchy:
-                            DomainException        (base, .code attribute)
-                              ValidationException  (.field attribute)
-                              AgentException       (.agent_name attribute)
-                              DatasetNotFoundException
+                            DomainError        (base, .code attribute)
+                              ValidationError  (.field attribute)
+                              AgentError       (.agent_name attribute)
+                              DatasetNotFoundError
                               InsightReportNotFoundException
-                              ConversationNotFoundException
+                              ConversationNotFoundError
                               DuplicateDatasetError
                               InvalidStatusTransitionError
 

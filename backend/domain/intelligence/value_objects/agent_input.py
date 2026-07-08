@@ -1,4 +1,5 @@
 """AgentInput value object — immutable input envelope passed to every agent."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -29,12 +30,12 @@ class AgentInput(ValueObject):
                         (e.g. ``{'max_rows': 1000, 'target_col': 'revenue'}``).
     """
 
-    session_id:     str
-    dataset_id:     str
+    session_id: str
+    dataset_id: str
     correlation_id: str
-    storage_key:    str
-    task_id:        str
-    agent_name:     str
+    storage_key: str
+    task_id: str
+    agent_name: str
     # Frozen dicts aren't hashable, so we store as a tuple of pairs
     _payload_items: tuple = field(default_factory=tuple)
     _metadata_items: tuple = field(default_factory=tuple)
@@ -70,7 +71,7 @@ class AgentInput(ValueObject):
         agent_name: str,
         payload: dict[str, Any] | None = None,
         metadata: dict[str, Any] | None = None,
-    ) -> "AgentInput":
+    ) -> AgentInput:
         """Create an AgentInput, converting dicts to frozen tuple pairs."""
         return cls(
             session_id=session_id,
@@ -83,7 +84,7 @@ class AgentInput(ValueObject):
             _metadata_items=tuple(sorted((metadata or {}).items())),
         )
 
-    def with_payload(self, **kwargs: Any) -> "AgentInput":
+    def with_payload(self, **kwargs: Any) -> AgentInput:  # noqa: ANN401
         """Return a new AgentInput with additional payload fields merged in."""
         merged = {**self.payload, **kwargs}
         return AgentInput.create(
@@ -99,12 +100,12 @@ class AgentInput(ValueObject):
 
     def to_dict(self) -> dict:
         return {
-            "session_id":     self.session_id,
-            "dataset_id":     self.dataset_id,
+            "session_id": self.session_id,
+            "dataset_id": self.dataset_id,
             "correlation_id": self.correlation_id,
-            "storage_key":    self.storage_key,
-            "task_id":        self.task_id,
-            "agent_name":     self.agent_name,
-            "payload":        self.payload,
-            "metadata":       self.metadata,
+            "storage_key": self.storage_key,
+            "task_id": self.task_id,
+            "agent_name": self.agent_name,
+            "payload": self.payload,
+            "metadata": self.metadata,
         }

@@ -1,5 +1,7 @@
 """SendMessageCommand — input DTO for the SendMessageUseCase."""
+
 from __future__ import annotations
+
 from dataclasses import dataclass
 
 
@@ -15,8 +17,9 @@ class SendMessageCommand:
         stream:          When True, the use case should yield tokens
                          incrementally via the streaming LLM service.
     """
+
     conversation_id: str
-    dataset_id:      str
-    content:         str
-    correlation_id:  str  = ""
-    stream:          bool = False
+    dataset_id: str
+    content: str
+    correlation_id: str = ""
+    stream: bool = False

@@ -1,26 +1,30 @@
 """Integration test: SendMessageUseCase with mocked LLM."""
+
 import pytest
 
 
 @pytest.mark.integration
 class TestChatPipeline:
-
     @pytest.mark.asyncio
     async def test_send_message_returns_response(
         self, fake_conversation, fake_dataset, mock_llm, in_memory_cache
-    ):
+    ) -> None:
         """SendMessageUseCase should produce an assistant reply."""
-        from backend.application.use_cases.send_message import SendMessageUseCase
         from backend.application.commands.send_message_command import SendMessageCommand
+        from backend.application.use_cases.send_message import SendMessageUseCase
 
         mock_llm.set_response("What", "The total revenue is $24,000.")
 
         class _FakeConvRepo:
-            async def get_by_id(self, cid): return fake_conversation
-            async def save(self, entity): pass
+            async def get_by_id(self, cid):
+                return fake_conversation
+
+            async def save(self, entity) -> None:
+                pass
 
         class _FakeDatasetRepo:
-            async def get_by_id(self, did): return fake_dataset
+            async def get_by_id(self, did):
+                return fake_dataset
 
         use_case = SendMessageUseCase(
             conversation_repo=_FakeConvRepo(),

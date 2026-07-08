@@ -1,4 +1,5 @@
 """ReportNode — finalises the InsightReport and persists it to Postgres."""
+
 from __future__ import annotations
 
 import structlog
@@ -13,9 +14,9 @@ async def report_node(state: PipelineState) -> dict:
     Reads:  state['insight_report'], state['critique'], state['context']
     Writes: state['final_report'] — the persisted InsightReport.to_dict()
     """
-    ctx            = state.get("context", {})
+    ctx = state.get("context", {})
     insight_report = state.get("insight_report", {})
-    critique       = state.get("critique", {})
+    critique = state.get("critique", {})
 
     # Apply any critic revisions to the insight list
     if critique.get("revised_insights"):
@@ -26,7 +27,9 @@ async def report_node(state: PipelineState) -> dict:
 
     try:
         from backend.agents.recommendation_agent import RecommendationAgent
-        from backend.infrastructure.llm.bedrock.bedrock_converse_adapter import BedrockConverseAdapter
+        from backend.infrastructure.llm.bedrock.bedrock_converse_adapter import (
+            BedrockConverseAdapter,
+        )
 
         rec_agent = RecommendationAgent(llm=BedrockConverseAdapter())
         insight_report = await rec_agent.run(insight_report=insight_report)
@@ -36,11 +39,11 @@ async def report_node(state: PipelineState) -> dict:
 
     # Persist to Postgres
     try:
+        from backend.domain.insight.entities.insight_report import InsightReport
         from backend.infrastructure.persistence.database import get_session
         from backend.infrastructure.persistence.repositories.postgres_insight_repository import (
             PostgresInsightRepository,
         )
-        from backend.domain.insight.entities.insight_report import InsightReport
 
         report_entity = InsightReport.create(
             session_id=ctx.get("session_id", ""),
@@ -58,6 +61,7 @@ async def report_node(state: PipelineState) -> dict:
     # Cache in Redis
     try:
         from backend.infrastructure.cache.redis_cache_adapter import get_redis_cache
+
         cache = get_redis_cache()
         await cache.set_json(
             f"insights:{ctx.get('dataset_id', '')}",

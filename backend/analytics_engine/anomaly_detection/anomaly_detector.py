@@ -39,17 +39,24 @@ Usage::
     anomalies = await detector.detect(df, profile=data_profile)
     # returns list[dict] suitable for AnomalyAlert entity construction
 """
+
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING
 
 import structlog
-
-from backend.analytics_engine.anomaly_detection.zscore_detector     import ZScoreDetector
-from backend.analytics_engine.anomaly_detection.iqr_detector        import IQRDetector
-from backend.analytics_engine.anomaly_detection.isolation_forest    import IsolationForestDetector
-from backend.analytics_engine.anomaly_detection.rule_detector       import RuleDetector
+from backend.analytics_engine.anomaly_detection.iqr_detector import IQRDetector
+from backend.analytics_engine.anomaly_detection.isolation_forest import IsolationForestDetector
+from backend.analytics_engine.anomaly_detection.rule_detector import RuleDetector
+from backend.analytics_engine.anomaly_detection.zscore_detector import ZScoreDetector
 from backend.config.settings import get_settings
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
+    from backend.domain.analytics.entities.data_profile import DataProfile
+
+    DataFrameT = pl.DataFrame | pd.DataFrame
 
 logger = structlog.get_logger(__name__)
 
@@ -74,15 +81,15 @@ class AnomalyDetector:
         max_anomalies_per_column: int = 50,
     ) -> None:
         settings = get_settings()
-        self._zscore_threshold   = zscore_threshold  or settings.anomaly_zscore_threshold
-        self._iqr_multiplier     = iqr_multiplier    or settings.anomaly_iqr_multiplier
-        self._if_contamination   = if_contamination  or settings.anomaly_isolation_forest_contamination
-        self._run_if             = run_isolation_forest
-        self._max_per_col        = max_anomalies_per_column
+        self._zscore_threshold = zscore_threshold or settings.anomaly_zscore_threshold
+        self._iqr_multiplier = iqr_multiplier or settings.anomaly_iqr_multiplier
+        self._if_contamination = if_contamination or settings.anomaly_isolation_forest_contamination
+        self._run_if = run_isolation_forest
+        self._max_per_col = max_anomalies_per_column
 
     # ── Primary entry point ───────────────────────────────────────────────
 
-    async def detect(self, df, profile=None) -> list[dict]:
+    async def detect(self, df: DataFrameT, profile: DataProfile | None = None) -> list[dict]:
         """Run all applicable detectors and return deduplicated anomaly dicts.
 
         Args:
@@ -107,7 +114,8 @@ class AnomalyDetector:
         # ── Multivariate detection (Isolation Forest) ─────────────────────
         if self._run_if:
             numeric_cols = [
-                c for c, m in column_meta.items()
+                c
+                for c, m in column_meta.items()
                 if m.get("kind") in ("numeric", "currency", "count")
             ]
             if len(numeric_cols) >= 2:
@@ -116,7 +124,7 @@ class AnomalyDetector:
                         contamination=self._if_contamination,
                         max_results=self._max_per_col * 2,
                     )
-                    if_results  = await asyncio.get_event_loop().run_in_executor(
+                    if_results = await asyncio.get_event_loop().run_in_executor(
                         None,
                         lambda: if_detector.to_anomaly_dicts(df, numeric_cols),
                     )
@@ -131,7 +139,7 @@ class AnomalyDetector:
 
         # ── Deduplicate and rank ───────────────────────────────────────────
         deduped = self._deduplicate(all_results)
-        ranked  = self._rank(deduped)
+        ranked = self._rank(deduped)
 
         logger.info(
             "anomaly_detection_complete",
@@ -143,16 +151,17 @@ class AnomalyDetector:
 
     # ── Per-column detection ──────────────────────────────────────────────
 
-    def _detect_column(
-        self, df, column: str, meta: dict
-    ) -> list[dict]:
+    def _detect_column(self, df: DataFrameT, column: str, meta: dict) -> list[dict]:
         """Run appropriate detectors for one column and return raw results."""
-        kind    = meta.get("kind",          "unknown")
-        stype   = meta.get("semantic_type", "unknown")
+        kind = meta.get("kind", "unknown")
+        stype = meta.get("semantic_type", "unknown")
         results: list[dict] = []
 
         if kind not in ("numeric",) and stype not in (
-            "currency", "numeric_measure", "numeric_count", "percentage"
+            "currency",
+            "numeric_measure",
+            "numeric_count",
+            "percentage",
         ):
             # Run rule checks for non-numeric semantic types
             rule_detector = RuleDetector(max_results=self._max_per_col)
@@ -162,8 +171,10 @@ class AnomalyDetector:
         # Numeric column: Z-score
         try:
             threshold = (
-                3.5 if stype == "currency"
-                else 4.0 if stype == "numeric_count"
+                3.5
+                if stype == "currency"
+                else 4.0
+                if stype == "numeric_count"
                 else self._zscore_threshold
             )
             z_detector = ZScoreDetector(threshold=threshold, max_results=self._max_per_col)
@@ -210,10 +221,10 @@ class AnomalyDetector:
     @staticmethod
     def _rank(results: list[dict]) -> list[dict]:
         """Sort anomalies by severity → confidence descending."""
-        _SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+        severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 
         def _sort_key(r: dict) -> tuple:
-            sev  = _SEVERITY_ORDER.get(r.get("severity", "low"), 3)
+            sev = severity_order.get(r.get("severity", "low"), 3)
             conf = -float(r.get("confidence", 0.5))
             return (sev, conf)
 
@@ -222,7 +233,7 @@ class AnomalyDetector:
     # ── Column metadata extraction ────────────────────────────────────────
 
     @staticmethod
-    def _extract_column_meta(df, profile) -> dict[str, dict]:
+    def _extract_column_meta(df: DataFrameT, profile: DataProfile | None) -> dict[str, dict]:
         """Build a {column_name: {kind, semantic_type}} lookup.
 
         Uses the DataProfile entity when available; falls back to dtype
@@ -232,14 +243,14 @@ class AnomalyDetector:
 
         if profile is not None:
             for col in getattr(profile, "column_profiles", []):
-                kind  = getattr(col, "kind",          None)
+                kind = getattr(col, "kind", None)
                 stype = getattr(col, "semantic_type", None)
-                if hasattr(kind,  "value"):
-                    kind  = kind.value
+                if hasattr(kind, "value"):
+                    kind = kind.value
                 if hasattr(stype, "value"):
                     stype = stype.value
                 meta[col.column_name] = {
-                    "kind":          kind  or "unknown",
+                    "kind": kind or "unknown",
                     "semantic_type": stype or "unknown",
                 }
             return meta
@@ -247,11 +258,22 @@ class AnomalyDetector:
         # Fallback: infer from dtypes
         try:
             import polars as pl
+
             if isinstance(df, pl.DataFrame):
                 for col in df.columns:
                     dtype = df[col].dtype
-                    if dtype in (pl.Float32, pl.Float64, pl.Int32, pl.Int64,
-                                 pl.Int8, pl.Int16, pl.UInt8, pl.UInt16, pl.UInt32, pl.UInt64):
+                    if dtype in (
+                        pl.Float32,
+                        pl.Float64,
+                        pl.Int32,
+                        pl.Int64,
+                        pl.Int8,
+                        pl.Int16,
+                        pl.UInt8,
+                        pl.UInt16,
+                        pl.UInt32,
+                        pl.UInt64,
+                    ):
                         meta[col] = {"kind": "numeric", "semantic_type": "numeric_measure"}
                     elif dtype == pl.Utf8:
                         meta[col] = {"kind": "text", "semantic_type": "unknown"}
@@ -267,6 +289,7 @@ class AnomalyDetector:
 
         # pandas fallback
         import numpy as np
+
         for col in df.columns:
             dtype = df[col].dtype
             if np.issubdtype(dtype, np.number):

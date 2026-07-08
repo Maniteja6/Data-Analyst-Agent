@@ -1,21 +1,23 @@
 """ColumnProfile entity — statistical profile of one dataset column."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
 
-from backend.shared.entity import Entity
-from backend.domain.analytics.value_objects.statistical_summary import StatisticalSummary
 from backend.domain.analytics.value_objects.histogram import Histogram
+from backend.domain.analytics.value_objects.statistical_summary import StatisticalSummary
+from backend.shared.entity import Entity
 
 
 class ColumnKind(str, Enum):
     """Broad runtime type — used to decide which profiler to invoke."""
-    NUMERIC   = "numeric"
-    DATETIME  = "datetime"
-    TEXT      = "text"
-    BOOLEAN   = "boolean"
-    UNKNOWN   = "unknown"
+
+    NUMERIC = "numeric"
+    DATETIME = "datetime"
+    TEXT = "text"
+    BOOLEAN = "boolean"
+    UNKNOWN = "unknown"
 
 
 @dataclass
@@ -42,18 +44,18 @@ class ColumnProfile(Entity):
         top_values:       Top-N most frequent values with counts.
     """
 
-    session_id:    str
-    column_name:   str
-    data_type:     str
-    semantic_type: str           = "unknown"
-    kind:          ColumnKind    = ColumnKind.UNKNOWN
-    total_rows:    int           = 0
-    null_count:    int           = 0
-    unique_count:  int           = 0
-    stats:         StatisticalSummary | None = None
-    histogram:     Histogram | None          = None
-    sample_values: list[str]     = field(default_factory=list)
-    top_values:    list[dict]    = field(default_factory=list)   # [{"value": x, "count": n, "pct": 0.x}]
+    session_id: str
+    column_name: str
+    data_type: str
+    semantic_type: str = "unknown"
+    kind: ColumnKind = ColumnKind.UNKNOWN
+    total_rows: int = 0
+    null_count: int = 0
+    unique_count: int = 0
+    stats: StatisticalSummary | None = None
+    histogram: Histogram | None = None
+    sample_values: list[str] = field(default_factory=list)
+    top_values: list[dict] = field(default_factory=list)  # [{"value": x, "count": n, "pct": 0.x}]
 
     # ── Derived properties ────────────────────────────────────────────────
 
@@ -94,18 +96,18 @@ class ColumnProfile(Entity):
     def to_dict(self) -> dict:
         """Serialise to a plain dict for JSON transport to the frontend / agents."""
         return {
-            "id":              self.id,
-            "column_name":     self.column_name,
-            "data_type":       self.data_type,
-            "semantic_type":   self.semantic_type,
-            "kind":            self.kind.value,
-            "total_rows":      self.total_rows,
-            "null_count":      self.null_count,
-            "null_rate":       self.null_rate,
-            "unique_count":    self.unique_count,
-            "completeness":    self.completeness,
-            "sample_values":   self.sample_values,
-            "top_values":      self.top_values,
-            "stats":           self.stats.to_dict() if self.stats else None,
-            "histogram":       self.histogram.to_list() if self.histogram else [],
+            "id": self.id,
+            "column_name": self.column_name,
+            "data_type": self.data_type,
+            "semantic_type": self.semantic_type,
+            "kind": self.kind.value,
+            "total_rows": self.total_rows,
+            "null_count": self.null_count,
+            "null_rate": self.null_rate,
+            "unique_count": self.unique_count,
+            "completeness": self.completeness,
+            "sample_values": self.sample_values,
+            "top_values": self.top_values,
+            "stats": self.stats.to_dict() if self.stats else None,
+            "histogram": self.histogram.to_list() if self.histogram else [],
         }

@@ -15,6 +15,7 @@ Usage in graph definition::
         {"yes": "fan_out", "no": "fan_out"},   # both go to fan_out; fan_out uses this
     )
 """
+
 from __future__ import annotations
 
 from backend.orchestration.state.pipeline_state import PipelineState
@@ -50,7 +51,7 @@ def has_enough_numeric_columns(state: PipelineState, min_columns: int = 2) -> st
 
     Used to gate the MLAgent branch in the fan-out node.
     """
-    profile  = state.get("profile_result") or {}
+    profile = state.get("profile_result") or {}
     col_prfs = profile.get("column_profiles", [])
-    numeric  = sum(1 for c in col_prfs if c.get("kind") == "numeric")
+    numeric = sum(1 for c in col_prfs if c.get("kind") == "numeric")
     return "yes" if numeric >= min_columns else "no"

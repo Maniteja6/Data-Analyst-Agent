@@ -1,7 +1,8 @@
 """QueryBuilder — constructs safe DuckDB queries from structured intent."""
+
 from __future__ import annotations
 
-import re
+from typing import Any
 
 
 class QueryBuilder:
@@ -25,12 +26,25 @@ class QueryBuilder:
         )
     """
 
-    _ALLOWED_AGG_FUNCS = frozenset({
-        "SUM", "AVG", "COUNT", "MIN", "MAX", "MEDIAN",
-        "STDDEV", "VAR_POP", "FIRST", "LAST", "LIST",
-        "COUNT_STAR",
-    })
-    _ALLOWED_OPS = frozenset({"=", "!=", "<", "<=", ">", ">=", "LIKE", "IN", "IS NULL", "IS NOT NULL"})
+    _ALLOWED_AGG_FUNCS = frozenset(
+        {
+            "SUM",
+            "AVG",
+            "COUNT",
+            "MIN",
+            "MAX",
+            "MEDIAN",
+            "STDDEV",
+            "VAR_POP",
+            "FIRST",
+            "LAST",
+            "LIST",
+            "COUNT_STAR",
+        }
+    )
+    _ALLOWED_OPS = frozenset(
+        {"=", "!=", "<", "<=", ">", ">=", "LIKE", "IN", "IS NULL", "IS NOT NULL"}
+    )
 
     # ── Query builders ────────────────────────────────────────────────────
 
@@ -54,15 +68,12 @@ class QueryBuilder:
             select_parts.extend(self._quote(c) for c in group_by)
         if column:
             alias = f"{agg_func.lower()}_{column}"
-            select_parts.append(f'{agg_func}({self._quote(column)}) AS {self._quote(alias)}')
+            select_parts.append(f"{agg_func}({self._quote(column)}) AS {self._quote(alias)}")
         elif agg_func == "COUNT_STAR":
             select_parts.append("COUNT(*) AS count_star")
 
         where_clause = self._build_where(filters)
-        group_clause = (
-            "GROUP BY " + ", ".join(self._quote(c) for c in group_by)
-            if group_by else ""
-        )
+        group_clause = "GROUP BY " + ", ".join(self._quote(c) for c in group_by) if group_by else ""
         order_clause = self._build_order_by(order_by)
 
         return self._build_select(
@@ -100,9 +111,13 @@ class QueryBuilder:
     ) -> str:
         """Build a TOP-N query ranked by a column."""
         select_list = ", ".join(self._quote(c) for c in group_by) if group_by else "*"
-        order_dir   = "ASC" if ascending else "DESC"
+        order_dir = "ASC" if ascending else "DESC"
+        # select_list/table/rank_column are all routed through self._quote()
+        # (identifier-escaping), order_dir is a hardcoded ASC/DESC literal, and
+        # n is coerced to int — nothing here is raw string interpolation of
+        # untrusted values.
         return (
-            f"SELECT {select_list} FROM {self._quote(table)} "
+            f"SELECT {select_list} FROM {self._quote(table)} "  # noqa: S608
             f"ORDER BY {self._quote(rank_column)} {order_dir} "
             f"LIMIT {int(n)}"
         )
@@ -115,7 +130,7 @@ class QueryBuilder:
         clauses = []
         for f in filters:
             col = self._quote(f["column"])
-            op  = f["op"].upper()
+            op = f["op"].upper()
             val = f.get("value")
             if op not in self._ALLOWED_OPS:
                 continue
@@ -164,13 +179,13 @@ class QueryBuilder:
         return f'"{safe}"'
 
     @staticmethod
-    def _literal(value) -> str:
+    def _literal(value: Any) -> str:  # noqa: ANN401
         """Convert a Python value to a SQL literal string."""
         if value is None:
             return "NULL"
         if isinstance(value, bool):
             return "TRUE" if value else "FALSE"
-        if isinstance(value, (int, float)):
+        if isinstance(value, int | float):
             return str(value)
         safe = str(value).replace("'", "''")
         return f"'{safe}'"

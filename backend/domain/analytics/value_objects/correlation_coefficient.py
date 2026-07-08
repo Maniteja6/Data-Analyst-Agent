@@ -1,4 +1,5 @@
 """CorrelationCoefficient value object — a validated Pearson or Spearman r value."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -8,9 +9,9 @@ from backend.shared.value_object import ValueObject
 
 
 class CorrelationMethod(str, Enum):
-    PEARSON  = "pearson"
+    PEARSON = "pearson"
     SPEARMAN = "spearman"
-    KENDALL  = "kendall"
+    KENDALL = "kendall"
 
 
 @dataclass(frozen=True)
@@ -30,9 +31,7 @@ class CorrelationCoefficient(ValueObject):
 
     def _validate(self) -> None:
         if not -1.0 <= self.value <= 1.0:
-            raise ValueError(
-                f"Correlation coefficient must be in [-1, 1], got {self.value}"
-            )
+            raise ValueError(f"Correlation coefficient must be in [-1, 1], got {self.value}")
         if not self.column_a or not self.column_b:
             raise ValueError("column_a and column_b must not be empty")
 

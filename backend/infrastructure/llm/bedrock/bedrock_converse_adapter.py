@@ -30,28 +30,28 @@ Usage::
     ]
     reply = await adapter.converse_multi_turn(messages, system="Dataset context…")
 """
+
 from __future__ import annotations
 
 import time
+from typing import TYPE_CHECKING
 
 import structlog
-
+from backend.config.bedrock_config import get_bedrock_config
+from backend.domain.intelligence.value_objects.llm_response import LLMResponse, ResponseType
 from backend.infrastructure.llm.bedrock.bedrock_client import get_bedrock_runtime_client
 from backend.infrastructure.llm.bedrock.bedrock_retry_handler import with_bedrock_retry
 from backend.infrastructure.llm.token_tracker import TokenTracker
-from backend.domain.intelligence.value_objects.llm_response import LLMResponse, ResponseType
-from backend.config.bedrock_config import get_bedrock_config
+
+if TYPE_CHECKING:
+    from backend.infrastructure.llm.bedrock.bedrock_cost_tracker import BedrockCostTracker
 
 logger = structlog.get_logger(__name__)
 
 _JSON_SYSTEM_SUFFIX = (
-    "\n\nIMPORTANT: Respond ONLY with valid JSON. "
-    "No markdown fences, no explanation, no preamble."
+    "\n\nIMPORTANT: Respond ONLY with valid JSON. No markdown fences, no explanation, no preamble."
 )
-_SQL_SYSTEM_SUFFIX = (
-    "\n\nRespond ONLY with the SQL query. "
-    "No markdown fences, no explanation."
-)
+_SQL_SYSTEM_SUFFIX = "\n\nRespond ONLY with the SQL query. No markdown fences, no explanation."
 
 
 class BedrockConverseAdapter:
@@ -65,12 +65,12 @@ class BedrockConverseAdapter:
     def __init__(
         self,
         token_tracker: TokenTracker | None = None,
-        cost_tracker=None,
+        cost_tracker: BedrockCostTracker | None = None,
     ) -> None:
-        self._client       = get_bedrock_runtime_client()
-        self._cfg          = get_bedrock_config()
+        self._client = get_bedrock_runtime_client()
+        self._cfg = get_bedrock_config()
         self._token_tracker = token_tracker or TokenTracker()
-        self._cost_tracker  = cost_tracker
+        self._cost_tracker = cost_tracker
 
     # ── Single-turn completion ────────────────────────────────────────────
 
@@ -142,7 +142,7 @@ class BedrockConverseAdapter:
         response_format: type | None,
     ) -> LLMResponse:
         """Internal implementation that returns a full LLMResponse VO."""
-        model  = model_id or self._cfg.bedrock_model_id_primary
+        model = model_id or self._cfg.bedrock_model_id_primary
         system = self._build_system(system, response_format)
 
         body = self._build_converse_body(
@@ -153,9 +153,9 @@ class BedrockConverseAdapter:
         if system:
             body["system"] = [{"text": system}]
 
-        start    = time.monotonic()
+        start = time.monotonic()
         response = self._client.converse(modelId=model, **body)
-        latency  = int((time.monotonic() - start) * 1000)
+        latency = int((time.monotonic() - start) * 1000)
 
         return self._parse_response(response, model, latency, response_format)
 
@@ -185,13 +185,13 @@ class BedrockConverseAdapter:
             Text content of the latest assistant response.
         """
         model = model_id or self._cfg.bedrock_model_id_primary
-        body  = self._build_converse_body(messages=messages, max_tokens=max_tokens)
+        body = self._build_converse_body(messages=messages, max_tokens=max_tokens)
         if system:
             body["system"] = [{"text": system}]
 
-        start    = time.monotonic()
+        start = time.monotonic()
         response = self._client.converse(modelId=model, **body)
-        latency  = int((time.monotonic() - start) * 1000)
+        latency = int((time.monotonic() - start) * 1000)
 
         llm_resp = self._parse_response(response, model, latency, response_format=None)
         return llm_resp.content
@@ -208,9 +208,11 @@ class BedrockConverseAdapter:
         return {
             "messages": messages,
             "inferenceConfig": {
-                "maxTokens":   max_tokens   or self._cfg.bedrock_max_tokens,
-                "temperature": temperature  if temperature is not None else self._cfg.bedrock_temperature,
-                "topP":        self._cfg.bedrock_top_p,
+                "maxTokens": max_tokens or self._cfg.bedrock_max_tokens,
+                "temperature": temperature
+                if temperature is not None
+                else self._cfg.bedrock_temperature,
+                "topP": self._cfg.bedrock_top_p,
             },
         }
 
@@ -232,11 +234,11 @@ class BedrockConverseAdapter:
         response_format: type | None,
     ) -> LLMResponse:
         """Extract content, tokens, and stop reason from a Converse API response."""
-        content     = response["output"]["message"]["content"][0]["text"].strip()
-        usage       = response.get("usage", {})
+        content = response["output"]["message"]["content"][0]["text"].strip()
+        usage = response.get("usage", {})
         stop_reason = response.get("stopReason", "end_turn")
 
-        input_tokens  = usage.get("inputTokens",  0)
+        input_tokens = usage.get("inputTokens", 0)
         output_tokens = usage.get("outputTokens", 0)
 
         # Record in token tracker and optional cost tracker

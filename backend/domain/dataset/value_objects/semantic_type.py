@@ -1,4 +1,5 @@
 """SemanticType value object — domain-level column type classification."""
+
 from __future__ import annotations
 
 from enum import Enum
@@ -21,58 +22,58 @@ class SemanticType(str, Enum):
     """
 
     # ── Identifiers ───────────────────────────────────────────────────────
-    IDENTIFIER      = "identifier"
+    IDENTIFIER = "identifier"
     """Primary or foreign key — high cardinality, usually not analysed."""
 
     # ── Quantitative ──────────────────────────────────────────────────────
-    CURRENCY        = "currency"
+    CURRENCY = "currency"
     """Monetary amount — e.g. price, revenue, cost.
     Insight Agent uses currency formatting and non-negative validation."""
 
-    PERCENTAGE      = "percentage"
+    PERCENTAGE = "percentage"
     """Rate or ratio stored as 0-100 or 0.0-1.0."""
 
     NUMERIC_MEASURE = "numeric_measure"
     """Continuous numeric measurement — temperature, weight, score."""
 
-    NUMERIC_COUNT   = "numeric_count"
+    NUMERIC_COUNT = "numeric_count"
     """Discrete non-negative count — quantity, clicks, page_views."""
 
     # ── Temporal ──────────────────────────────────────────────────────────
-    DATE            = "date"
+    DATE = "date"
     """Calendar date without time component."""
 
-    DATETIME        = "datetime"
+    DATETIME = "datetime"
     """Date and time — triggers Forecast Agent if present."""
 
-    DURATION        = "duration"
+    DURATION = "duration"
     """Time span — e.g. session_duration_seconds."""
 
     # ── Qualitative ───────────────────────────────────────────────────────
-    CATEGORICAL     = "categorical"
+    CATEGORICAL = "categorical"
     """Low-cardinality text — country, product_category, status."""
 
-    FREE_TEXT       = "free_text"
+    FREE_TEXT = "free_text"
     """High-cardinality unstructured text — comments, descriptions."""
 
-    BOOLEAN         = "boolean"
+    BOOLEAN = "boolean"
     """True/False or Yes/No column."""
 
     # ── Contact / PII ─────────────────────────────────────────────────────
-    EMAIL           = "email"
+    EMAIL = "email"
     """Email address — triggers PII redaction in the Security Agent."""
 
-    PHONE           = "phone"
+    PHONE = "phone"
     """Phone number — triggers PII redaction."""
 
-    GEOGRAPHIC      = "geographic"
+    GEOGRAPHIC = "geographic"
     """Location string — city, country, lat/lon pair."""
 
-    URL             = "url"
+    URL = "url"
     """Web address."""
 
     # ── Fallback ──────────────────────────────────────────────────────────
-    UNKNOWN         = "unknown"
+    UNKNOWN = "unknown"
     """Could not be classified — LLM disambiguation attempted next."""
 
     # ── Derived helpers ───────────────────────────────────────────────────

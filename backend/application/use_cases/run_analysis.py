@@ -1,11 +1,18 @@
 """RunAnalysisUseCase — triggers or re-triggers the analysis pipeline for a dataset."""
+
 from __future__ import annotations
 
-import structlog
+from typing import TYPE_CHECKING
 
+import structlog
 from backend.application.commands.run_analysis_command import RunAnalysisCommand
-from backend.domain.dataset.exceptions import DatasetNotFoundException
+from backend.domain.dataset.exceptions import DatasetNotFoundError
 from backend.shared.utils.uuid_factory import new_uuid
+
+if TYPE_CHECKING:
+    from backend.application.ports.job_port import IJobService
+    from backend.domain.analytics.repositories.session_repository import SessionRepository
+    from backend.domain.dataset.repositories.dataset_repository import DatasetRepository
 
 logger = structlog.get_logger(__name__)
 
@@ -24,15 +31,20 @@ class RunAnalysisUseCase:
     - Creates a new AnalysisSession aggregate for each run
     """
 
-    def __init__(self, dataset_repo, session_repo, job_service) -> None:
+    def __init__(
+        self,
+        dataset_repo: DatasetRepository,
+        session_repo: SessionRepository,
+        job_service: IJobService,
+    ) -> None:
         self._dataset_repo = dataset_repo
         self._session_repo = session_repo
-        self._job_service  = job_service
+        self._job_service = job_service
 
     async def execute(self, cmd: RunAnalysisCommand) -> dict:
         dataset = await self._dataset_repo.get_by_id(cmd.dataset_id)
         if dataset is None:
-            raise DatasetNotFoundException(cmd.dataset_id)
+            raise DatasetNotFoundError(cmd.dataset_id)
 
         if dataset.is_ready and not cmd.force_rerun:
             # Return the latest existing session rather than re-running
@@ -40,11 +52,12 @@ class RunAnalysisUseCase:
             return {
                 "dataset_id": cmd.dataset_id,
                 "session_id": session.id if session else None,
-                "status":     "already_complete",
+                "status": "already_complete",
             }
 
         # Create a new analysis session
         from backend.domain.analytics.entities.analysis_session import AnalysisSession
+
         session = AnalysisSession.create(
             session_id=new_uuid(),
             dataset_id=cmd.dataset_id,

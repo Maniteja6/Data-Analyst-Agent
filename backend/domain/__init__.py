@@ -1,7 +1,3 @@
-"""Domain layer — bounded contexts: dataset, analytics, insight, intelligence, workspace."""
-
-from __future__ import annotations
-
 """DataPilot domain layer — pure business logic for a real-time data analytics platform.
 
 Zero infrastructure dependencies. Python stdlib + Pydantic only.
@@ -113,13 +109,13 @@ dataset/
 │
 ├── services/
 │   └── dataset_service.py    DatasetService domain service
-│         validate_file(filename, size_bytes) → raises ValidationException
+│         validate_file(filename, size_bytes) → raises ValidationError
 │         infer_mime_from_extension(filename) → str
 │         build_storage_key(dataset_id, filename) → str
 │         Enforces: max file size, allowed extensions, filename sanitisation
 │
 └── exceptions.py
-      DatasetNotFoundException(dataset_id)
+      DatasetNotFoundError(dataset_id)
       DuplicateDatasetError(checksum, existing_id)
       InvalidStatusTransitionError(from_status, to_status)
 
@@ -238,7 +234,7 @@ workspace/
 │         count_by_dataset, search_by_content
 │
 └── exceptions.py
-      ConversationNotFoundException(conversation_id)
+      ConversationNotFoundError(conversation_id)
       ConversationClosedError(conversation_id)
 
 ─────────────────────────────────────────────────────────────────────────
@@ -265,6 +261,9 @@ MessageSent                 Conversation        (no Kafka; direct Socket.IO
                             .add_message()       from SendMessageUseCase)
 ConversationCreated         Conversation.create (no handler; in-memory only)
 """
+
+from __future__ import annotations
+
 from backend.shared.domain_event import DomainEvent  # noqa: F401 — re-export for convenience
 
 __all__ = ["DomainEvent"]

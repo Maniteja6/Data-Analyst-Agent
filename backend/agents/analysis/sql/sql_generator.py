@@ -3,10 +3,12 @@
 Injects the dataset schema into the prompt so the model generates
 syntactically correct DuckDB SQL referencing real column names.
 """
+
 from __future__ import annotations
 
-import structlog
 from typing import Any
+
+import structlog
 from backend.infrastructure.llm.model_id_registry import get_model_id
 
 logger = structlog.get_logger(__name__)
@@ -21,7 +23,7 @@ _SYSTEM = (
 async def generate_sql(
     question: str,
     schema: dict[str, Any],
-    llm_client: Any,
+    llm_client: Any,  # noqa: ANN401
     row_limit: int = 10_000,
 ) -> str:
     """Generate a DuckDB SELECT query for the given natural-language question.
@@ -38,8 +40,7 @@ async def generate_sql(
     """
     columns = schema.get("columns", [])
     schema_lines = "\n".join(
-        f"  {c['name']}  {c['data_type']}  -- {c.get('semantic_type', '')}"
-        for c in columns
+        f"  {c['name']}  {c['data_type']}  -- {c.get('semantic_type', '')}" for c in columns
     )
 
     # Provide extra date-function hints when datetime columns exist

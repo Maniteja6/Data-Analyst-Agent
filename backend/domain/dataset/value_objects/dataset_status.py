@@ -1,4 +1,5 @@
 """DatasetStatus value object — lifecycle states for the Dataset aggregate."""
+
 from __future__ import annotations
 
 from enum import Enum
@@ -32,22 +33,22 @@ class DatasetStatus(str, Enum):
     FAILED is the only terminal failure state.
     """
 
-    UPLOADED  = "uploaded"
+    UPLOADED = "uploaded"
     """File stored in S3; schema inference has not started yet."""
 
     PROFILING = "profiling"
     """DataProfiler is currently analysing the column statistics."""
 
-    PROFILED  = "profiled"
+    PROFILED = "profiled"
     """Statistical profiling is complete; cleaning pipeline is next."""
 
-    CLEANING  = "cleaning"
+    CLEANING = "cleaning"
     """DataCleaner is removing duplicates, imputing nulls, coercing types."""
 
-    READY     = "ready"
+    READY = "ready"
     """Dataset is fully processed and available for AI analysis and chat."""
 
-    FAILED    = "failed"
+    FAILED = "failed"
     """Processing failed at some stage; error_message contains the reason."""
 
     # ── Derived helpers ───────────────────────────────────────────────────
@@ -71,12 +72,12 @@ class DatasetStatus(str, Enum):
     def display_label(self) -> str:
         """Human-readable label for the frontend status badge."""
         labels = {
-            DatasetStatus.UPLOADED:  "Uploaded",
+            DatasetStatus.UPLOADED: "Uploaded",
             DatasetStatus.PROFILING: "Analysing…",
-            DatasetStatus.PROFILED:  "Profiled",
-            DatasetStatus.CLEANING:  "Cleaning…",
-            DatasetStatus.READY:     "Ready",
-            DatasetStatus.FAILED:    "Failed",
+            DatasetStatus.PROFILED: "Profiled",
+            DatasetStatus.CLEANING: "Cleaning…",
+            DatasetStatus.READY: "Ready",
+            DatasetStatus.FAILED: "Failed",
         }
         return labels[self]
 
@@ -84,11 +85,11 @@ class DatasetStatus(str, Enum):
     def progress_pct(self) -> int:
         """Approximate pipeline completion percentage for the progress bar."""
         pct = {
-            DatasetStatus.UPLOADED:  5,
+            DatasetStatus.UPLOADED: 5,
             DatasetStatus.PROFILING: 25,
-            DatasetStatus.PROFILED:  50,
-            DatasetStatus.CLEANING:  75,
-            DatasetStatus.READY:     100,
-            DatasetStatus.FAILED:    0,
+            DatasetStatus.PROFILED: 50,
+            DatasetStatus.CLEANING: 75,
+            DatasetStatus.READY: 100,
+            DatasetStatus.FAILED: 0,
         }
         return pct[self]

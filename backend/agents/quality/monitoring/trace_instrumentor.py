@@ -14,8 +14,10 @@ Real-time design:
     ``pipeline_span()`` wraps the full DAG execution from OrchestratorAgent.
     ``websocket_span()`` wraps individual WebSocket message handling.
 """
+
 from __future__ import annotations
 
+from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, contextmanager
 from typing import Any
 
@@ -24,10 +26,11 @@ import structlog
 logger = structlog.get_logger(__name__)
 
 
-def _get_tracer():
+def _get_tracer() -> Any:  # noqa: ANN401 — real OTel Tracer or _NoOpTracer, no shared base
     """Return an OpenTelemetry tracer or a NoOp tracer when OTel is absent."""
     try:
         from opentelemetry import trace
+
         return trace.get_tracer("datapilot.agents")
     except ImportError:
         return _NoOpTracer()
@@ -35,11 +38,11 @@ def _get_tracer():
 
 @contextmanager
 def agent_span(
-    agent_name:     str,
-    session_id:     str = "",
-    dataset_id:     str = "",
+    agent_name: str,
+    session_id: str = "",
+    dataset_id: str = "",
     correlation_id: str = "",
-):
+) -> Iterator[Any]:  # noqa: ANN401 — real OTel Span or _NoOpSpan, no shared base
     """Synchronous context manager that wraps one agent execution in an OTel span.
 
     Used by BaseAgent._otel_span() as the instrumentation hook.
@@ -53,10 +56,10 @@ def agent_span(
     with tracer.start_as_current_span(
         f"agent.{agent_name}",
         attributes={
-            "agent.name":       agent_name,
-            "session.id":       session_id,
-            "dataset.id":       dataset_id,
-            "correlation.id":   correlation_id,
+            "agent.name": agent_name,
+            "session.id": session_id,
+            "dataset.id": dataset_id,
+            "correlation.id": correlation_id,
         },
     ) as span:
         try:
@@ -71,8 +74,8 @@ def agent_span(
 async def pipeline_span(
     session_id: str,
     dataset_id: str,
-    plan_id:    str = "",
-):
+    plan_id: str = "",
+) -> AsyncIterator[Any]:  # noqa: ANN401 — real OTel Span or _NoOpSpan, no shared base
     """Async context manager wrapping the full DAG execution pipeline."""
     tracer = _get_tracer()
     with tracer.start_as_current_span(
@@ -80,7 +83,7 @@ async def pipeline_span(
         attributes={
             "session.id": session_id,
             "dataset.id": dataset_id,
-            "plan.id":    plan_id,
+            "plan.id": plan_id,
         },
     ) as span:
         try:
@@ -93,20 +96,20 @@ async def pipeline_span(
 
 @asynccontextmanager
 async def websocket_span(
-    event_type:      str,
+    event_type: str,
     conversation_id: str = "",
-    dataset_id:      str = "",
-    correlation_id:  str = "",
-):
+    dataset_id: str = "",
+    correlation_id: str = "",
+) -> AsyncIterator[Any]:  # noqa: ANN401 — real OTel Span or _NoOpSpan, no shared base
     """Async context manager wrapping one WebSocket message handler."""
     tracer = _get_tracer()
     with tracer.start_as_current_span(
         f"ws.{event_type}",
         attributes={
-            "ws.event":          event_type,
-            "conversation.id":   conversation_id,
-            "dataset.id":        dataset_id,
-            "correlation.id":    correlation_id,
+            "ws.event": event_type,
+            "conversation.id": conversation_id,
+            "dataset.id": dataset_id,
+            "correlation.id": correlation_id,
         },
     ) as span:
         try:
@@ -117,45 +120,61 @@ async def websocket_span(
             raise
 
 
-def set_span_attribute(key: str, value: Any) -> None:
+def set_span_attribute(key: str, value: Any) -> None:  # noqa: ANN401
     """Set an attribute on the currently active OTel span.
 
     No-ops when no span is active or OTel is not installed.
     """
     try:
         from opentelemetry import trace
+
         span = trace.get_current_span()
         if span and span.is_recording():
             span.set_attribute(key, str(value))
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("span_attribute_set_failed", error=str(exc))
 
 
 def add_span_event(name: str, attributes: dict[str, Any] | None = None) -> None:
     """Add an event (structured log entry) to the current OTel span."""
     try:
         from opentelemetry import trace
+
         span = trace.get_current_span()
         if span and span.is_recording():
             span.add_event(name, attributes=attributes or {})
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("span_event_add_failed", error=str(exc))
 
 
 # ---------------------------------------------------------------------------
 # No-Op tracer for environments without OpenTelemetry
 # ---------------------------------------------------------------------------
 
+
 class _NoOpSpan:
     """Span-like object that accepts all attribute/event calls without error."""
-    def __enter__(self): return self
-    def __exit__(self, *_): pass
-    def set_attribute(self, *_): pass
-    def add_event(self, *_): pass
-    def is_recording(self): return False
+
+    def __enter__(self) -> _NoOpSpan:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        pass
+
+    def set_attribute(self, *_: object) -> None:
+        pass
+
+    def add_event(self, *_: object) -> None:
+        pass
+
+    def is_recording(self) -> bool:
+        return False
 
 
 class _NoOpTracer:
     """Tracer that always returns _NoOpSpan objects."""
-    def start_as_current_span(self, name, attributes=None, **_):
+
+    def start_as_current_span(
+        self, name: str, attributes: dict[str, Any] | None = None, **_: object
+    ) -> _NoOpSpan:
         return _NoOpSpan()

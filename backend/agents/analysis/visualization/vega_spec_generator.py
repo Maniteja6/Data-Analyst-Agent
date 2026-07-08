@@ -9,14 +9,15 @@ Design decisions:
 - ``#5B4FE8`` is the DataPilot brand violet, used for single-series charts
 - ``tooltip: [{"type": "quantitative"}, ...]`` gives hover detail by default
 """
+
 from __future__ import annotations
 
 from typing import Any
 
 BRAND_COLOUR = "#5B4FE8"
-SCHEMA       = "https://vega.github.io/schema/vega-lite/v5.json"
-DEFAULT_H    = 240
-DEFAULT_W    = "container"
+SCHEMA = "https://vega.github.io/schema/vega-lite/v5.json"
+DEFAULT_H = 240
+DEFAULT_W = "container"
 
 
 def build_line_spec(
@@ -30,19 +31,23 @@ def build_line_spec(
     """Temporal line chart — best for time series."""
     return {
         "$schema": SCHEMA,
-        "title":   title,
-        "mark":    {"type": "line", "color": color, "strokeWidth": 2, "point": True},
-        "data":    {"values": data},
+        "title": title,
+        "mark": {"type": "line", "color": color, "strokeWidth": 2, "point": True},
+        "data": {"values": data},
         "encoding": {
-            "x": {"field": x, "type": "temporal",    "title": x,
-                  "axis":  {"format": "%b %d", "labelAngle": -30}},
+            "x": {
+                "field": x,
+                "type": "temporal",
+                "title": x,
+                "axis": {"format": "%b %d", "labelAngle": -30},
+            },
             "y": {"field": y, "type": "quantitative", "title": y},
             "tooltip": [
-                {"field": x, "type": "temporal",    "title": x, "format": "%Y-%m-%d"},
+                {"field": x, "type": "temporal", "title": x, "format": "%Y-%m-%d"},
                 {"field": y, "type": "quantitative", "title": y, "format": ",.2f"},
             ],
         },
-        "width":  DEFAULT_W,
+        "width": DEFAULT_W,
         "height": height,
     }
 
@@ -60,8 +65,7 @@ def build_bar_spec(
     if horizontal:
         encoding = {
             "x": {"field": y, "type": "quantitative", "title": y},
-            "y": {"field": x, "type": "nominal",      "title": x,
-                  "sort":  "-x"},
+            "y": {"field": x, "type": "nominal", "title": x, "sort": "-x"},
             "color": {"value": color},
             "tooltip": [
                 {"field": x, "type": "nominal"},
@@ -70,8 +74,7 @@ def build_bar_spec(
         }
     else:
         encoding = {
-            "x": {"field": x, "type": "nominal",      "title": x,
-                  "axis":  {"labelAngle": -30}},
+            "x": {"field": x, "type": "nominal", "title": x, "axis": {"labelAngle": -30}},
             "y": {"field": y, "type": "quantitative", "title": y},
             "color": {"value": color},
             "tooltip": [
@@ -81,12 +84,12 @@ def build_bar_spec(
         }
     return {
         "$schema": SCHEMA,
-        "title":   title,
-        "mark":    {"type": "bar"},
-        "data":    {"values": data},
+        "title": title,
+        "mark": {"type": "bar"},
+        "data": {"values": data},
         "encoding": encoding,
-        "width":   DEFAULT_W,
-        "height":  height,
+        "width": DEFAULT_W,
+        "height": height,
     }
 
 
@@ -115,12 +118,12 @@ def build_scatter_spec(
 
     return {
         "$schema": SCHEMA,
-        "title":   title,
-        "mark":    {"type": "point", "filled": True, "size": 60},
-        "data":    {"values": data},
+        "title": title,
+        "mark": {"type": "point", "filled": True, "size": 60},
+        "data": {"values": data},
         "encoding": encoding,
-        "width":   DEFAULT_W,
-        "height":  height,
+        "width": DEFAULT_W,
+        "height": height,
     }
 
 
@@ -135,26 +138,26 @@ def build_histogram_spec(
     """Distribution histogram — best for single numeric column."""
     return {
         "$schema": SCHEMA,
-        "title":   title or f"Distribution of {x}",
-        "mark":    {"type": "bar", "color": color},
-        "data":    {"values": data},
+        "title": title or f"Distribution of {x}",
+        "mark": {"type": "bar", "color": color},
+        "data": {"values": data},
         "encoding": {
             "x": {
                 "field": x,
-                "type":  "quantitative",
-                "bin":   {"maxbins": bin_count},
+                "type": "quantitative",
+                "bin": {"maxbins": bin_count},
                 "title": x,
             },
             "y": {
                 "aggregate": "count",
-                "type":      "quantitative",
-                "title":     "Count",
+                "type": "quantitative",
+                "title": "Count",
             },
             "tooltip": [
                 {"field": x, "type": "quantitative", "bin": True},
                 {"aggregate": "count", "type": "quantitative", "title": "Count"},
             ],
         },
-        "width":  DEFAULT_W,
+        "width": DEFAULT_W,
         "height": height,
     }

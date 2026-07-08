@@ -89,37 +89,46 @@ anomaly:start                {}
 anomaly:detected             {"column", "severity", "description"}  (per anomaly)
 anomaly:complete             {"total_count"}
 """
+
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
+    from backend.domain.analytics.entities.data_profile import DataProfile
 
 # ---------------------------------------------------------------------------
 # Convenience result container
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class PipelineResult:
     """Holds all outputs of the deterministic analytics pipeline."""
-    df:        Any                   = None   # cleaned polars/pandas DataFrame
-    profile:   Any                   = None   # DataProfile entity
-    report:    Any                   = None   # CleaningReport entity
-    anomalies: list[dict]            = field(default_factory=list)
-    schema:    dict                  = field(default_factory=dict)
-    metadata:  dict[str, Any]        = field(default_factory=dict)
+
+    df: Any = None  # cleaned polars/pandas DataFrame
+    profile: Any = None  # DataProfile entity
+    report: Any = None  # CleaningReport entity
+    anomalies: list[dict] = field(default_factory=list)
+    schema: dict = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
 # High-level async entry points for real-time applications
 # ---------------------------------------------------------------------------
 
+
 async def run_pipeline(
     storage_key: str,
-    session_id:  str = "",
-    dataset_id:  str = "",
-    sio:         Any = None,
+    session_id: str = "",
+    dataset_id: str = "",
+    sio: Any = None,  # noqa: ANN401
     run_anomaly: bool = True,
     sample_rows: int | None = None,
 ) -> PipelineResult:
@@ -141,22 +150,22 @@ async def run_pipeline(
         PipelineResult with df, profile, report, anomalies, and metadata.
     """
     import time
+
     start = time.monotonic()
 
     async def _emit(event: str, data: dict) -> None:
         if sio and dataset_id:
-            try:
-                await sio.emit(event, {"dataset_id": dataset_id, **data},
-                               room=f"dataset:{dataset_id}")
-            except Exception:
-                pass
+            with contextlib.suppress(Exception):
+                await sio.emit(
+                    event, {"dataset_id": dataset_id, **data}, room=f"dataset:{dataset_id}"
+                )
 
     # ── Step 1: Ingest ────────────────────────────────────────────────────
     from backend.analytics_engine.ingestion.file_reader import FileReader
+
     df = await FileReader().read(storage_key, sample_rows=sample_rows)
 
     # ── Step 2: Profile ───────────────────────────────────────────────────
-    from backend.analytics_engine.profiling.data_profiler import DataProfiler
     profile = await profile_with_events(
         df=df,
         session_id=session_id,
@@ -167,30 +176,38 @@ async def run_pipeline(
     # ── Step 3: Clean ─────────────────────────────────────────────────────
     await _emit("cleaning:start", {})
     from backend.analytics_engine.cleaning.data_cleaner import DataCleaner
-    cleaned_df, report = await DataCleaner().clean(df, profile,
-                                                    session_id=session_id,
-                                                    dataset_id=dataset_id)
-    await _emit("cleaning:complete", {
-        "rows_removed":    report.rows_removed,
-        "columns_removed": report.columns_removed,
-        "steps":           len(report.steps),
-    })
+
+    cleaned_df, report = await DataCleaner().clean(
+        df, profile, session_id=session_id, dataset_id=dataset_id
+    )
+    await _emit(
+        "cleaning:complete",
+        {
+            "rows_removed": report.rows_removed,
+            "columns_removed": report.columns_removed,
+            "steps": len(report.steps),
+        },
+    )
 
     # ── Step 4: Anomaly detection ─────────────────────────────────────────
     anomalies: list[dict] = []
     if run_anomaly:
         await _emit("anomaly:start", {})
         from backend.analytics_engine.anomaly_detection.anomaly_detector import AnomalyDetector
-        detector  = AnomalyDetector(run_isolation_forest=True)
+
+        detector = AnomalyDetector(run_isolation_forest=True)
         anomalies = await detector.detect(cleaned_df, profile=profile)
 
         # Emit per-anomaly events for the live anomaly ticker
         for a in anomalies[:50]:
-            await _emit("anomaly:detected", {
-                "column":      a.get("column", ""),
-                "severity":    a.get("severity", "low"),
-                "description": a.get("description", ""),
-            })
+            await _emit(
+                "anomaly:detected",
+                {
+                    "column": a.get("column", ""),
+                    "severity": a.get("severity", "low"),
+                    "description": a.get("description", ""),
+                },
+            )
         await _emit("anomaly:complete", {"total_count": len(anomalies)})
 
     elapsed_ms = int((time.monotonic() - start) * 1000)
@@ -201,21 +218,21 @@ async def run_pipeline(
         report=report,
         anomalies=anomalies,
         metadata={
-            "pipeline_ms":    elapsed_ms,
-            "rows":           getattr(profile, "row_count", 0),
-            "columns":        getattr(profile, "column_count", 0),
-            "anomaly_count":  len(anomalies),
+            "pipeline_ms": elapsed_ms,
+            "rows": getattr(profile, "row_count", 0),
+            "columns": getattr(profile, "column_count", 0),
+            "anomaly_count": len(anomalies),
         },
     )
 
 
 async def profile_with_events(
     storage_key: str | None = None,
-    df: Any = None,
-    session_id:  str = "",
-    dataset_id:  str = "",
-    sio:         Any = None,
-):
+    df: pl.DataFrame | pd.DataFrame | None = None,
+    session_id: str = "",
+    dataset_id: str = "",
+    sio: Any = None,  # noqa: ANN401
+) -> DataProfile:
     """Profile a DataFrame and emit per-column Socket.IO events as each column finishes.
 
     Either ``storage_key`` or ``df`` must be provided. When ``storage_key``
@@ -247,21 +264,22 @@ async def profile_with_events(
         if storage_key is None:
             raise ValueError("Either storage_key or df must be provided.")
         from backend.analytics_engine.ingestion.file_reader import FileReader
+
         df = await FileReader().read(storage_key)
 
-    loop          = asyncio.get_event_loop()
-    col_count     = len(df.columns) if hasattr(df, "columns") else df.shape[1]
-    columns_done  = [0]
+    loop = asyncio.get_event_loop()
+    col_count = len(df.columns) if hasattr(df, "columns") else df.shape[1]
+    columns_done = [0]
 
     if sio and dataset_id:
-        try:
-            await sio.emit("profiling:start",
-                           {"dataset_id": dataset_id, "column_count": col_count},
-                           room=f"dataset:{dataset_id}")
-        except Exception:
-            pass
+        with contextlib.suppress(Exception):
+            await sio.emit(
+                "profiling:start",
+                {"dataset_id": dataset_id, "column_count": col_count},
+                room=f"dataset:{dataset_id}",
+            )
 
-    def _column_callback(col_name: str, col_profile: Any) -> None:
+    def _column_callback(col_name: str, col_profile: Any) -> None:  # noqa: ANN401
         """Called from the profiling thread after each column completes."""
         columns_done[0] += 1
         progress = 8 + int((columns_done[0] / max(col_count, 1)) * 23)  # 8% → 31%
@@ -271,12 +289,12 @@ async def profile_with_events(
                 sio.emit(
                     "profiling:column_complete",
                     {
-                        "dataset_id":   dataset_id,
-                        "column_name":  col_name,
+                        "dataset_id": dataset_id,
+                        "column_name": col_name,
                         "column_index": columns_done[0],
-                        "total":        col_count,
-                        "progress":     progress,
-                        "profile":      col_dict,
+                        "total": col_count,
+                        "progress": progress,
+                        "profile": col_dict,
                     },
                     room=f"dataset:{dataset_id}",
                 ),
@@ -284,6 +302,7 @@ async def profile_with_events(
             )
 
     from backend.analytics_engine.profiling.data_profiler import DataProfiler
+
     profiler = DataProfiler()
 
     profile = await loop.run_in_executor(
@@ -297,28 +316,26 @@ async def profile_with_events(
     )
 
     if sio and dataset_id:
-        try:
+        with contextlib.suppress(Exception):
             await sio.emit(
                 "profiling:complete",
                 {
-                    "dataset_id":         dataset_id,
-                    "row_count":          getattr(profile, "row_count", 0),
-                    "column_count":       getattr(profile, "column_count", 0),
+                    "dataset_id": dataset_id,
+                    "row_count": getattr(profile, "row_count", 0),
+                    "column_count": getattr(profile, "column_count", 0),
                     "completeness_score": getattr(profile, "completeness_score", 1.0),
-                    "duplicate_count":    getattr(profile, "duplicate_count", 0),
+                    "duplicate_count": getattr(profile, "duplicate_count", 0),
                 },
                 room=f"dataset:{dataset_id}",
             )
-        except Exception:
-            pass
 
     return profile
 
 
 async def stream_anomalies(
-    df:         Any,
-    profile:    Any = None,
-    sio:        Any = None,
+    df: pl.DataFrame | pd.DataFrame,
+    profile: Any = None,  # noqa: ANN401
+    sio: Any = None,  # noqa: ANN401
     dataset_id: str = "",
 ) -> list[dict]:
     """Run anomaly detection and stream each finding via Socket.IO as it's found.
@@ -338,35 +355,31 @@ async def stream_anomalies(
     """
     from backend.analytics_engine.anomaly_detection.anomaly_detector import AnomalyDetector
 
-    detector  = AnomalyDetector(run_isolation_forest=True)
+    detector = AnomalyDetector(run_isolation_forest=True)
     anomalies = await detector.detect(df, profile=profile)
 
     if sio and dataset_id:
         for a in anomalies[:50]:
-            try:
+            with contextlib.suppress(Exception):
                 await sio.emit(
                     "anomaly:detected",
                     {
-                        "dataset_id":  dataset_id,
-                        "column":      a.get("column", ""),
-                        "severity":    a.get("severity", "low"),
+                        "dataset_id": dataset_id,
+                        "column": a.get("column", ""),
+                        "severity": a.get("severity", "low"),
                         "anomaly_type": a.get("anomaly_type", "outlier"),
                         "description": a.get("description", ""),
-                        "row_index":   a.get("row_index"),
-                        "confidence":  a.get("confidence", 0.5),
+                        "row_index": a.get("row_index"),
+                        "confidence": a.get("confidence", 0.5),
                     },
                     room=f"dataset:{dataset_id}",
                 )
-            except Exception:
-                pass
-        try:
+        with contextlib.suppress(Exception):
             await sio.emit(
                 "anomaly:complete",
                 {"dataset_id": dataset_id, "total_count": len(anomalies)},
                 room=f"dataset:{dataset_id}",
             )
-        except Exception:
-            pass
 
     return anomalies
 

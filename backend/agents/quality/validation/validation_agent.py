@@ -19,8 +19,10 @@ Socket.IO room:
     ``conversation:<id>`` (not the dataset room) so validation events are
     private to the client that asked the question.
 """
+
 from __future__ import annotations
 
+import contextlib
 from typing import Any
 
 import structlog
@@ -33,7 +35,7 @@ from backend.agents.quality.validation.statistical_validator import (
 
 logger = structlog.get_logger(__name__)
 
-_BIAS_SCORE_THRESHOLD = 0.40     # flag responses above this bias score
+_BIAS_SCORE_THRESHOLD = 0.40  # flag responses above this bias score
 _VALIDATION_NOTE = (
     "\n\n*Note: Some statements in this response have been flagged for statistical accuracy. "
     "Please verify key figures against the raw data before acting on them.*"
@@ -47,16 +49,16 @@ class ValidationAgent(BaseAgent):
         llm_client: Reserved for future LLM-based fact-checking.
     """
 
-    def __init__(self, llm_client=None) -> None:
+    def __init__(self, llm_client: Any = None) -> None:  # noqa: ANN401
         super().__init__("validation")
         self._validator = StatisticalValidator()
-        self._llm       = llm_client
+        self._llm = llm_client
 
     async def _execute(
         self,
         context: AgentContext,
         response: str = "",
-        **kwargs: Any,
+        **kwargs: Any,  # noqa: ANN401
     ) -> dict:
         """Validate a chat response and return a validation result.
 
@@ -68,66 +70,70 @@ class ValidationAgent(BaseAgent):
             Dict with keys: is_valid (bool), issues (list[dict]),
             bias_score (float), validated_response (str).
         """
-        sio             = context._sio
+        sio = context._sio
         conversation_id = context.get("conversation_id", "")
-        room = f"conversation:{conversation_id}" if conversation_id else f"dataset:{context.dataset_id}"
+        room = (
+            f"conversation:{conversation_id}"
+            if conversation_id
+            else f"dataset:{context.dataset_id}"
+        )
 
         if not response:
             return {"is_valid": True, "issues": [], "bias_score": 0.0, "validated_response": ""}
 
         if sio:
-            try:
+            with contextlib.suppress(Exception):
                 await sio.emit(
                     "validation:checking",
                     {"conversation_id": conversation_id, "response_length": len(response)},
                     room=room,
                 )
-            except Exception:
-                pass
 
         profile = context.profile or {}
-        schema  = context.schema  or {}
+        schema = context.schema or {}
 
         # ── Statistical validation ─────────────────────────────────────────
         stat_failures = self._validator.validate_response(response, profile, schema)
 
         # ── Bias detection ────────────────────────────────────────────────
         bias_flags = detect_bias(response)
-        b_score    = bias_score(response)
+        b_score = bias_score(response)
 
         # Combine all issues
         all_issues = []
         for f in stat_failures:
-            all_issues.append({
-                "type":       f.failure_type,
-                "severity":   f.severity,
-                "claim":      f.claim_text[:100],
-                "expected":   f.expected,
-                "actual":     f.actual,
-            })
+            all_issues.append(
+                {
+                    "type": f.failure_type,
+                    "severity": f.severity,
+                    "claim": f.claim_text[:100],
+                    "expected": f.expected,
+                    "actual": f.actual,
+                }
+            )
         for b in bias_flags:
             if b.severity in ("medium", "high"):
-                all_issues.append({
-                    "type":       f"bias_{b.bias_type}",
-                    "severity":   b.severity,
-                    "matched":    b.matched,
-                    "suggestion": b.suggestion,
-                })
+                all_issues.append(
+                    {
+                        "type": f"bias_{b.bias_type}",
+                        "severity": b.severity,
+                        "matched": b.matched,
+                        "suggestion": b.suggestion,
+                    }
+                )
 
         # ── Emit per-issue events ─────────────────────────────────────────
         if sio and all_issues:
             for issue in all_issues:
-                try:
+                with contextlib.suppress(Exception):
                     await sio.emit(
                         "validation:issue_found",
                         {"conversation_id": conversation_id, "issue": issue},
                         room=room,
                     )
-                except Exception:
-                    pass
 
         high_severity = [i for i in all_issues if i.get("severity") == "high"]
-        is_valid      = len(high_severity) == 0 and b_score < _BIAS_SCORE_THRESHOLD
+        is_valid = len(high_severity) == 0 and b_score < _BIAS_SCORE_THRESHOLD
 
         # ── Build validated response ──────────────────────────────────────
         validated_response = response
@@ -137,19 +143,17 @@ class ValidationAgent(BaseAgent):
         # ── Emit final verdict ────────────────────────────────────────────
         verdict_event = "validation:approved" if is_valid else "validation:flagged"
         if sio:
-            try:
+            with contextlib.suppress(Exception):
                 await sio.emit(
                     verdict_event,
                     {
                         "conversation_id": conversation_id,
-                        "issue_count":     len(all_issues),
-                        "bias_score":      b_score,
-                        "is_valid":        is_valid,
+                        "issue_count": len(all_issues),
+                        "bias_score": b_score,
+                        "is_valid": is_valid,
                     },
                     room=room,
                 )
-            except Exception:
-                pass
 
         logger.info(
             "validation_complete",
@@ -160,8 +164,8 @@ class ValidationAgent(BaseAgent):
         )
 
         return {
-            "is_valid":          is_valid,
-            "issues":            all_issues,
-            "bias_score":        b_score,
+            "is_valid": is_valid,
+            "issues": all_issues,
+            "bias_score": b_score,
             "validated_response": validated_response,
         }

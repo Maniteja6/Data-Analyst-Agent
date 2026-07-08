@@ -17,9 +17,11 @@ Two generation modes:
     STREAMING: for live WebSocket chat (default)
     BATCH:     for Celery report generation (no Socket.IO server)
 """
+
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from typing import Any
 
 import structlog
@@ -44,14 +46,14 @@ class NarrativeGenerator:
 
     def __init__(
         self,
-        llm_client=None,
-        stream_client=None,
-        sio=None,
+        llm_client: Any = None,  # noqa: ANN401
+        stream_client: Any = None,  # noqa: ANN401
+        sio: Any = None,  # noqa: ANN401
         dataset_id: str = "",
     ) -> None:
-        self._llm       = llm_client
-        self._stream    = stream_client
-        self._sio       = sio
+        self._llm = llm_client
+        self._stream = stream_client
+        self._sio = sio
         self._dataset_id = dataset_id
 
     # ── Executive summary (streaming) ─────────────────────────────────────
@@ -115,18 +117,16 @@ class NarrativeGenerator:
 
         # Emit the complete event with the full text
         if self._sio and self._dataset_id:
-            try:
+            with contextlib.suppress(Exception):
                 await self._sio.emit(
                     "insight:summary_complete",
                     {
                         "dataset_id": self._dataset_id,
-                        "summary":    summary,
+                        "summary": summary,
                         "message_id": message_id,
                     },
                     room=f"dataset:{self._dataset_id}",
                 )
-            except Exception:
-                pass
 
         logger.info(
             "executive_summary_generated",
@@ -174,25 +174,23 @@ class NarrativeGenerator:
                 updated = {**insight, "headline": new_headline.strip()}
 
                 if emit_individually and self._sio and self._dataset_id:
-                    try:
+                    with contextlib.suppress(Exception):
                         await self._sio.emit(
                             "insight:insight_ready",
                             {
-                                "dataset_id":    self._dataset_id,
+                                "dataset_id": self._dataset_id,
                                 "insight_index": i,
-                                "insight":       updated,
+                                "insight": updated,
                             },
                             room=f"dataset:{self._dataset_id}",
                         )
-                    except Exception:
-                        pass
 
                 return i, updated
             except Exception:
                 return i, insight
 
         # Rewrite all headlines concurrently
-        tasks   = [_rewrite_one(i, ins) for i, ins in enumerate(insights)]
+        tasks = [_rewrite_one(i, ins) for i, ins in enumerate(insights)]
         results = await asyncio.gather(*tasks)
 
         # Re-sort to original order
@@ -205,13 +203,14 @@ class NarrativeGenerator:
         self,
         profile: dict,
         insights: list[dict],
-        **kwargs: Any,
+        **kwargs: Any,  # noqa: ANN401
     ) -> str:
         """Generate the executive summary without streaming (for Celery tasks)."""
         if not self._llm:
             return self._fallback_summary(profile, insights)
         prompt = self._build_executive_summary_prompt(
-            profile, insights,
+            profile,
+            insights,
             kwargs.get("sql_summary", ""),
             kwargs.get("anomaly_count", 0),
             kwargs.get("forecast_summary", ""),
@@ -230,14 +229,12 @@ class NarrativeGenerator:
 
     async def _emit_token(self, token: str, message_id: str) -> None:
         if self._sio and self._dataset_id:
-            try:
+            with contextlib.suppress(Exception):
                 await self._sio.emit(
                     "insight:summary_token",
                     {"dataset_id": self._dataset_id, "token": token, "message_id": message_id},
                     room=f"dataset:{self._dataset_id}",
                 )
-            except Exception:
-                pass
 
     @staticmethod
     def _build_executive_summary_prompt(
@@ -247,9 +244,7 @@ class NarrativeGenerator:
         anomaly_count: int,
         forecast_summary: str,
     ) -> str:
-        headlines = "\n".join(
-            f"- {ins.get('headline', '')}" for ins in insights[:5]
-        )
+        headlines = "\n".join(f"- {ins.get('headline', '')}" for ins in insights[:5])
         return (
             f"Write a 3-sentence executive summary for a business data analysis.\n\n"
             f"DATASET STATS:\n"
@@ -269,7 +264,7 @@ class NarrativeGenerator:
     def _fallback_summary(profile: dict, insights: list[dict]) -> str:
         rows = profile.get("row_count", 0)
         cols = profile.get("column_count", 0)
-        top  = insights[0].get("headline", "") if insights else "No significant findings"
+        top = insights[0].get("headline", "") if insights else "No significant findings"
         return (
             f"The dataset contains {rows:,} rows and {cols} columns "
             f"with a completeness score of "

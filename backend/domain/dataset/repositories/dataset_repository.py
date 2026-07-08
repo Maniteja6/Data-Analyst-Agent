@@ -1,11 +1,12 @@
 """DatasetRepository — abstract port for Dataset aggregate persistence."""
+
 from __future__ import annotations
 
 from abc import abstractmethod
 
-from backend.shared.repository import Repository
 from backend.domain.dataset.entities.dataset import Dataset
 from backend.domain.dataset.value_objects.dataset_status import DatasetStatus
+from backend.shared.repository import Repository
 
 
 class DatasetRepository(Repository[Dataset, str]):

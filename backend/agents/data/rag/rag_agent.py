@@ -25,10 +25,18 @@ Socket.IO events emitted:
     rag:indexed          — final count of indexed chunks
     rag:retrieval_start  — "Searching knowledge base…"
 """
+
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+import contextlib
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from backend.infrastructure.vector_store.bedrock_embedding_service import (
+        BedrockEmbeddingService,
+    )
+    from backend.infrastructure.vector_store.qdrant_adapter import QdrantAdapter
 
 import structlog
 from backend.agents.base.agent_context import AgentContext
@@ -39,7 +47,7 @@ from backend.agents.data.rag.retriever import Retriever
 
 logger = structlog.get_logger(__name__)
 
-MAX_CONCURRENT_EMBEDS = 4    # Bedrock concurrency limit
+MAX_CONCURRENT_EMBEDS = 4  # Bedrock concurrency limit
 
 
 class RAGAgent(BaseAgent):
@@ -53,17 +61,17 @@ class RAGAgent(BaseAgent):
 
     def __init__(
         self,
-        llm_client: Any = None,
-        embed_service: Any = None,
-        qdrant: Any = None,
+        llm_client: Any = None,  # noqa: ANN401
+        embed_service: Any = None,  # noqa: ANN401
+        qdrant: Any = None,  # noqa: ANN401
     ) -> None:
         super().__init__("rag")
-        self._builder  = ChunkBuilder()
-        self._hyde     = HyDEExpander(llm_client)
+        self._builder = ChunkBuilder()
+        self._hyde = HyDEExpander(llm_client)
         self._retriever = Retriever(qdrant, embed_service)
 
         # Lazy-initialised
-        self._embed  = embed_service
+        self._embed = embed_service
         self._qdrant = qdrant
 
     async def _execute(
@@ -73,7 +81,7 @@ class RAGAgent(BaseAgent):
         index_dataset: bool = False,
         top_k: int = 8,
         use_hyde: bool = True,
-        **kwargs: Any,
+        **kwargs: Any,  # noqa: ANN401
     ) -> dict:
         """Route to indexing or retrieval based on ``index_dataset`` flag.
 
@@ -96,7 +104,7 @@ class RAGAgent(BaseAgent):
 
     async def _index_dataset(self, context: AgentContext) -> dict:
         """Build and upsert all dataset chunks into Qdrant."""
-        sio        = context._sio
+        sio = context._sio
         dataset_id = context.dataset_id
 
         # Build chunks from schema and profile
@@ -113,38 +121,34 @@ class RAGAgent(BaseAgent):
 
         # Emit start event
         if sio and dataset_id:
-            try:
+            with contextlib.suppress(Exception):
                 await sio.emit(
                     "rag:indexing_start",
                     {"dataset_id": dataset_id, "chunk_count": total},
                     room=f"dataset:{dataset_id}",
                 )
-            except Exception:
-                pass
 
-        await context.push_progress(
-            15, f"Indexing {total} knowledge base chunks…", step="rag"
-        )
+        await context.push_progress(15, f"Indexing {total} knowledge base chunks…", step="rag")
 
         # Embed all chunks concurrently (rate-limited)
         embed_svc = await self._get_embed()
         semaphore = asyncio.Semaphore(MAX_CONCURRENT_EMBEDS)
-        indexed   = 0
+        indexed = 0
 
         async def _embed_and_track(chunk: DataChunk) -> dict:
             nonlocal indexed
             async with semaphore:
                 vector = await embed_svc.embed(chunk.content)
                 result = {
-                    "id":          chunk.id,
-                    "dataset_id":  chunk.dataset_id,
-                    "chunk_type":  chunk.chunk_type,
+                    "id": chunk.id,
+                    "dataset_id": chunk.dataset_id,
+                    "chunk_type": chunk.chunk_type,
                     "column_name": chunk.column_name,
-                    "content":     chunk.content,
-                    "vector":      vector,
-                    "payload":     {
-                        "content":     chunk.content,
-                        "chunk_type":  chunk.chunk_type,
+                    "content": chunk.content,
+                    "vector": vector,
+                    "payload": {
+                        "content": chunk.content,
+                        "chunk_type": chunk.chunk_type,
                         "column_name": chunk.column_name,
                         **chunk.metadata,
                     },
@@ -152,19 +156,15 @@ class RAGAgent(BaseAgent):
                 indexed += 1
                 # Emit progress every 10 chunks
                 if sio and dataset_id and indexed % 10 == 0:
-                    try:
+                    with contextlib.suppress(Exception):
                         await sio.emit(
                             "rag:chunk_indexed",
                             {"dataset_id": dataset_id, "indexed": indexed, "total": total},
                             room=f"dataset:{dataset_id}",
                         )
-                    except Exception:
-                        pass
                 return result
 
-        embedded_chunks = await asyncio.gather(
-            *[_embed_and_track(chunk) for chunk in chunks]
-        )
+        embedded_chunks = await asyncio.gather(*[_embed_and_track(chunk) for chunk in chunks])
 
         # Upsert to Qdrant
         qdrant = await self._get_qdrant()
@@ -173,14 +173,12 @@ class RAGAgent(BaseAgent):
 
         # Emit complete event
         if sio and dataset_id:
-            try:
+            with contextlib.suppress(Exception):
                 await sio.emit(
                     "rag:indexed",
                     {"dataset_id": dataset_id, "chunk_count": total},
                     room=f"dataset:{dataset_id}",
                 )
-            except Exception:
-                pass
 
         logger.info(
             "rag_indexed",
@@ -199,26 +197,24 @@ class RAGAgent(BaseAgent):
         use_hyde: bool,
     ) -> dict:
         """Retrieve relevant chunks for a user query."""
-        sio        = context._sio
+        sio = context._sio
         dataset_id = context.dataset_id
 
         if not query:
             return {"context": "", "retrieved_chunks": 0, "scores": []}
 
         if sio and dataset_id:
-            try:
+            with contextlib.suppress(Exception):
                 await sio.emit(
                     "rag:retrieval_start",
                     {"dataset_id": dataset_id, "query": query[:80]},
                     room=f"dataset:{dataset_id}",
                 )
-            except Exception:
-                pass
 
         # Build schema summary for HyDE context hint
         schema_summary = ""
         if context.schema:
-            col_names    = [c["name"] for c in context.schema.get("columns", [])[:10]]
+            col_names = [c["name"] for c in context.schema.get("columns", [])[:10]]
             schema_summary = f"Columns: {', '.join(col_names)}"
 
         # Apply HyDE expansion
@@ -249,24 +245,26 @@ class RAGAgent(BaseAgent):
         )
 
         return {
-            "context":          context_str,
+            "context": context_str,
             "retrieved_chunks": len(results),
-            "scores":           scores,
-            "expanded_query":   expanded if expanded != query else None,
+            "scores": scores,
+            "expanded_query": expanded if expanded != query else None,
         }
 
     # ── Lazy service initialisation ───────────────────────────────────────
 
-    async def _get_embed(self):
+    async def _get_embed(self) -> BedrockEmbeddingService:
         if self._embed is None:
             from backend.infrastructure.vector_store.bedrock_embedding_service import (
                 BedrockEmbeddingService,
             )
+
             self._embed = BedrockEmbeddingService()
         return self._embed
 
-    async def _get_qdrant(self):
+    async def _get_qdrant(self) -> QdrantAdapter:
         if self._qdrant is None:
             from backend.infrastructure.vector_store.qdrant_adapter import QdrantAdapter
+
             self._qdrant = QdrantAdapter()
         return self._qdrant

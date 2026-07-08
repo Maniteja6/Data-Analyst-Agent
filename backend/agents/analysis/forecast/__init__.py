@@ -11,4 +11,3 @@ from backend.agents.analysis.forecast.model_selector import select_best_model
 from backend.agents.analysis.forecast.ts_detector import is_forecasting_viable
 
 __all__ = ["ForecastAgent", "is_forecasting_viable", "select_best_model"]
-

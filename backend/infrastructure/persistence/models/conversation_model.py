@@ -1,14 +1,13 @@
 """Conversation ORM model — maps to the ``conversations`` table."""
+
 from __future__ import annotations
 
 from datetime import datetime
 
+from backend.infrastructure.persistence.database import Base
 from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import ForeignKey
-
-from backend.infrastructure.persistence.database import Base
 
 
 class ConversationModel(Base):
@@ -27,23 +26,27 @@ class ConversationModel(Base):
 
     __tablename__ = "conversations"
 
-    id:             Mapped[str]           = mapped_column(String(36),   primary_key=True)
-    dataset_id:     Mapped[str]           = mapped_column(
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    dataset_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("datasets.id", ondelete="CASCADE"), nullable=False
     )
-    title:          Mapped[str]           = mapped_column(String(200),  nullable=False, default="New conversation")
-    messages:       Mapped[list | None]   = mapped_column(JSONB,        nullable=True)
-    memory_summary: Mapped[str | None]    = mapped_column(Text,         nullable=True)
-    message_count:  Mapped[int]           = mapped_column(Integer,      nullable=False, default=0)
-    is_closed:      Mapped[bool]          = mapped_column(Boolean,      nullable=False, default=False)
-    deleted_at:     Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    created_at:     Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    updated_at:     Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    title: Mapped[str] = mapped_column(String(200), nullable=False, default="New conversation")
+    messages: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    memory_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    message_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_closed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         Index("ix_conversations_dataset_id", "dataset_id"),
-        Index("ix_conversations_dataset_active", "dataset_id", "is_closed",
-              postgresql_where="deleted_at IS NULL"),
+        Index(
+            "ix_conversations_dataset_active",
+            "dataset_id",
+            "is_closed",
+            postgresql_where="deleted_at IS NULL",
+        ),
         # GIN index enables fast jsonb search over message content
         Index("ix_conversations_messages_gin", "messages", postgresql_using="gin"),
     )

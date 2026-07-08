@@ -1,4 +1,5 @@
 """InsightNode — calls the InsightAgent to produce the insight report."""
+
 from __future__ import annotations
 
 import structlog
@@ -14,17 +15,18 @@ async def insight_node(state: PipelineState) -> dict:
             state['cleaning_result'], state['critique'] (on retry)
     Writes: state['insight_report'] — InsightReport.to_dict()
     """
-    ctx           = state.get("context", {})
+    ctx = state.get("context", {})
     agent_results = state.get("agent_results", {})
-    profile       = state.get("profile_result", {})
-    critique      = state.get("critique", {})
-    meta          = state.get("metadata", {}) or {}
+    profile = state.get("profile_result", {})
+    critique = state.get("critique", {})
+    meta = state.get("metadata", {}) or {}
     revision_round = meta.get("revision_round", 0)
 
     try:
         from backend.agents.insight_agent import InsightAgent
-        from backend.infrastructure.llm.bedrock.bedrock_converse_adapter import BedrockConverseAdapter
-        from backend.domain.analytics.services.data_quality_scorer import DataQualityScorer
+        from backend.infrastructure.llm.bedrock.bedrock_converse_adapter import (
+            BedrockConverseAdapter,
+        )
 
         agent = InsightAgent(llm=BedrockConverseAdapter())
         report = await agent.run(

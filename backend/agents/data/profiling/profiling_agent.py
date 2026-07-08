@@ -16,9 +16,11 @@ Socket.IO events emitted:
     profiling:column_complete — per-column stats as they complete
     profiling:complete        — full DataProfile dict on completion
 """
+
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -40,31 +42,30 @@ class ProfilingAgent(BaseAgent):
         super().__init__("profiling")
         self._profiler = DataProfiler()
 
-    async def _execute(self, context: AgentContext, **kwargs: Any) -> dict:
+    async def _execute(self, context: AgentContext, **kwargs: Any) -> dict:  # noqa: ANN401
         """Profile all columns and emit per-column Socket.IO events.
 
         Returns:
             DataProfile serialised as a dict (profile.to_dict() output).
         """
-        sio        = context._sio
+        sio = context._sio
         dataset_id = context.dataset_id
 
         # Load the full dataset (not sample — profiling needs all rows)
         from backend.analytics_engine.ingestion.file_reader import FileReader
+
         await context.push_progress(19, "Loading dataset for profiling…", step="profiling")
         df = await FileReader().read(context.storage_key)
 
         col_count = len(df.columns) if hasattr(df, "columns") else df.shape[1]
 
         if sio and dataset_id:
-            try:
+            with contextlib.suppress(Exception):
                 await sio.emit(
                     "profiling:start",
                     {"dataset_id": dataset_id, "column_count": col_count},
                     room=f"dataset:{dataset_id}",
                 )
-            except Exception:
-                pass
 
         await context.push_progress(21, f"Profiling {col_count} columns…", step="profiling")
 
@@ -72,10 +73,10 @@ class ProfilingAgent(BaseAgent):
         loop = asyncio.get_event_loop()
         columns_done = [0]
 
-        def column_done_callback(col_name: str, col_profile: Any) -> None:
+        def column_done_callback(col_name: str, col_profile: Any) -> None:  # noqa: ANN401
             """Called from the profiling thread after each column completes."""
             columns_done[0] += 1
-            progress = 21 + int((columns_done[0] / col_count) * 10)   # 21% → 31%
+            progress = 21 + int((columns_done[0] / col_count) * 10)  # 21% → 31%
 
             if sio and dataset_id:
                 try:
@@ -84,19 +85,19 @@ class ProfilingAgent(BaseAgent):
                         sio.emit(
                             "profiling:column_complete",
                             {
-                                "dataset_id":   dataset_id,
-                                "column_name":  col_name,
+                                "dataset_id": dataset_id,
+                                "column_name": col_name,
                                 "column_index": columns_done[0],
-                                "total":        col_count,
-                                "progress":     progress,
-                                "profile":      col_dict,
+                                "total": col_count,
+                                "progress": progress,
+                                "profile": col_dict,
                             },
                             room=f"dataset:{dataset_id}",
                         ),
                         loop,
                     )
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("profiling_progress_emit_failed", error=str(exc))
 
         # Run profiling in thread pool with the callback
         profile = await loop.run_in_executor(
@@ -114,20 +115,18 @@ class ProfilingAgent(BaseAgent):
 
         # Emit profiling:complete
         if sio and dataset_id:
-            try:
+            with contextlib.suppress(Exception):
                 await sio.emit(
                     "profiling:complete",
                     {
-                        "dataset_id":        dataset_id,
-                        "row_count":         profile_dict.get("row_count", 0),
-                        "column_count":      profile_dict.get("column_count", 0),
+                        "dataset_id": dataset_id,
+                        "row_count": profile_dict.get("row_count", 0),
+                        "column_count": profile_dict.get("column_count", 0),
                         "completeness_score": profile_dict.get("completeness_score", 0),
-                        "duplicate_count":   profile_dict.get("duplicate_count", 0),
+                        "duplicate_count": profile_dict.get("duplicate_count", 0),
                     },
                     room=f"dataset:{dataset_id}",
                 )
-            except Exception:
-                pass
 
         logger.info(
             "profiling_agent_complete",

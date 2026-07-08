@@ -1,9 +1,18 @@
 """NumericProfiler — descriptive statistics for numeric columns."""
+
 from __future__ import annotations
 
-from backend.domain.analytics.value_objects.statistical_summary import StatisticalSummary
-from backend.domain.analytics.value_objects.histogram import Histogram
+from typing import TYPE_CHECKING
+
 import structlog
+from backend.domain.analytics.value_objects.histogram import Histogram
+from backend.domain.analytics.value_objects.statistical_summary import StatisticalSummary
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
+
+    DataFrameT = pl.DataFrame | pd.DataFrame
 
 logger = structlog.get_logger(__name__)
 
@@ -12,26 +21,30 @@ class NumericProfiler:
     """Computes StatisticalSummary and Histogram for a numeric column."""
 
     def __init__(self, histogram_bins: int = 20, sample_size: int = 100_000) -> None:
-        self._bins        = histogram_bins
+        self._bins = histogram_bins
         self._sample_size = sample_size
 
-    def profile(self, df, column: str) -> tuple[StatisticalSummary | None, Histogram | None]:
+    def profile(
+        self, df: DataFrameT, column: str
+    ) -> tuple[StatisticalSummary | None, Histogram | None]:
         """Return (StatisticalSummary, Histogram) for the given column."""
         try:
             return self._profile_polars(df, column)
         except Exception:
             return self._profile_pandas(df, column)
 
-    def _profile_polars(self, df, column: str):
-        import polars as pl
-
+    def _profile_polars(
+        self, df: DataFrameT, column: str
+    ) -> tuple[StatisticalSummary | None, Histogram | None]:
         series = df[column].drop_nulls()
-        n      = len(series)
+        n = len(series)
         if n == 0:
             return None, None
 
         # Sample for histograms on large datasets
-        hist_series = series.sample(min(n, self._sample_size), seed=42) if n > self._sample_size else series
+        hist_series = (
+            series.sample(min(n, self._sample_size), seed=42) if n > self._sample_size else series
+        )
 
         stats = StatisticalSummary(
             count=n,
@@ -52,6 +65,7 @@ class NumericProfiler:
         # Build histogram via numpy cut
         try:
             import numpy as np
+
             vals = hist_series.to_numpy()
             counts, edges = np.histogram(vals, bins=min(self._bins, max(5, len(set(vals)))))
             histogram = Histogram.from_numeric_ranges(
@@ -64,12 +78,14 @@ class NumericProfiler:
 
         return stats, histogram
 
-    def _profile_pandas(self, df, column: str):
+    def _profile_pandas(
+        self, df: DataFrameT, column: str
+    ) -> tuple[StatisticalSummary | None, Histogram | None]:
         import numpy as np
         from scipy import stats as scipy_stats
 
         series = df[column].dropna()
-        n      = len(series)
+        n = len(series)
         if n == 0:
             return None, None
 

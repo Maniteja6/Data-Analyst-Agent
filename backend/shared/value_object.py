@@ -7,6 +7,7 @@ produces a new instance rather than mutating the existing one.
 Examples in this codebase:
     DatasetId, MimeType, SemanticType, SessionId, CorrelationCoefficient
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

@@ -39,11 +39,11 @@ Usage::
     # Decode bytes received from Kafka to a dict
     decoded  = await serializer.deserialize(raw)
 """
+
 from __future__ import annotations
 
 import io
 import json
-import os
 import struct
 from pathlib import Path
 from typing import Any
@@ -81,16 +81,17 @@ class AvroSerializer:
         """
         if schema_registry_url is None:
             from backend.config.settings import get_settings
+
             schema_registry_url = get_settings().kafka_schema_registry_url
 
-        self._registry_url  = schema_registry_url
-        self._schema_cache:  dict[str, Any]  = {}   # event_type → parsed schema
-        self._id_cache:      dict[str, int]   = {}   # event_type → registered schema ID
-        self._use_registry   = bool(schema_registry_url)
+        self._registry_url = schema_registry_url
+        self._schema_cache: dict[str, Any] = {}  # event_type → parsed schema
+        self._id_cache: dict[str, int] = {}  # event_type → registered schema ID
+        self._use_registry = bool(schema_registry_url)
 
     # ── Schema loading ────────────────────────────────────────────────────
 
-    def _load_schema(self, event_type: str) -> Any:
+    def _load_schema(self, event_type: str) -> dict[str, Any]:
         """Load and parse the Avro schema for a given event type.
 
         Schemas are loaded from ``.avsc`` files in the ``schemas/`` directory.
@@ -114,14 +115,14 @@ class AvroSerializer:
 
         if not schema_path.exists():
             raise FileNotFoundError(
-                f"Avro schema not found for event type '{event_type}'. "
-                f"Expected: {schema_path}"
+                f"Avro schema not found for event type '{event_type}'. Expected: {schema_path}"
             )
 
         try:
             import fastavro
+
             schema_dict = json.loads(schema_path.read_text(encoding="utf-8"))
-            parsed      = fastavro.parse_schema(schema_dict)
+            parsed = fastavro.parse_schema(schema_dict)
             self._schema_cache[event_type] = parsed
             return parsed
         except ImportError:
@@ -156,7 +157,7 @@ class AvroSerializer:
         """Encode payload using Avro binary with Confluent wire format header."""
         import fastavro
 
-        schema    = self._load_schema(event_type)
+        schema = self._load_schema(event_type)
         schema_id = self._get_schema_id(event_type)
 
         buf = io.BytesIO()
@@ -171,9 +172,9 @@ class AvroSerializer:
         Used in local development and tests when fastavro is not available
         or the schema registry is not running.
         """
-        schema_id   = _FALLBACK_SCHEMA_ID
-        json_bytes  = json.dumps(payload, default=str).encode("utf-8")
-        header      = struct.pack(">bI", _MAGIC_BYTE, schema_id)
+        schema_id = _FALLBACK_SCHEMA_ID
+        json_bytes = json.dumps(payload, default=str).encode("utf-8")
+        header = struct.pack(">bI", _MAGIC_BYTE, schema_id)
         return header + json_bytes
 
     # ── Deserialise ───────────────────────────────────────────────────────
@@ -209,9 +210,10 @@ class AvroSerializer:
         """Decode Avro binary body using the schema for the given ID."""
         try:
             import fastavro
+
             # Look up schema by ID (local cache first, then registry)
             event_type = self._id_to_event_type(schema_id)
-            schema     = self._load_schema(event_type) if event_type else None
+            schema = self._load_schema(event_type) if event_type else None
 
             buf = io.BytesIO(body)
             if schema:
@@ -259,22 +261,27 @@ class AvroSerializer:
         The subject name follows the topic-value convention:
         ``<topic_name>-value``, e.g. ``'dataset.uploaded-value'``.
         """
-        import urllib.request
         import urllib.parse
+        import urllib.request
 
         schema_path = _SCHEMA_DIR / f"{_pascal_to_snake(event_type)}.avsc"
-        schema_str  = schema_path.read_text(encoding="utf-8")
-        subject     = f"{_pascal_to_topic(event_type)}-value"
-        url         = f"{self._registry_url}/subjects/{subject}/versions"
+        schema_str = schema_path.read_text(encoding="utf-8")
+        subject = f"{_pascal_to_topic(event_type)}-value"
+        url = f"{self._registry_url}/subjects/{subject}/versions"
+
+        if not url.startswith(("http://", "https://")):
+            raise ValueError(
+                f"kafka_schema_registry_url must be http(s), got: {self._registry_url!r}"
+            )
 
         request_body = json.dumps({"schema": schema_str}).encode("utf-8")
-        req = urllib.request.Request(
+        req = urllib.request.Request(  # noqa: S310 — scheme validated above
             url,
             data=request_body,
             headers={"Content-Type": "application/vnd.schemaregistry.v1+json"},
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=5) as resp:  # noqa: S310 — scheme validated above
             data = json.loads(resp.read())
             return int(data["id"])
 
@@ -297,6 +304,7 @@ class AvroSerializer:
         try:
             schema = self._load_schema(event_type)
             import fastavro
+
             buf = io.BytesIO()
             fastavro.schemaless_writer(buf, schema, payload)
         except Exception as exc:
@@ -305,20 +313,18 @@ class AvroSerializer:
 
     def list_known_schemas(self) -> list[str]:
         """Return the event types for which an ``.avsc`` file exists."""
-        return [
-            _snake_to_pascal(f.stem)
-            for f in _SCHEMA_DIR.glob("*.avsc")
-            if f.is_file()
-        ]
+        return [_snake_to_pascal(f.stem) for f in _SCHEMA_DIR.glob("*.avsc") if f.is_file()]
 
 
 # ---------------------------------------------------------------------------
 # Naming helpers
 # ---------------------------------------------------------------------------
 
+
 def _pascal_to_snake(name: str) -> str:
     """Convert ``DatasetUploaded`` → ``dataset_uploaded``."""
     import re
+
     s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
     return re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
 
@@ -331,7 +337,7 @@ def _snake_to_pascal(name: str) -> str:
 def _pascal_to_topic(name: str) -> str:
     """Convert ``DatasetUploaded`` → ``dataset.uploaded`` (Kafka topic name)."""
     snake = _pascal_to_snake(name)
-    return snake.replace("_", ".", 1)   # only first underscore becomes dot
+    return snake.replace("_", ".", 1)  # only first underscore becomes dot
 
 
 # ---------------------------------------------------------------------------

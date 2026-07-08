@@ -46,16 +46,15 @@ Usage::
         duration_ms=1230,
     )
 """
+
 from __future__ import annotations
 
-import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
-
-from backend.shared.utils.uuid_factory import new_uuid
 from backend.shared.utils.hash_utils import sha256_of_string
+from backend.shared.utils.uuid_factory import new_uuid
 
 _audit_log = structlog.get_logger("datapilot.audit")
 
@@ -149,7 +148,7 @@ class AuditLogger:
             event_type="agent.executed",
             agent_name=agent_name,
             session_id=session_id,
-            status=status,             # success | failure | retry
+            status=status,  # success | failure | retry
             input_hash=input_hash,
             output_hash=output_hash,
             duration_ms=duration_ms,
@@ -323,7 +322,7 @@ class AuditLogger:
     async def _emit(
         self,
         event_type: str,
-        **fields: Any,
+        **fields: Any,  # noqa: ANN401
     ) -> None:
         """Write a structured audit log record.
 
@@ -342,14 +341,17 @@ class AuditLogger:
         """
         try:
             record = {
-                "audit_id":    new_uuid(),
-                "event_type":  event_type,
-                "occurred_at": datetime.now(timezone.utc).isoformat(),
+                "audit_id": new_uuid(),
+                "event_type": event_type,
+                "occurred_at": datetime.now(UTC).isoformat(),
                 **{k: v for k, v in fields.items() if v is not None},
             }
             _audit_log.info("audit_event", **record)
-        except Exception:
-            # Silently swallow — never fail the primary request due to audit logging
+        except Exception:  # noqa: S110
+            # Silently swallow — never fail the primary request due to audit logging.
+            # Logging the exception here isn't safe either: the audit logger itself
+            # is what just failed, so a fallback log call could recurse or mask the
+            # original request's error path.
             pass
 
     # ── Batch helper (for bulk imports or migration scripts) ──────────────

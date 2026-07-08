@@ -22,18 +22,21 @@ Usage::
     messages = await store.get_messages(conversation_id)
     memory   = await store.get_memory(conversation_id)
 """
+
 from __future__ import annotations
 
+import contextlib
 import json
 from datetime import UTC, datetime
+from typing import Any
 
 import structlog
 
 logger = structlog.get_logger(__name__)
 
-_KEY_PREFIX  = "dp:conv"
-DEFAULT_TTL  = 86_400   # 24 hours
-META_TTL     = 604_800  # 7 days (metadata lives longer than messages)
+_KEY_PREFIX = "dp:conv"
+DEFAULT_TTL = 86_400  # 24 hours
+META_TTL = 604_800  # 7 days (metadata lives longer than messages)
 
 
 class EpisodicStore:
@@ -44,7 +47,7 @@ class EpisodicStore:
                       Accepts InMemoryCacheAdapter in tests.
     """
 
-    def __init__(self, redis_client: Any = None) -> None:
+    def __init__(self, redis_client: Any = None) -> None:  # noqa: ANN401
         self._redis = redis_client
 
     # ── Message buffer ────────────────────────────────────────────────────
@@ -162,8 +165,8 @@ class EpisodicStore:
         await self.save_meta(
             conversation_id,
             {
-                "dataset_id":    dataset_id,
-                "started_at":    datetime.now(UTC).isoformat(),
+                "dataset_id": dataset_id,
+                "started_at": datetime.now(UTC).isoformat(),
                 "message_count": 0,
             },
         )
@@ -184,10 +187,8 @@ class EpisodicStore:
         if not self._redis:
             return
         for suffix in ("messages", "memory", "meta", "system"):
-            try:
+            with contextlib.suppress(Exception):
                 await self._redis.delete(f"{_KEY_PREFIX}:{conversation_id}:{suffix}")
-            except Exception:
-                pass
         logger.info("episodic_session_deleted", conversation_id=conversation_id)
 
     # ── Private helpers ───────────────────────────────────────────────────

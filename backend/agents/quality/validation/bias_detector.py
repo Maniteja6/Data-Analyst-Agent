@@ -11,6 +11,7 @@ Bias categories:
     RECENCY    — assumes current data is the most recent ("as of today")
     CAUSATION  — implies causation from correlation ("X causes Y")
 """
+
 from __future__ import annotations
 
 import re
@@ -19,10 +20,10 @@ from dataclasses import dataclass
 
 @dataclass
 class BiasFlag:
-    bias_type:  str
-    matched:    str
+    bias_type: str
+    matched: str
     suggestion: str
-    severity:   str = "low"
+    severity: str = "low"
 
 
 _BIAS_PATTERNS: list[tuple[str, str, list[str], str]] = [
@@ -57,7 +58,7 @@ _BIAS_PATTERNS: list[tuple[str, str, list[str], str]] = [
         "false_precision",
         "low",
         [
-            r"\b\d+\.\d{3,}\s*%\b",   # more than 2 decimal places in a percentage
+            r"\b\d+\.\d{3,}\s*%\b",  # more than 2 decimal places in a percentage
         ],
         "Round to 1-2 decimal places for percentages derived from small samples.",
     ),
@@ -91,12 +92,14 @@ def detect_bias(text: str) -> list[BiasFlag]:
     for bias_type, severity, patterns, suggestion in _COMPILED_BIAS:
         for pattern in patterns:
             for match in pattern.finditer(text):
-                flags.append(BiasFlag(
-                    bias_type=bias_type,
-                    matched=match.group(0),
-                    suggestion=suggestion,
-                    severity=severity,
-                ))
+                flags.append(
+                    BiasFlag(
+                        bias_type=bias_type,
+                        matched=match.group(0),
+                        suggestion=suggestion,
+                        severity=severity,
+                    )
+                )
     return flags
 
 
@@ -113,4 +116,4 @@ def bias_score(text: str) -> float:
     """
     weights = {"high": 1.0, "medium": 0.5, "low": 0.2}
     total = sum(weights.get(f.severity, 0.2) for f in detect_bias(text))
-    return min(1.0, round(total / 3, 4))   # normalise: 3 high flags = max score
+    return min(1.0, round(total / 3, 4))  # normalise: 3 high flags = max score

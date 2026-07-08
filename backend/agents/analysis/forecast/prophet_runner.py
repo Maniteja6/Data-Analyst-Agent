@@ -8,18 +8,23 @@ holiday effects automatically.
 Requirements:
     pip install prophet  (wraps cmdstanpy under the hood)
 """
+
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
 
 logger = structlog.get_logger(__name__)
 
 
 async def run_prophet(
-    df,
+    df: pl.DataFrame | pd.DataFrame,
     date_col: str,
     target_col: str,
     horizon: int = 30,
@@ -46,7 +51,9 @@ async def run_prophet(
         return {"error": str(exc), "model": "Prophet", "predictions": []}
 
 
-def _run_prophet_sync(df: Any, date_col: str, target_col: str, horizon: int) -> dict[str, Any]:
+def _run_prophet_sync(
+    df: pl.DataFrame | pd.DataFrame, date_col: str, target_col: str, horizon: int
+) -> dict[str, Any]:
     """Synchronous Prophet fitting — called in a thread pool executor."""
     try:
         from prophet import Prophet
@@ -85,17 +92,18 @@ def _run_prophet_sync(df: Any, date_col: str, target_col: str, horizon: int) -> 
 
     # Suppress Prophet's verbose logging
     import logging
+
     logging.getLogger("prophet").setLevel(logging.WARNING)
     logging.getLogger("cmdstanpy").setLevel(logging.WARNING)
 
     model.fit(pdf)
-    future   = model.make_future_dataframe(periods=horizon, freq="D")
+    future = model.make_future_dataframe(periods=horizon, freq="D")
     forecast = model.predict(future).tail(horizon)
 
     predictions = [
         {
-            "timestamp":   str(row["ds"].date()),
-            "value":       round(float(row["yhat"]), 4),
+            "timestamp": str(row["ds"].date()),
+            "value": round(float(row["yhat"]), 4),
             "lower_bound": round(float(row["yhat_lower"]), 4),
             "upper_bound": round(float(row["yhat_upper"]), 4),
         }
@@ -105,8 +113,10 @@ def _run_prophet_sync(df: Any, date_col: str, target_col: str, horizon: int) -> 
     # Determine trend direction from the last vs first trend value
     trend_series = forecast["trend"].values
     trend_direction = (
-        "up"   if trend_series[-1] > trend_series[0]
-        else "down" if trend_series[-1] < trend_series[0]
+        "up"
+        if trend_series[-1] > trend_series[0]
+        else "down"
+        if trend_series[-1] < trend_series[0]
         else "flat"
     )
 
@@ -118,9 +128,9 @@ def _run_prophet_sync(df: Any, date_col: str, target_col: str, horizon: int) -> 
     )
 
     return {
-        "model":             "Prophet",
-        "predictions":       predictions,
-        "trend_direction":   trend_direction,
-        "seasonality_mode":  "additive",
-        "training_rows":     len(pdf),
+        "model": "Prophet",
+        "predictions": predictions,
+        "trend_direction": trend_direction,
+        "seasonality_mode": "additive",
+        "training_rows": len(pdf),
     }

@@ -1,6 +1,8 @@
 """UploadDatasetCommand — input DTO for the UploadDatasetUseCase."""
+
 from __future__ import annotations
-from dataclasses import dataclass, field
+
+from dataclasses import dataclass
 from typing import BinaryIO
 
 
@@ -16,9 +18,10 @@ class UploadDatasetCommand:
         project_id:   Optional workspace project to associate the dataset with.
         correlation_id: Request-scoped tracing ID from ``X-Correlation-ID`` header.
     """
-    filename:       str
-    file_obj:       BinaryIO
-    size_bytes:     int
-    mime_type:      str
-    project_id:     str | None = None
-    correlation_id: str        = ""
+
+    filename: str
+    file_obj: BinaryIO
+    size_bytes: int
+    mime_type: str
+    project_id: str | None = None
+    correlation_id: str = ""

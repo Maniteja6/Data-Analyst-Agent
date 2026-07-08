@@ -39,16 +39,17 @@ Structured output format:
           "size_bytes": 4096
         }
 """
+
 from __future__ import annotations
 
 from typing import Any
 
 import structlog
 
-
 # ---------------------------------------------------------------------------
 # Logger factory
 # ---------------------------------------------------------------------------
+
 
 def get_logger(name: str) -> structlog.stdlib.BoundLogger:
     """Return a structlog ``BoundLogger`` for the given module name.
@@ -69,7 +70,8 @@ def get_logger(name: str) -> structlog.stdlib.BoundLogger:
 # Context binding helpers (structlog context variables)
 # ---------------------------------------------------------------------------
 
-def bind_context(**fields: Any) -> None:
+
+def bind_context(**fields: Any) -> None:  # noqa: ANN401
     """Bind key-value pairs to the current async context.
 
     All subsequent log calls in the same async task / request will include
@@ -121,17 +123,18 @@ def get_context() -> dict[str, Any]:
 # Convenience log-level shortcuts
 # ---------------------------------------------------------------------------
 
-def log_info(logger_name: str, event: str, **fields: Any) -> None:
+
+def log_info(logger_name: str, event: str, **fields: Any) -> None:  # noqa: ANN401
     """One-liner structured info log — useful in short utility functions."""
     get_logger(logger_name).info(event, **fields)
 
 
-def log_warning(logger_name: str, event: str, **fields: Any) -> None:
+def log_warning(logger_name: str, event: str, **fields: Any) -> None:  # noqa: ANN401
     """One-liner structured warning log."""
     get_logger(logger_name).warning(event, **fields)
 
 
-def log_error(logger_name: str, event: str, exc: Exception | None = None, **fields: Any) -> None:
+def log_error(logger_name: str, event: str, exc: Exception | None = None, **fields: Any) -> None:  # noqa: ANN401
     """One-liner structured error log with optional exception info."""
     if exc is not None:
         fields["error"] = str(exc)
@@ -142,6 +145,7 @@ def log_error(logger_name: str, event: str, exc: Exception | None = None, **fiel
 # ---------------------------------------------------------------------------
 # Agent execution logger
 # ---------------------------------------------------------------------------
+
 
 class AgentLogger:
     """Structured logger pre-bound with agent name for use inside agent classes.
@@ -162,19 +166,19 @@ class AgentLogger:
             agent_name=agent_name
         )
 
-    def info(self, event: str, **fields: Any) -> None:
+    def info(self, event: str, **fields: Any) -> None:  # noqa: ANN401
         self._log.info(event, **fields)
 
-    def warning(self, event: str, **fields: Any) -> None:
+    def warning(self, event: str, **fields: Any) -> None:  # noqa: ANN401
         self._log.warning(event, **fields)
 
-    def error(self, event: str, **fields: Any) -> None:
+    def error(self, event: str, **fields: Any) -> None:  # noqa: ANN401
         self._log.error(event, **fields)
 
-    def debug(self, event: str, **fields: Any) -> None:
+    def debug(self, event: str, **fields: Any) -> None:  # noqa: ANN401
         self._log.debug(event, **fields)
 
-    def bind(self, **fields: Any) -> "AgentLogger":
+    def bind(self, **fields: Any) -> AgentLogger:  # noqa: ANN401
         """Return a new AgentLogger with additional bound fields."""
         new = AgentLogger.__new__(AgentLogger)
         new._log = self._log.bind(**fields)

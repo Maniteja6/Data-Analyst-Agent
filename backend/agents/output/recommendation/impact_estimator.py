@@ -16,6 +16,7 @@ Estimation strategy:
     These heuristics are intentionally conservative (lower-bound estimates)
     to avoid overpromising in executive reports.
 """
+
 from __future__ import annotations
 
 import structlog
@@ -24,18 +25,18 @@ logger = structlog.get_logger(__name__)
 
 # Base impact ranges by insight severity (percentage improvement estimates)
 _IMPACT_RANGES = {
-    "high":   {"min_pct": 10.0, "max_pct": 25.0, "label": "Significant"},
-    "medium": {"min_pct":  3.0, "max_pct": 10.0, "label": "Moderate"},
-    "low":    {"min_pct":  1.0, "max_pct":  5.0, "label": "Minor"},
+    "high": {"min_pct": 10.0, "max_pct": 25.0, "label": "Significant"},
+    "medium": {"min_pct": 3.0, "max_pct": 10.0, "label": "Moderate"},
+    "low": {"min_pct": 1.0, "max_pct": 5.0, "label": "Minor"},
 }
 
 # Semantic type multipliers (currency columns have higher revenue impact)
 _TYPE_MULTIPLIERS = {
-    "currency":        1.5,
+    "currency": 1.5,
     "numeric_measure": 1.2,
-    "numeric_count":   1.0,
-    "categorical":     0.8,
-    "percentage":      1.1,
+    "numeric_count": 1.0,
+    "categorical": 0.8,
+    "percentage": 1.1,
 }
 
 
@@ -63,20 +64,20 @@ class ImpactEstimator:
             Dict with keys: min_pct, max_pct, label, confidence, rationale.
         """
         priority = recommendation.get("priority", "medium").lower()
-        base     = _IMPACT_RANGES.get(priority, _IMPACT_RANGES["medium"])
+        base = _IMPACT_RANGES.get(priority, _IMPACT_RANGES["medium"])
 
         min_pct = base["min_pct"]
         max_pct = base["max_pct"]
-        label   = base["label"]
+        label = base["label"]
 
         # Apply semantic type multiplier for the primary source column
         if source_insight and column_semantic_types:
-            source_cols  = source_insight.get("source_columns", [])
-            primary_col  = source_cols[0] if source_cols else ""
-            stype        = (column_semantic_types or {}).get(primary_col, "unknown")
-            multiplier   = _TYPE_MULTIPLIERS.get(stype, 1.0)
-            min_pct      = round(min_pct * multiplier, 1)
-            max_pct      = round(max_pct * multiplier, 1)
+            source_cols = source_insight.get("source_columns", [])
+            primary_col = source_cols[0] if source_cols else ""
+            stype = (column_semantic_types or {}).get(primary_col, "unknown")
+            multiplier = _TYPE_MULTIPLIERS.get(stype, 1.0)
+            min_pct = round(min_pct * multiplier, 1)
+            max_pct = round(max_pct * multiplier, 1)
 
         # Anomaly bonus: more anomalies = larger risk reduction opportunity
         if anomaly_count > 10:
@@ -85,9 +86,9 @@ class ImpactEstimator:
 
         # Forecast trend modifier
         if forecast_trend == "up":
-            max_pct = round(max_pct * 1.15, 1)   # growth opportunity
+            max_pct = round(max_pct * 1.15, 1)  # growth opportunity
         elif forecast_trend == "down":
-            min_pct = round(min_pct * 1.10, 1)   # risk mitigation
+            min_pct = round(min_pct * 1.10, 1)  # risk mitigation
 
         # Confidence based on data quality
         confidence = 0.75
@@ -99,9 +100,9 @@ class ImpactEstimator:
         )
 
         result = {
-            "min_pct":   min_pct,
-            "max_pct":   max_pct,
-            "label":     label,
+            "min_pct": min_pct,
+            "max_pct": max_pct,
+            "label": label,
             "confidence": confidence,
             "rationale": rationale,
         }
@@ -153,14 +154,13 @@ class ImpactEstimator:
         col_types: dict[str, str] = {}
         if schema:
             col_types = {
-                c["name"]: c.get("semantic_type", "unknown")
-                for c in schema.get("columns", [])
+                c["name"]: c.get("semantic_type", "unknown") for c in schema.get("columns", [])
             }
 
         # Map insight indices to recommendations (1:1 by position)
         for i, rec in enumerate(recommendations):
             insight = insights[i] if i < len(insights) else None
-            impact  = self.estimate(
+            impact = self.estimate(
                 recommendation=rec,
                 source_insight=insight,
                 column_semantic_types=col_types,

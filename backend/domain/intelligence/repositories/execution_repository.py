@@ -1,11 +1,12 @@
 """ExecutionRepository — abstract port for ExecutionPlan and AgentResult persistence."""
+
 from __future__ import annotations
 
 from abc import abstractmethod
 
-from backend.shared.repository import Repository
-from backend.domain.intelligence.entities.execution_plan import ExecutionPlan, PlanStatus
 from backend.domain.intelligence.entities.agent_result import AgentResult
+from backend.domain.intelligence.entities.execution_plan import ExecutionPlan, PlanStatus
+from backend.shared.repository import Repository
 
 
 class ExecutionPlanRepository(Repository[ExecutionPlan, str]):

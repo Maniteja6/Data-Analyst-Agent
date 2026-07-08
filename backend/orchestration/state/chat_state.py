@@ -10,6 +10,7 @@ Chat query graph flow:
 
 Each node reads from and writes to this shared state dict.
 """
+
 from __future__ import annotations
 
 import operator
@@ -28,19 +29,19 @@ class ChatState(TypedDict, total=False):
     """
 
     # ── Request context ───────────────────────────────────────────────────
-    user_message:    str
+    user_message: str
     """The raw user message as received from the WebSocket."""
 
     conversation_id: str
     """UUID of the Conversation aggregate."""
 
-    dataset_id:      str
+    dataset_id: str
     """Dataset the user is querying."""
 
-    session_id:      str
+    session_id: str
     """Most recent AnalysisSession for this dataset (provides insight context)."""
 
-    correlation_id:  str
+    correlation_id: str
     """Request-scoped tracing ID."""
 
     # ── Conversation history ──────────────────────────────────────────────
@@ -75,13 +76,13 @@ class ChatState(TypedDict, total=False):
     """Vega-Lite chart specs to embed in the response."""
 
     # ── Safety checks ─────────────────────────────────────────────────────
-    pii_detected:       bool
+    pii_detected: bool
     """True when the SecurityNode detected PII in the user message."""
 
     injection_detected: bool
     """True when the SecurityNode detected a prompt injection attempt."""
 
-    is_valid:           bool
+    is_valid: bool
     """True when the ValidatorNode approves the draft response."""
 
     # ── Accumulating ─────────────────────────────────────────────────────

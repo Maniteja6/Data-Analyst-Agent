@@ -8,6 +8,7 @@ Domain events are recorded internally during state transitions and
 flushed to the event bus after the aggregate is saved to the database,
 ensuring events are only published for durable changes.
 """
+
 from __future__ import annotations
 
 from backend.shared.domain_event import DomainEvent

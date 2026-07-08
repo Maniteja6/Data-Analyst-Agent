@@ -31,13 +31,15 @@ Usage::
     key = await storage.upload_fileobj(file_bytes_io, "datasets/abc/sales.csv")
     url = await storage.generate_presigned_download_url(key)
 """
+
 from __future__ import annotations
 
 import asyncio
 import io
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
-from typing import BinaryIO
+from typing import Any, BinaryIO
 
 import structlog
 
@@ -69,21 +71,23 @@ class S3StorageAdapter:
             presigned_url_ttl: Expiry in seconds for presigned download URLs (default: 15 min).
         """
         from backend.config.settings import get_settings
+
         settings = get_settings()
 
-        self._bucket      = bucket_name  or settings.s3_bucket_name
-        self._region      = region       or settings.aws_region
-        self._endpoint    = endpoint_url or settings.s3_endpoint_url
+        self._bucket = bucket_name or settings.s3_bucket_name
+        self._region = region or settings.aws_region
+        self._endpoint = endpoint_url or settings.s3_endpoint_url
         self._presigned_ttl = presigned_url_ttl or settings.s3_presigned_url_ttl_seconds
-        self._client      = None   # lazily initialised
+        self._client = None  # lazily initialised
 
     # ── Client factory ────────────────────────────────────────────────────
 
-    def _get_client(self):
+    def _get_client(self) -> Any:  # noqa: ANN401 — boto3 client has no static type without stubs
         """Return the boto3 S3 client, creating it on first call (thread-safe)."""
         if self._client is None:
             import boto3
             from backend.config.settings import get_settings
+
             settings = get_settings()
 
             kwargs: dict = {"region_name": self._region}
@@ -91,13 +95,13 @@ class S3StorageAdapter:
                 kwargs["endpoint_url"] = self._endpoint
             # For MinIO local dev: explicit key/secret from settings
             if settings.aws_access_key_id and self._endpoint:
-                kwargs["aws_access_key_id"]     = settings.aws_access_key_id
-                kwargs["aws_secret_access_key"]  = settings.aws_secret_access_key
+                kwargs["aws_access_key_id"] = settings.aws_access_key_id
+                kwargs["aws_secret_access_key"] = settings.aws_secret_access_key
 
             self._client = boto3.client("s3", **kwargs)
         return self._client
 
-    async def _run(self, fn, *args, **kwargs):
+    async def _run(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
         """Run a synchronous boto3 call in the shared thread pool."""
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(_EXECUTOR, lambda: fn(*args, **kwargs))
@@ -243,6 +247,7 @@ class S3StorageAdapter:
             browser must include in the multipart POST body).
         """
         from backend.config.settings import get_settings
+
         settings = get_settings()
         max_size = settings.max_upload_size_bytes
 
@@ -265,6 +270,7 @@ class S3StorageAdapter:
     async def exists(self, key: str) -> bool:
         """Return True if the key exists in S3."""
         from botocore.exceptions import ClientError
+
         try:
             client = self._get_client()
             await self._run(client.head_object, Bucket=self._bucket, Key=key)
@@ -277,8 +283,9 @@ class S3StorageAdapter:
     async def get_object_size(self, key: str) -> int | None:
         """Return the size of an S3 object in bytes, or None if not found."""
         from botocore.exceptions import ClientError
+
         try:
-            client   = self._get_client()
+            client = self._get_client()
             response = await self._run(client.head_object, Bucket=self._bucket, Key=key)
             return response["ContentLength"]
         except ClientError:

@@ -76,9 +76,13 @@ job:<job_id>          — job status for polling clients
 All agents respect these conventions and never emit private events to the
 wrong room.
 """
+
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from backend.agents.base.base_agent import BaseAgent
 
 __version__ = "1.0.0"
 
@@ -89,13 +93,13 @@ __all__ = [
 
 
 def build_agent_registry(
-    llm_client: Any = None,
-    stream_client: Any = None,
-    storage: Any = None,
-    embed_service: Any = None,
-    qdrant: Any = None,
-    redis_client: Any = None,
-    sio: Any = None,
+    llm_client: Any = None,  # noqa: ANN401
+    stream_client: Any = None,  # noqa: ANN401
+    storage: Any = None,  # noqa: ANN401
+    embed_service: Any = None,  # noqa: ANN401
+    qdrant: Any = None,  # noqa: ANN401
+    redis_client: Any = None,  # noqa: ANN401
+    sio: Any = None,  # noqa: ANN401
 ) -> dict[str, Any]:
     """Build the complete agent registry for OrchestratorAgent / DAGExecutor.
 
@@ -153,40 +157,36 @@ def build_agent_registry(
 
     registry = {
         # ── Control ───────────────────────────────────────────────────────
-        "planner":        PlannerAgent(llm_client=llm_client),
-        "orchestrator":   OrchestratorAgent(agent_registry={}),   # self-reference filled below
-        "intent":         IntentAgent(llm_client=llm_client),
-        "memory":         MemoryAgent(llm_client=llm_client, redis_client=redis_client),
-
+        "planner": PlannerAgent(llm_client=llm_client),
+        "orchestrator": OrchestratorAgent(agent_registry={}),  # self-reference filled below
+        "intent": IntentAgent(llm_client=llm_client),
+        "memory": MemoryAgent(llm_client=llm_client, redis_client=redis_client),
         # ── Data ──────────────────────────────────────────────────────────
-        "schema":         SchemaAgent(llm_client=llm_client),
-        "profiling":      ProfilingAgent(),
-        "rag":            RAGAgent(
-                              llm_client=llm_client,
-                              embed_service=embed_service,
-                              qdrant=qdrant,
-                          ),
-
+        "schema": SchemaAgent(llm_client=llm_client),
+        "profiling": ProfilingAgent(),
+        "rag": RAGAgent(
+            llm_client=llm_client,
+            embed_service=embed_service,
+            qdrant=qdrant,
+        ),
         # ── Analysis ──────────────────────────────────────────────────────
-        "sql":            SQLAgent(llm_client=llm_client),
-        "python":         PythonAgent(llm_client=llm_client),
-        "forecast":       ForecastAgent(llm_client=llm_client),
-        "ml":             MLAgent(llm_client=llm_client),
-        "visualization":  VisualizationAgent(llm_client=llm_client),
-
+        "sql": SQLAgent(llm_client=llm_client),
+        "python": PythonAgent(llm_client=llm_client),
+        "forecast": ForecastAgent(llm_client=llm_client),
+        "ml": MLAgent(llm_client=llm_client),
+        "visualization": VisualizationAgent(llm_client=llm_client),
         # ── Output ────────────────────────────────────────────────────────
-        "insight":        InsightAgent(
-                              llm_client=llm_client,
-                              stream_client=stream_client,
-                          ),
+        "insight": InsightAgent(
+            llm_client=llm_client,
+            stream_client=stream_client,
+        ),
         "recommendation": RecommendationAgent(llm_client=llm_client),
-        "report":         ReportAgent(storage=storage, llm_client=llm_client),
-
+        "report": ReportAgent(storage=storage, llm_client=llm_client),
         # ── Quality ───────────────────────────────────────────────────────
-        "critic":         CriticAgent(llm_client=llm_client),
-        "security":       SecurityAgent(llm_client=llm_client),
-        "validation":     ValidationAgent(llm_client=llm_client),
-        "monitoring":     MonitoringAgent(),
+        "critic": CriticAgent(llm_client=llm_client),
+        "security": SecurityAgent(llm_client=llm_client),
+        "validation": ValidationAgent(llm_client=llm_client),
+        "monitoring": MonitoringAgent(),
     }
 
     # Wire OrchestratorAgent's registry back to the full dict so it can
@@ -196,7 +196,7 @@ def build_agent_registry(
     return registry
 
 
-def get_agent(name: str, registry: dict[str, Any]) -> Any:
+def get_agent(name: str, registry: dict[str, BaseAgent]) -> BaseAgent:
     """Retrieve an agent from a registry by name.
 
     Args:
@@ -212,10 +212,7 @@ def get_agent(name: str, registry: dict[str, Any]) -> Any:
     agent = registry.get(name)
     if agent is None:
         available = sorted(registry.keys())
-        raise KeyError(
-            f"Agent '{name}' not found in registry. "
-            f"Available agents: {available}"
-        )
+        raise KeyError(f"Agent '{name}' not found in registry. Available agents: {available}")
     return agent
 
 

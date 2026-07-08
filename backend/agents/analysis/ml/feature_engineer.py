@@ -6,14 +6,23 @@ Prepares a polars or pandas DataFrame for scikit-learn by:
 3. Filling nulls with column median (numeric) or mode (categorical)
 4. Dropping constant columns (zero variance)
 """
+
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import structlog
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
+
+    DataFrameT = pl.DataFrame | pd.DataFrame
 
 logger = structlog.get_logger(__name__)
 
 
-def engineer_features(df, schema: dict, max_cat_cardinality: int = 10):
+def engineer_features(df: DataFrameT, schema: dict, max_cat_cardinality: int = 10) -> pd.DataFrame:
     """Prepare a feature matrix from the dataset.
 
     Args:
@@ -30,22 +39,22 @@ def engineer_features(df, schema: dict, max_cat_cardinality: int = 10):
     # Convert polars to pandas if needed
     try:
         import polars as pl
-        if isinstance(df, pl.DataFrame):
-            pdf = df.to_pandas()
-        else:
-            pdf = df.copy()
+
+        pdf = df.to_pandas() if isinstance(df, pl.DataFrame) else df.copy()
     except ImportError:
         pdf = df.copy()
 
     col_map = {c["name"]: c.get("semantic_type", "unknown") for c in schema.get("columns", [])}
 
     numeric_cols = [
-        c for c in pdf.columns
+        c
+        for c in pdf.columns
         if col_map.get(c) in ("currency", "numeric_measure", "numeric_count", "percentage")
         and c in pdf.columns
     ]
     cat_cols = [
-        c for c in pdf.columns
+        c
+        for c in pdf.columns
         if col_map.get(c) == "categorical"
         and c in pdf.columns
         and pdf[c].nunique() <= max_cat_cardinality

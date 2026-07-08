@@ -1,7 +1,10 @@
 """Export request/response Pydantic schemas."""
+
 from __future__ import annotations
-from pydantic import BaseModel, Field
+
 from typing import Literal
+
+from pydantic import BaseModel
 
 
 class ExportReportRequest(BaseModel):
@@ -9,15 +12,15 @@ class ExportReportRequest(BaseModel):
 
 
 class ExportReportResponse(BaseModel):
-    job_id:     str
-    format:     str
+    job_id: str
+    format: str
     dataset_id: str
-    status:     str = "queued"
-    message:    str = "Report generation queued. Poll the job endpoint for the download URL."
+    status: str = "queued"
+    message: str = "Report generation queued. Poll the job endpoint for the download URL."
 
 
 class ExportReadyResponse(BaseModel):
-    job_id:       str
-    format:       str
+    job_id: str
+    format: str
     download_url: str
-    expires_in:   int = 900   # seconds
+    expires_in: int = 900  # seconds

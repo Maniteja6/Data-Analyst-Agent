@@ -1,12 +1,13 @@
 """AgentResult entity — output record for one agent invocation."""
+
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from backend.shared.entity import Entity
 from backend.domain.intelligence.value_objects.llm_response import LLMResponse
+from backend.shared.entity import Entity
 
 
 @dataclass
@@ -34,18 +35,18 @@ class AgentResult(Entity):
         created_at:      UTC timestamp.
     """
 
-    agent_name:      str
-    session_id:      str | None         = None
-    conversation_id: str | None         = None
-    task_id:         str | None         = None
-    success:         bool               = True
-    payload:         Any                = None
-    llm_response:    LLMResponse | None = None
-    input_hash:      str | None         = None
-    output_hash:     str | None         = None
-    duration_ms:     int                = 0
-    error:           str | None         = None
-    created_at:      datetime | None    = None
+    agent_name: str
+    session_id: str | None = None
+    conversation_id: str | None = None
+    task_id: str | None = None
+    success: bool = True
+    payload: Any = None
+    llm_response: LLMResponse | None = None
+    input_hash: str | None = None
+    output_hash: str | None = None
+    duration_ms: int = 0
+    error: str | None = None
+    created_at: datetime | None = None
 
     # ── Derived helpers ───────────────────────────────────────────────────
 
@@ -71,16 +72,16 @@ class AgentResult(Entity):
     def success_result(
         cls,
         agent_name: str,
-        payload: Any,
+        payload: Any,  # noqa: ANN401
         llm_response: LLMResponse | None = None,
         duration_ms: int = 0,
         session_id: str | None = None,
         conversation_id: str | None = None,
         task_id: str | None = None,
-    ) -> "AgentResult":
-        from backend.shared.utils.hash_utils import sha256_of_dict
+    ) -> AgentResult:
         from backend.shared.utils.datetime_utils import utcnow
-        import json
+        from backend.shared.utils.hash_utils import sha256_of_dict
+
         try:
             output_hash = sha256_of_dict(payload) if isinstance(payload, dict) else None
         except Exception:
@@ -106,8 +107,9 @@ class AgentResult(Entity):
         duration_ms: int = 0,
         session_id: str | None = None,
         conversation_id: str | None = None,
-    ) -> "AgentResult":
+    ) -> AgentResult:
         from backend.shared.utils.datetime_utils import utcnow
+
         return cls(
             agent_name=agent_name,
             session_id=session_id,
@@ -120,18 +122,18 @@ class AgentResult(Entity):
 
     def to_dict(self) -> dict:
         return {
-            "id":             self.id,
-            "agent_name":     self.agent_name,
-            "session_id":     self.session_id,
+            "id": self.id,
+            "agent_name": self.agent_name,
+            "session_id": self.session_id,
             "conversation_id": self.conversation_id,
-            "task_id":        self.task_id,
-            "success":        self.success,
-            "duration_ms":    self.duration_ms,
-            "total_tokens":   self.total_tokens,
-            "cost_usd":       self.estimated_cost_usd,
-            "model_id":       self.model_id,
-            "error":          self.error,
-            "input_hash":     self.input_hash,
-            "output_hash":    self.output_hash,
-            "created_at":     self.created_at.isoformat() if self.created_at else None,
+            "task_id": self.task_id,
+            "success": self.success,
+            "duration_ms": self.duration_ms,
+            "total_tokens": self.total_tokens,
+            "cost_usd": self.estimated_cost_usd,
+            "model_id": self.model_id,
+            "error": self.error,
+            "input_hash": self.input_hash,
+            "output_hash": self.output_hash,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }

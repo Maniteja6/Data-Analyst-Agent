@@ -1,12 +1,16 @@
 """IStorageService — abstract port for file storage."""
+
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from typing import BinaryIO
 
 
 class IStorageService(ABC):
     @abstractmethod
-    async def upload_fileobj(self, file_obj: BinaryIO, key: str, content_type: str | None = None) -> str: ...
+    async def upload_fileobj(
+        self, file_obj: BinaryIO, key: str, content_type: str | None = None
+    ) -> str: ...
     @abstractmethod
     async def download_bytes(self, key: str) -> bytes: ...
     @abstractmethod

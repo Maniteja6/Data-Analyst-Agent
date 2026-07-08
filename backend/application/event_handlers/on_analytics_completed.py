@@ -1,12 +1,21 @@
 """on_analytics_completed — enqueues the AI agent pipeline after cleaning."""
+
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import structlog
+
+if TYPE_CHECKING:
+    from backend.application.ports.cache_port import ICacheService
+    from backend.application.ports.job_port import IJobService
 
 logger = structlog.get_logger(__name__)
 
 
-async def on_analytics_completed(event: dict, job_service=None, cache=None) -> None:
+async def on_analytics_completed(
+    event: dict, job_service: IJobService | None = None, cache: ICacheService | None = None
+) -> None:
     """Enqueue the AI agent pipeline when the analytics pipeline finishes.
 
     This handler responds to CleaningCompleted events. It bridges the
@@ -17,8 +26,8 @@ async def on_analytics_completed(event: dict, job_service=None, cache=None) -> N
         job_service: IJobService for Celery task enqueueing.
         cache:       ICacheService for progress updates.
     """
-    dataset_id     = event.get("dataset_id", "")
-    session_id     = event.get("session_id", "")
+    dataset_id = event.get("dataset_id", "")
+    session_id = event.get("session_id", "")
     correlation_id = event.get("correlation_id", "")
 
     if cache and correlation_id:

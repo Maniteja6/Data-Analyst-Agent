@@ -1,13 +1,13 @@
 """Dataset ORM model — maps the Dataset aggregate to the ``datasets`` table."""
+
 from __future__ import annotations
 
 from datetime import datetime
 
+from backend.infrastructure.persistence.database import Base
 from sqlalchemy import BigInteger, DateTime, Index, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
-
-from backend.infrastructure.persistence.database import Base
 
 
 class DatasetModel(Base):
@@ -38,21 +38,21 @@ class DatasetModel(Base):
 
     __tablename__ = "datasets"
 
-    id:              Mapped[str]           = mapped_column(String(36),  primary_key=True)
-    project_id:      Mapped[str | None]    = mapped_column(String(36),  nullable=True,  index=True)
-    original_name:   Mapped[str]           = mapped_column(String(512), nullable=False)
-    storage_key:     Mapped[str]           = mapped_column(String(1024), nullable=False)
-    size_bytes:      Mapped[int]           = mapped_column(BigInteger,  nullable=False)
-    mime_type:       Mapped[str]           = mapped_column(String(256), nullable=False)
-    status:          Mapped[str]           = mapped_column(String(32),  nullable=False, default="uploaded")
-    row_count:       Mapped[int | None]    = mapped_column(BigInteger,  nullable=True)
-    column_count:    Mapped[int | None]    = mapped_column(nullable=True)
-    checksum_sha256: Mapped[str | None]    = mapped_column(String(64),  nullable=True)
-    schema_json:     Mapped[dict | None]   = mapped_column(JSONB,       nullable=True)
-    error_message:   Mapped[str | None]    = mapped_column(Text,        nullable=True)
-    deleted_at:      Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    created_at:      Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    updated_at:      Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    project_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    original_name: Mapped[str] = mapped_column(String(512), nullable=False)
+    storage_key: Mapped[str] = mapped_column(String(1024), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(256), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="uploaded")
+    row_count: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    column_count: Mapped[int | None] = mapped_column(nullable=True)
+    checksum_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    schema_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         # Fast lookup by status — used by the stale-job watchdog

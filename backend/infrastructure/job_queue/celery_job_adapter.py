@@ -27,6 +27,7 @@ Usage::
     )
     print(job_id)  # Celery task UUID
 """
+
 from __future__ import annotations
 
 import structlog
@@ -66,14 +67,15 @@ class CeleryJobAdapter:
             Celery task UUID (use as ``job_id`` for status polling).
         """
         from backend.infrastructure.job_queue.tasks.analysis_tasks import run_analysis_pipeline
+
         result = run_analysis_pipeline.apply_async(
             kwargs={
-                "dataset_id":     dataset_id,
-                "storage_key":    storage_key,
+                "dataset_id": dataset_id,
+                "storage_key": storage_key,
                 "correlation_id": correlation_id,
             },
             queue="analysis",
-            task_id=None,   # let Celery generate the UUID
+            task_id=None,  # let Celery generate the UUID
         )
         logger.info(
             "analysis_pipeline_enqueued",
@@ -106,10 +108,11 @@ class CeleryJobAdapter:
             Celery task UUID.
         """
         from backend.infrastructure.job_queue.tasks.agent_tasks import run_agent_pipeline
+
         result = run_agent_pipeline.apply_async(
             kwargs={
-                "dataset_id":     dataset_id,
-                "session_id":     session_id,
+                "dataset_id": dataset_id,
+                "session_id": session_id,
                 "correlation_id": correlation_id,
             },
             queue="agents",
@@ -144,12 +147,13 @@ class CeleryJobAdapter:
             Celery task UUID — used as the ``job_id`` returned by the export endpoint.
         """
         from backend.infrastructure.job_queue.tasks.report_tasks import generate_report
+
         result = generate_report.apply_async(
             kwargs={
                 "dataset_id": dataset_id,
                 "session_id": session_id,
-                "format":     format,
-                "report_id":  report_id,
+                "format": format,
+                "report_id": report_id,
             },
             queue="reports",
         )
@@ -170,13 +174,14 @@ class CeleryJobAdapter:
         Returns:
             Dict with keys: ``status``, ``result``, ``traceback``.
         """
-        from celery.result import AsyncResult
         from backend.infrastructure.job_queue.celery_app import celery_app
+        from celery.result import AsyncResult
+
         result = AsyncResult(task_id, app=celery_app)
         return {
-            "task_id":   task_id,
-            "status":    result.status,        # PENDING / STARTED / SUCCESS / FAILURE / RETRY
-            "result":    result.result if result.ready() else None,
+            "task_id": task_id,
+            "status": result.status,  # PENDING / STARTED / SUCCESS / FAILURE / RETRY
+            "result": result.result if result.ready() else None,
             "traceback": result.traceback if result.failed() else None,
         }
 
@@ -189,6 +194,7 @@ class CeleryJobAdapter:
                        the task. Use with caution in production.
         """
         from backend.infrastructure.job_queue.celery_app import celery_app
+
         celery_app.control.revoke(task_id, terminate=terminate)
         logger.info("task_revoked", task_id=task_id, terminate=terminate)
 
@@ -202,8 +208,8 @@ class NullJobAdapter:
     """
 
     def __init__(self, fake_task_id: str = "00000000-0000-0000-0000-000000000000") -> None:
-        self._fake_id     = fake_task_id
-        self.calls: list[dict] = []   # track enqueue calls for test assertions
+        self._fake_id = fake_task_id
+        self.calls: list[dict] = []  # track enqueue calls for test assertions
 
     def enqueue_analysis(self, dataset_id: str, storage_key: str, correlation_id: str) -> str:
         self.calls.append({"method": "enqueue_analysis", "dataset_id": dataset_id})
@@ -213,7 +219,9 @@ class NullJobAdapter:
         self.calls.append({"method": "enqueue_agents", "dataset_id": dataset_id})
         return self._fake_id
 
-    def enqueue_report(self, dataset_id: str, session_id: str, format: str, report_id=None) -> str:
+    def enqueue_report(
+        self, dataset_id: str, session_id: str, format: str, report_id: str | None = None
+    ) -> str:
         self.calls.append({"method": "enqueue_report", "format": format})
         return self._fake_id
 

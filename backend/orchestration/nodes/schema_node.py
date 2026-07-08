@@ -1,4 +1,5 @@
 """SchemaNode — calls the SchemaAgent to infer column semantic types."""
+
 from __future__ import annotations
 
 import structlog
@@ -19,13 +20,15 @@ async def schema_node(state: PipelineState) -> dict:
     ctx = state.get("context", {})
     try:
         from backend.agents.schema_agent import SchemaAgent
-        from backend.infrastructure.llm.bedrock.bedrock_converse_adapter import BedrockConverseAdapter
         from backend.analytics_engine.ingestion.file_reader import FileReader
+        from backend.infrastructure.llm.bedrock.bedrock_converse_adapter import (
+            BedrockConverseAdapter,
+        )
 
         reader = FileReader()
         df = await reader.read(ctx["storage_key"], sample_rows=500)
 
-        agent  = SchemaAgent(llm=BedrockConverseAdapter())
+        agent = SchemaAgent(llm=BedrockConverseAdapter())
         result = await agent.run(df=df, dataset_id=ctx.get("dataset_id", ""))
 
         logger.info("schema_node_complete", columns=len(result.get("columns", [])))

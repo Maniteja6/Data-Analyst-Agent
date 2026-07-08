@@ -21,6 +21,7 @@ final_report:    The complete serialised InsightReport dict after all passes.
 errors:          List of error strings accumulated across nodes (never overwrites).
 metadata:        Free-form dict for timing, token counts, cost summaries.
 """
+
 from __future__ import annotations
 
 import operator
@@ -48,25 +49,25 @@ class PipelineState(TypedDict, total=False):
     """Entry-point metadata: {dataset_id, session_id, storage_key, schema, correlation_id}."""
 
     # ── Pipeline stage outputs ────────────────────────────────────────────
-    schema_result:   dict[str, Any]
+    schema_result: dict[str, Any]
     """ColumnSchema list as produced by the SchemaAgent."""
 
-    profile_result:  dict[str, Any]
+    profile_result: dict[str, Any]
     """DataProfile.to_dict() output from DataProfiler."""
 
     cleaning_result: dict[str, Any]
     """{'cleaned_storage_key': str, 'cleaning_report': dict}."""
 
-    agent_results:   dict[str, Any]
+    agent_results: dict[str, Any]
     """agent_name → result payload, populated by parallel analysis agents."""
 
-    insight_report:  dict[str, Any]
+    insight_report: dict[str, Any]
     """Serialised InsightReport.to_dict() output from InsightNode."""
 
-    critique:        dict[str, Any]
+    critique: dict[str, Any]
     """CriticNode output: {'approved': bool, 'issues': list[str], 'revised_insights': list}."""
 
-    final_report:    dict[str, Any]
+    final_report: dict[str, Any]
     """Complete serialised report after ReportNode processing."""
 
     # ── Accumulating fields (LangGraph add-reducer) ───────────────────────

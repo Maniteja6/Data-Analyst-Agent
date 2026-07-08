@@ -4,19 +4,29 @@ Produces sandboxable pandas/numpy code that assigns a final ``result``
 variable. Scoped to a restricted set of imports to prevent filesystem
 access or network calls inside the sandbox.
 """
+
 from __future__ import annotations
 
-import structlog
 from typing import Any
+
+import structlog
 from backend.infrastructure.llm.model_id_registry import get_model_id
 
 logger = structlog.get_logger(__name__)
 
-ALLOWED_IMPORTS = frozenset({
-    "pandas", "numpy", "scipy", "math",
-    "statistics", "collections", "datetime",
-    "itertools", "functools",
-})
+ALLOWED_IMPORTS = frozenset(
+    {
+        "pandas",
+        "numpy",
+        "scipy",
+        "math",
+        "statistics",
+        "collections",
+        "datetime",
+        "itertools",
+        "functools",
+    }
+)
 
 _SYSTEM = (
     "You are a Python data analyst. "
@@ -25,7 +35,7 @@ _SYSTEM = (
 )
 
 
-async def generate_code(task: str, schema: dict[str, Any], llm_client: Any) -> str:
+async def generate_code(task: str, schema: dict[str, Any], llm_client: Any) -> str:  # noqa: ANN401
     """Generate pandas analysis code for the given task.
 
     Args:
@@ -38,8 +48,7 @@ async def generate_code(task: str, schema: dict[str, Any], llm_client: Any) -> s
     """
     columns = schema.get("columns", [])
     col_desc = ", ".join(
-        f"{c['name']} ({c['data_type']}, {c.get('semantic_type', 'unknown')})"
-        for c in columns[:30]
+        f"{c['name']} ({c['data_type']}, {c.get('semantic_type', 'unknown')})" for c in columns[:30]
     )
 
     prompt = f"""Write Python pandas code to complete this analytics task.
@@ -69,9 +78,7 @@ Return ONLY Python code. No backticks. No explanation."""
     code = response.strip()
     if code.startswith("```"):
         lines = code.splitlines()
-        code = "\n".join(
-            line for line in lines if not line.startswith("```")
-        ).strip()
+        code = "\n".join(line for line in lines if not line.startswith("```")).strip()
 
     logger.debug("code_generated", task=task[:80], lines=code.count("\n") + 1)
     return code
@@ -83,6 +90,7 @@ def validate_imports(code: str) -> list[str]:
     Used by ``sandboxed_executor`` as a pre-flight check.
     """
     import ast
+
     blocked = []
     try:
         tree = ast.parse(code)

@@ -1,4 +1,5 @@
 """LLMResponse value object — typed wrapper for Bedrock API responses."""
+
 from __future__ import annotations
 
 import json
@@ -9,11 +10,11 @@ from backend.shared.value_object import ValueObject
 
 
 class ResponseType(str, Enum):
-    TEXT      = "text"      # plain prose answer
-    JSON      = "json"      # structured JSON (insight list, SQL, Vega spec, etc.)
-    SQL       = "sql"       # a SQL SELECT statement
-    PYTHON    = "python"    # executable Python code
-    VEGA_SPEC = "vega_spec" # Vega-Lite JSON specification
+    TEXT = "text"  # plain prose answer
+    JSON = "json"  # structured JSON (insight list, SQL, Vega spec, etc.)
+    SQL = "sql"  # a SQL SELECT statement
+    PYTHON = "python"  # executable Python code
+    VEGA_SPEC = "vega_spec"  # Vega-Lite JSON specification
 
 
 @dataclass(frozen=True)
@@ -35,13 +36,13 @@ class LLMResponse(ValueObject):
         latency_ms:    Round-trip latency in milliseconds.
     """
 
-    content:       str
-    model_id:      str           = ""
-    input_tokens:  int           = 0
-    output_tokens: int           = 0
-    stop_reason:   str           = "end_turn"
-    response_type: ResponseType  = ResponseType.TEXT
-    latency_ms:    int           = 0
+    content: str
+    model_id: str = ""
+    input_tokens: int = 0
+    output_tokens: int = 0
+    stop_reason: str = "end_turn"
+    response_type: ResponseType = ResponseType.TEXT
+    latency_ms: int = 0
 
     def _validate(self) -> None:
         if not self.content and self.stop_reason != "max_tokens":
@@ -70,7 +71,7 @@ class LLMResponse(ValueObject):
         # Strip ```json ... ``` or ``` ... ``` fences
         if text.startswith("```"):
             lines = text.splitlines()
-            text  = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+            text = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
         return json.loads(text.strip())
 
     def as_json_safe(self, default: dict | list | None = None) -> dict | list | None:
@@ -85,12 +86,12 @@ class LLMResponse(ValueObject):
         text = self.content.strip()
         if "```sql" in text:
             start = text.find("```sql") + 6
-            end   = text.find("```", start)
-            text  = text[start:end].strip()
+            end = text.find("```", start)
+            text = text[start:end].strip()
         elif "```" in text:
             start = text.find("```") + 3
-            end   = text.find("```", start)
-            text  = text[start:end].strip()
+            end = text.find("```", start)
+            text = text[start:end].strip()
         return text.rstrip(";").strip()
 
     def as_python(self) -> str:
@@ -98,29 +99,29 @@ class LLMResponse(ValueObject):
         text = self.content.strip()
         if "```python" in text:
             start = text.find("```python") + 9
-            end   = text.find("```", start)
+            end = text.find("```", start)
             return text[start:end].strip()
         if "```" in text:
             start = text.find("```") + 3
-            end   = text.find("```", start)
+            end = text.find("```", start)
             return text[start:end].strip()
         return text
 
     @property
     def estimated_cost_usd(self) -> float:
         """Rough cost estimate based on standard Sonnet 4.5 pricing."""
-        input_cost  = (self.input_tokens  / 1_000_000) * 3.00
+        input_cost = (self.input_tokens / 1_000_000) * 3.00
         output_cost = (self.output_tokens / 1_000_000) * 15.00
         return round(input_cost + output_cost, 6)
 
     def to_dict(self) -> dict:
         return {
-            "model_id":      self.model_id,
-            "input_tokens":  self.input_tokens,
+            "model_id": self.model_id,
+            "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
-            "total_tokens":  self.total_tokens,
-            "stop_reason":   self.stop_reason,
-            "latency_ms":    self.latency_ms,
+            "total_tokens": self.total_tokens,
+            "stop_reason": self.stop_reason,
+            "latency_ms": self.latency_ms,
             "was_truncated": self.was_truncated,
-            "cost_usd":      self.estimated_cost_usd,
+            "cost_usd": self.estimated_cost_usd,
         }

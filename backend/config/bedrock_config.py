@@ -11,6 +11,7 @@ Usage::
     cfg = get_bedrock_config()
     client = boto3.client("bedrock-runtime", region_name=cfg.bedrock_region)
 """
+
 from __future__ import annotations
 
 from functools import lru_cache
@@ -37,32 +38,32 @@ class BedrockConfig(BaseSettings):
     bedrock_region: str = Field(
         "us-east-1",
         description="AWS region that hosts the Bedrock endpoints. "
-                    "Must match the region where your model access is approved.",
+        "Must match the region where your model access is approved.",
     )
     bedrock_endpoint_url: str | None = Field(
         None,
         description="Override the default Bedrock endpoint. "
-                    "Leave blank to use the standard regional endpoint "
-                    "(https://bedrock-runtime.<region>.amazonaws.com).",
+        "Leave blank to use the standard regional endpoint "
+        "(https://bedrock-runtime.<region>.amazonaws.com).",
     )
 
     # ── Model IDs ─────────────────────────────────────────────────────────
     bedrock_model_id_primary: str = Field(
         "anthropic.claude-sonnet-4-5",
         description="Primary reasoning model used by Planner, Orchestrator, "
-                    "Insight, Critic, Recommendation, and Report agents. "
-                    "Highest quality; higher cost and latency.",
+        "Insight, Critic, Recommendation, and Report agents. "
+        "Highest quality; higher cost and latency.",
     )
     bedrock_model_id_fast: str = Field(
         "anthropic.claude-haiku-4-5",
         description="Fast, cost-efficient model used by Intent, Schema, SQL, "
-                    "Validation, and Security agents where latency matters "
-                    "more than reasoning depth.",
+        "Validation, and Security agents where latency matters "
+        "more than reasoning depth.",
     )
     bedrock_embedding_model_id: str = Field(
         "amazon.titan-embed-text-v2:0",
         description="Embeddings model for RAG vector indexing. "
-                    "Produces 1536-dimensional vectors; configurable to 256/512.",
+        "Produces 1536-dimensional vectors; configurable to 256/512.",
     )
 
     # ── Inference parameters ──────────────────────────────────────────────
@@ -71,15 +72,15 @@ class BedrockConfig(BaseSettings):
         ge=1,
         le=8192,
         description="Maximum tokens in the assistant response. "
-                    "Sonnet 4.5 supports up to 8192 output tokens.",
+        "Sonnet 4.5 supports up to 8192 output tokens.",
     )
     bedrock_temperature: float = Field(
         0.1,
         ge=0.0,
         le=1.0,
         description="Sampling temperature. Low value (0.1) gives deterministic, "
-                    "structured outputs suitable for JSON generation. "
-                    "Use higher values only for creative narrative tasks.",
+        "structured outputs suitable for JSON generation. "
+        "Use higher values only for creative narrative tasks.",
     )
     bedrock_top_p: float = Field(
         0.95,
@@ -94,14 +95,14 @@ class BedrockConfig(BaseSettings):
         ge=1,
         le=10,
         description="Maximum retry attempts on ThrottlingException, "
-                    "ModelNotReadyException, and other transient errors.",
+        "ModelNotReadyException, and other transient errors.",
     )
     bedrock_retry_base_delay_seconds: float = Field(
         2.0,
         ge=0.1,
         description="Base delay for exponential backoff. "
-                    "Actual delay = base * 2^(attempt-1) + jitter, "
-                    "capped at bedrock_retry_max_delay_seconds.",
+        "Actual delay = base * 2^(attempt-1) + jitter, "
+        "capped at bedrock_retry_max_delay_seconds.",
     )
     bedrock_retry_max_delay_seconds: float = Field(
         60.0,
@@ -114,31 +115,31 @@ class BedrockConfig(BaseSettings):
         0.50,
         ge=0.0,
         description="Emit a warning log when estimated Bedrock cost for a "
-                    "single analysis session exceeds this USD amount.",
+        "single analysis session exceeds this USD amount.",
     )
     bedrock_cost_alert_threshold_daily: float = Field(
         50.00,
         ge=0.0,
         description="Emit a critical alert when estimated daily Bedrock cost "
-                    "across all sessions exceeds this USD amount.",
+        "across all sessions exceeds this USD amount.",
     )
 
     # ── IRSA ─────────────────────────────────────────────────────────────
     bedrock_irsa_role_arn: str = Field(
         "",
         description="IAM Role ARN for IRSA (IAM Roles for Service Accounts) "
-                    "in EKS. When set, the Bedrock client assumes this role via "
-                    "the pod's projected service account token. "
-                    "Leave blank in local development — the default credential "
-                    "chain (env vars → ~/.aws/credentials) is used instead.",
+        "in EKS. When set, the Bedrock client assumes this role via "
+        "the pod's projected service account token. "
+        "Leave blank in local development — the default credential "
+        "chain (env vars → ~/.aws/credentials) is used instead.",
     )
 
     # ── Guardrails ────────────────────────────────────────────────────────
     bedrock_guardrail_id: str = Field(
         "",
         description="Bedrock Guardrail ID for content filtering applied to "
-                    "agent I/O in production. Leave blank to disable. "
-                    "Requires bedrock:ApplyGuardrail IAM permission.",
+        "agent I/O in production. Leave blank to disable. "
+        "Requires bedrock:ApplyGuardrail IAM permission.",
     )
     bedrock_guardrail_version: str = Field(
         "DRAFT",

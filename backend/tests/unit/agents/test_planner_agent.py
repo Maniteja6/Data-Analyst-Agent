@@ -1,49 +1,57 @@
 """Unit tests for PlannerAgent and ExecutionPlan."""
+
 import pytest
 
 
 @pytest.mark.unit
 class TestExecutionPlan:
-
-    def test_create_default_plan_has_required_agents(self):
+    def test_create_default_plan_has_required_agents(self) -> None:
         from backend.domain.intelligence.entities.execution_plan import ExecutionPlan
+
         plan = ExecutionPlan.create_default(
-            plan_id="p1", session_id="s1", dataset_id="d1", has_datetime=True,
+            plan_id="p1",
+            session_id="s1",
+            dataset_id="d1",
+            has_datetime=True,
         )
         agent_names = {t.agent.value for t in plan.tasks}
-        assert "schema"    in agent_names
+        assert "schema" in agent_names
         assert "profiling" in agent_names
-        assert "insight"   in agent_names
-        assert "forecast"  in agent_names   # because has_datetime=True
+        assert "insight" in agent_names
+        assert "forecast" in agent_names  # because has_datetime=True
 
-    def test_create_default_plan_no_forecast_without_datetime(self):
+    def test_create_default_plan_no_forecast_without_datetime(self) -> None:
         from backend.domain.intelligence.entities.execution_plan import ExecutionPlan
+
         plan = ExecutionPlan.create_default(
             plan_id="p2", session_id="s1", dataset_id="d1", has_datetime=False
         )
         agent_names = {t.agent.value for t in plan.tasks}
         assert "forecast" not in agent_names
 
-    def test_plan_validates_no_cycles(self):
+    def test_plan_validates_no_cycles(self) -> None:
         from backend.domain.intelligence.entities.execution_plan import ExecutionPlan
-        plan = ExecutionPlan.create_default("p3", "s1", "d1")
-        plan.validate()   # should not raise
 
-    def test_get_ready_tasks_respects_dependencies(self):
+        plan = ExecutionPlan.create_default("p3", "s1", "d1")
+        plan.validate()  # should not raise
+
+    def test_get_ready_tasks_respects_dependencies(self) -> None:
         from backend.domain.intelligence.entities.execution_plan import ExecutionPlan
-        plan  = ExecutionPlan.create_default("p4", "s1", "d1")
+
+        plan = ExecutionPlan.create_default("p4", "s1", "d1")
         ready = plan.get_ready_tasks(completed_ids=set())
         assert all(len(t.depends_on) == 0 for t in ready)
 
-    def test_plan_marks_complete_after_all_tasks_succeed(self):
+    def test_plan_marks_complete_after_all_tasks_succeed(self) -> None:
         from backend.domain.intelligence.entities.execution_plan import ExecutionPlan, PlanStatus
+
         plan = ExecutionPlan.create_default("p5", "s1", "d1", has_datetime=False)
         plan.begin()
         for task in plan.tasks:
             plan.record_task_complete(task.id, duration_ms=100)
         assert plan.status == PlanStatus.COMPLETE
 
-    def test_failed_task_skips_dependents(self):
+    def test_failed_task_skips_dependents(self) -> None:
         from backend.domain.intelligence.entities.execution_plan import ExecutionPlan
         from backend.domain.intelligence.entities.task_node import TaskStatus
 

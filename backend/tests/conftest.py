@@ -15,26 +15,27 @@ Environment:
   Database tests use an in-memory SQLite engine (override DATABASE_URL).
   No real AWS, Kafka, or Qdrant connections are made in unit/integration tests.
 """
+
 from __future__ import annotations
 
 import io
 import os
 import uuid
-from datetime import datetime, timezone
 
 import pytest
 import pytest_asyncio
 
 # ── Environment setup ─────────────────────────────────────────────────────
-os.environ.setdefault("APP_ENV",      "test")
-os.environ.setdefault("DEBUG",        "false")
+os.environ.setdefault("APP_ENV", "test")
+os.environ.setdefault("DEBUG", "false")
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
-os.environ.setdefault("REDIS_URL",    "memory://")
+os.environ.setdefault("REDIS_URL", "memory://")
 
 
 # ---------------------------------------------------------------------------
 # Sample data fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(scope="session")
 def sample_csv_bytes() -> bytes:
@@ -58,9 +59,11 @@ def sample_df(sample_csv_bytes):
     """Small polars DataFrame for unit tests — avoids repeated CSV parsing."""
     try:
         import polars as pl
+
         return pl.read_csv(io.BytesIO(sample_csv_bytes))
     except ImportError:
         import pandas as pd
+
         return pd.read_csv(io.BytesIO(sample_csv_bytes))
 
 
@@ -69,6 +72,7 @@ def sample_df_with_nulls(sample_csv_bytes):
     """DataFrame with injected null values for missing-value handler tests."""
     try:
         import polars as pl
+
         df = pl.read_csv(io.BytesIO(sample_csv_bytes))
         # Inject nulls: set revenue=null for rows 2,5,8
         return df.with_columns(
@@ -79,6 +83,7 @@ def sample_df_with_nulls(sample_csv_bytes):
         )
     except ImportError:
         import pandas as pd
+
         df = pd.read_csv(io.BytesIO(sample_csv_bytes))
         df.loc[df.index % 3 == 2, "revenue"] = None
         return df
@@ -88,10 +93,12 @@ def sample_df_with_nulls(sample_csv_bytes):
 # Infrastructure stubs
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def in_memory_cache():
     """InMemoryCacheAdapter — cleared between tests."""
     from backend.infrastructure.cache.in_memory_cache_adapter import InMemoryCacheAdapter
+
     cache = InMemoryCacheAdapter(default_ttl=3600)
     yield cache
     cache.clear()
@@ -101,6 +108,7 @@ def in_memory_cache():
 def local_storage(tmp_path):
     """LocalStorageAdapter backed by a pytest tmp_path directory."""
     from backend.infrastructure.storage.local_storage_adapter import LocalStorageAdapter
+
     adapter = LocalStorageAdapter(base_path=str(tmp_path / "storage"))
     yield adapter
     adapter.clear()
@@ -110,12 +118,17 @@ def local_storage(tmp_path):
 def mock_llm():
     """MockLLMService pre-loaded with standard canned responses."""
     from backend.infrastructure.llm.llm_port import MockLLMService
+
     llm = MockLLMService(default_response='{"result": "mock_response"}')
     llm.set_response("schema", '{"columns": [{"name": "revenue", "semantic_type": "currency"}]}')
-    llm.set_response("insight", '{"insights": [], "executive_summary": "Test summary.", "kpis": []}')
-    llm.set_response("SQL",     "SELECT SUM(revenue) FROM df")
-    llm.set_response("intent",  '{"intent": "statistical_question", "confidence": 0.95, "requires_sql": true}')
-    llm.set_response("critic",  '{"approved": true, "issues": []}')
+    llm.set_response(
+        "insight", '{"insights": [], "executive_summary": "Test summary.", "kpis": []}'
+    )
+    llm.set_response("SQL", "SELECT SUM(revenue) FROM df")
+    llm.set_response(
+        "intent", '{"intent": "statistical_question", "confidence": 0.95, "requires_sql": true}'
+    )
+    llm.set_response("critic", '{"approved": true, "issues": []}')
     yield llm
     llm.reset()
 
@@ -124,12 +137,14 @@ def mock_llm():
 def null_job_service():
     """NullJobAdapter — no Celery broker required."""
     from backend.infrastructure.job_queue.celery_job_adapter import NullJobAdapter
+
     return NullJobAdapter(fake_task_id=str(uuid.uuid4()))
 
 
 # ---------------------------------------------------------------------------
 # Domain entity fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def fake_dataset_id() -> str:
@@ -140,6 +155,7 @@ def fake_dataset_id() -> str:
 def fake_dataset(fake_dataset_id):
     """Dataset aggregate in UPLOADED status."""
     from backend.domain.dataset.entities.dataset import Dataset
+
     ds = Dataset.create(
         id=fake_dataset_id,
         project_id=None,
@@ -149,7 +165,7 @@ def fake_dataset(fake_dataset_id):
         mime_type="text/csv",
         checksum_sha256="abc123def456" * 4,
     )
-    ds.pull_domain_events()   # consume the DatasetUploaded event
+    ds.pull_domain_events()  # consume the DatasetUploaded event
     return ds
 
 
@@ -162,10 +178,11 @@ def fake_session_id() -> str:
 def fake_profile(sample_df, fake_session_id, fake_dataset_id):
     """DataProfile produced from sample_df."""
     import asyncio
+
     from backend.analytics_engine.profiling.data_profiler import DataProfiler
 
     profiler = DataProfiler()
-    profile  = asyncio.get_event_loop().run_until_complete(
+    profile = asyncio.get_event_loop().run_until_complete(
         profiler.profile(sample_df, session_id=fake_session_id, dataset_id=fake_dataset_id)
     )
     return profile
@@ -175,6 +192,7 @@ def fake_profile(sample_df, fake_session_id, fake_dataset_id):
 def fake_conversation(fake_dataset_id):
     """Conversation aggregate with no messages."""
     from backend.domain.workspace.entities.conversation import Conversation
+
     conv = Conversation.create(
         conversation_id=str(uuid.uuid4()),
         dataset_id=fake_dataset_id,
@@ -188,19 +206,21 @@ def fake_conversation(fake_dataset_id):
 # FastAPI test client
 # ---------------------------------------------------------------------------
 
+
 @pytest_asyncio.fixture
 async def async_client(in_memory_cache, local_storage, null_job_service):
     """Async httpx client wired to the FastAPI app with stubbed infrastructure."""
     import httpx
-    from fastapi.testclient import TestClient
 
     # Patch the dependency factories before importing the app
     from backend.api import dependencies
-    dependencies._cache_override   = in_memory_cache
+
+    dependencies._cache_override = in_memory_cache
     dependencies._storage_override = local_storage
-    dependencies._job_override     = null_job_service
+    dependencies._job_override = null_job_service
 
     from backend.api.main import app
+
     async with httpx.AsyncClient(app=app, base_url="http://test") as client:
         yield client
 
@@ -209,7 +229,8 @@ async def async_client(in_memory_cache, local_storage, null_job_service):
 # Pytest configuration
 # ---------------------------------------------------------------------------
 
-def pytest_configure(config):
+
+def pytest_configure(config) -> None:
     """Register custom markers."""
     config.addinivalue_line("markers", "unit: fast unit tests with no I/O")
     config.addinivalue_line("markers", "integration: requires Postgres + Redis")

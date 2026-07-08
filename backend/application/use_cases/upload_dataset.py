@@ -1,16 +1,23 @@
 """UploadDatasetUseCase — handles dataset file upload end-to-end."""
+
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
 import structlog
-
 from backend.application.commands.upload_dataset_command import UploadDatasetCommand
 from backend.domain.dataset.entities.dataset import Dataset
-from backend.domain.dataset.services.dataset_service import DatasetService
 from backend.domain.dataset.exceptions import DuplicateDatasetError
+from backend.domain.dataset.services.dataset_service import DatasetService
 from backend.shared.utils.uuid_factory import new_uuid
+
+if TYPE_CHECKING:
+    from backend.domain.dataset.repositories.dataset_repository import DatasetRepository
+    from backend.infrastructure.job_queue.celery_job_adapter import CeleryJobAdapter
+    from backend.infrastructure.messaging.kafka_event_bus import KafkaEventBus
+    from backend.infrastructure.storage.local_storage_adapter import LocalStorageAdapter
+    from backend.infrastructure.storage.s3_storage_adapter import S3StorageAdapter
 
 logger = structlog.get_logger(__name__)
 
@@ -31,16 +38,16 @@ class UploadDatasetUseCase:
 
     def __init__(
         self,
-        storage,
-        dataset_repo,
-        event_bus,
-        job_service,
+        storage: LocalStorageAdapter | S3StorageAdapter,
+        dataset_repo: DatasetRepository,
+        event_bus: KafkaEventBus,
+        job_service: CeleryJobAdapter,
         dataset_service: DatasetService | None = None,
     ) -> None:
-        self._storage        = storage
-        self._repo           = dataset_repo
-        self._event_bus      = event_bus
-        self._job_service    = job_service
+        self._storage = storage
+        self._repo = dataset_repo
+        self._event_bus = event_bus
+        self._job_service = job_service
         self._dataset_service = dataset_service or DatasetService()
 
     async def execute(self, cmd: UploadDatasetCommand) -> dict:
@@ -55,7 +62,7 @@ class UploadDatasetUseCase:
 
         # Step 2: Checksum
         dataset_id = new_uuid()
-        checksum   = await self._compute_checksum(cmd)
+        checksum = await self._compute_checksum(cmd)
 
         # Step 3: Deduplication check
         existing = await self._repo.get_by_checksum(checksum)
@@ -101,14 +108,15 @@ class UploadDatasetUseCase:
     async def _compute_checksum(cmd: UploadDatasetCommand) -> str:
         """Compute SHA-256 of the file bytes without re-reading the full stream."""
         import asyncio
+
         loop = asyncio.get_event_loop()
 
-        def _hash():
+        def _hash() -> str:
             sha = hashlib.sha256()
             cmd.file_obj.seek(0)
             for chunk in iter(lambda: cmd.file_obj.read(8192), b""):
                 sha.update(chunk)
-            cmd.file_obj.seek(0)   # rewind for the upload step
+            cmd.file_obj.seek(0)  # rewind for the upload step
             return sha.hexdigest()
 
         return await loop.run_in_executor(None, _hash)

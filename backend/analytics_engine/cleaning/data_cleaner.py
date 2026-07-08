@@ -1,17 +1,25 @@
 """DataCleaner — orchestrates all cleaning steps and produces a CleaningReport."""
+
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 import structlog
-
-from backend.analytics_engine.cleaning.duplicate_remover      import DuplicateRemover
-from backend.analytics_engine.cleaning.missing_value_handler  import MissingValueHandler
-from backend.analytics_engine.cleaning.type_coercer           import TypeCoercer
-from backend.analytics_engine.cleaning.outlier_handler        import OutlierHandler
-from backend.domain.analytics.entities.cleaning_report        import CleaningReport
+from backend.analytics_engine.cleaning.duplicate_remover import DuplicateRemover
+from backend.analytics_engine.cleaning.missing_value_handler import MissingValueHandler
+from backend.analytics_engine.cleaning.outlier_handler import OutlierHandler
+from backend.analytics_engine.cleaning.type_coercer import TypeCoercer
+from backend.domain.analytics.entities.cleaning_report import CleaningReport
 from backend.shared.utils.uuid_factory import new_uuid
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
+    from backend.domain.analytics.entities.data_profile import DataProfile
+
+    DataFrameT = pl.DataFrame | pd.DataFrame
 
 logger = structlog.get_logger(__name__)
 
@@ -26,19 +34,19 @@ class DataCleaner:
         coerce_types: bool = True,
         clip_outliers: bool = False,
     ) -> None:
-        self._dedup_enabled   = dedup
-        self._impute_enabled  = impute
-        self._coerce_enabled  = coerce_types
-        self._clip_enabled    = clip_outliers
-        self._dedup_r   = DuplicateRemover()
-        self._missing   = MissingValueHandler()
-        self._coercer   = TypeCoercer()
-        self._outlier   = OutlierHandler(enabled=clip_outliers)
+        self._dedup_enabled = dedup
+        self._impute_enabled = impute
+        self._coerce_enabled = coerce_types
+        self._clip_enabled = clip_outliers
+        self._dedup_r = DuplicateRemover()
+        self._missing = MissingValueHandler()
+        self._coercer = TypeCoercer()
+        self._outlier = OutlierHandler(enabled=clip_outliers)
 
     async def clean(
         self,
-        df,
-        profile,
+        df: DataFrameT,
+        profile: DataProfile,
         session_id: str = "",
         dataset_id: str = "",
     ) -> tuple:
@@ -56,10 +64,12 @@ class DataCleaner:
             lambda: self._clean_sync(df, profile, session_id, dataset_id),
         )
 
-    def _clean_sync(self, df, profile, session_id: str, dataset_id: str) -> tuple:
+    def _clean_sync(
+        self, df: DataFrameT, profile: DataProfile, session_id: str, dataset_id: str
+    ) -> tuple:
         all_steps = []
-        rows_before   = len(df)
-        cols_before   = len(df.columns) if hasattr(df, "columns") else 0
+        rows_before = len(df)
+        cols_before = len(df.columns) if hasattr(df, "columns") else 0
 
         col_profiles = getattr(profile, "column_profiles", [])
 
@@ -85,9 +95,13 @@ class DataCleaner:
         # Step 5: Optional outlier clipping
         if self._clip_enabled:
             for cp in col_profiles:
-                col  = cp.column_name if hasattr(cp, "column_name") else ""
-                kind = str(getattr(getattr(cp, "kind", None), "value", getattr(cp, "kind", "unknown")))
-                if kind == "numeric" and col in (df.columns if hasattr(df.columns, "__iter__") else []):
+                col = cp.column_name if hasattr(cp, "column_name") else ""
+                kind = str(
+                    getattr(getattr(cp, "kind", None), "value", getattr(cp, "kind", "unknown"))
+                )
+                if kind == "numeric" and col in (
+                    df.columns if hasattr(df.columns, "__iter__") else []
+                ):
                     df, step = self._outlier.handle(df, col)
                     if step:
                         all_steps.append(step)
@@ -101,7 +115,7 @@ class DataCleaner:
             columns_before=cols_before,
             columns_after=len(df.columns) if hasattr(df, "columns") else 0,
             steps=all_steps,
-            cleaned_at=datetime.now(timezone.utc),
+            cleaned_at=datetime.now(UTC),
         )
 
         logger.info(
@@ -113,25 +127,28 @@ class DataCleaner:
         return df, report
 
     @staticmethod
-    def _strip_whitespace(df, col_profiles: list):
+    def _strip_whitespace(df: DataFrameT, col_profiles: list) -> DataFrameT:
         """Strip leading/trailing whitespace from string columns."""
         try:
             import polars as pl
+
             if isinstance(df, pl.DataFrame):
                 str_cols = [
-                    cp.column_name for cp in col_profiles
-                    if hasattr(cp, "kind") and str(getattr(cp.kind, "value", cp.kind)) == "text"
+                    cp.column_name
+                    for cp in col_profiles
+                    if hasattr(cp, "kind")
+                    and str(getattr(cp.kind, "value", cp.kind)) == "text"
                     and cp.column_name in df.columns
                 ]
                 if str_cols:
                     df = df.with_columns([pl.col(c).str.strip_chars().alias(c) for c in str_cols])
                 return df
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("whitespace_strip_polars_failed", error=str(exc))
         try:
             str_cols = df.select_dtypes(include="object").columns.tolist()
             for c in str_cols:
                 df[c] = df[c].str.strip()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("whitespace_strip_pandas_failed", error=str(exc))
         return df

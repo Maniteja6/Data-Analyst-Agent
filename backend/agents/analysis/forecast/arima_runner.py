@@ -6,18 +6,23 @@ AutoARIMA implementation that auto-selects p/d/q parameters via AIC.
 Requirements:
     pip install statsforecast
 """
+
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
 
 logger = structlog.get_logger(__name__)
 
 
 async def run_arima(
-    df: Any,
+    df: pl.DataFrame | pd.DataFrame,
     date_col: str,
     target_col: str,
     horizon: int = 30,
@@ -46,7 +51,11 @@ async def run_arima(
 
 
 def _run_arima_sync(
-    df: Any, date_col: str, target_col: str, horizon: int, season_length: int
+    df: pl.DataFrame | pd.DataFrame,
+    date_col: str,
+    target_col: str,
+    horizon: int,
+    season_length: int,
 ) -> dict[str, Any]:
     """Synchronous ARIMA fitting — called in a thread pool executor."""
     try:
@@ -68,7 +77,7 @@ def _run_arima_sync(
         pdf = df[[date_col, target_col]].dropna()
 
     pdf = pdf.rename(columns={date_col: "ds", target_col: "y"})
-    pdf["ds"]        = pd.to_datetime(pdf["ds"], errors="coerce")
+    pdf["ds"] = pd.to_datetime(pdf["ds"], errors="coerce")
     pdf["unique_id"] = "series_1"
     pdf = pdf.dropna(subset=["ds", "y"]).sort_values("ds").reset_index(drop=True)
 
@@ -89,15 +98,21 @@ def _run_arima_sync(
 
     predictions = []
     for _, row in fcst.iterrows():
-        val    = float(row.get("AutoARIMA", 0) or 0)
+        val = float(row.get("AutoARIMA", 0) or 0)
         lo_key = next((k for k in row.index if "lo-95" in str(k)), None)
         hi_key = next((k for k in row.index if "hi-95" in str(k)), None)
-        predictions.append({
-            "timestamp":   str(row["ds"])[:10],
-            "value":       round(val, 4),
-            "lower_bound": round(float(row[lo_key] or val), 4) if lo_key else round(val * 0.9, 4),
-            "upper_bound": round(float(row[hi_key] or val), 4) if hi_key else round(val * 1.1, 4),
-        })
+        predictions.append(
+            {
+                "timestamp": str(row["ds"])[:10],
+                "value": round(val, 4),
+                "lower_bound": round(float(row[lo_key] or val), 4)
+                if lo_key
+                else round(val * 0.9, 4),
+                "upper_bound": round(float(row[hi_key] or val), 4)
+                if hi_key
+                else round(val * 1.1, 4),
+            }
+        )
 
     logger.info(
         "arima_complete",
@@ -107,7 +122,7 @@ def _run_arima_sync(
     )
 
     return {
-        "model":         "AutoARIMA",
-        "predictions":   predictions,
+        "model": "AutoARIMA",
+        "predictions": predictions,
         "training_rows": len(pdf),
     }

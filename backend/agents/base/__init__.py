@@ -1,4 +1,3 @@
-"""Agent sub-package."""
 """Base agent primitives — shared by all 19 agents.
 
 Exports:
@@ -7,6 +6,7 @@ Exports:
     AgentResult     — typed result envelope with token counts + cost estimate
     ToolRegistry    — register/invoke named sync or async tool functions
 """
+
 from backend.agents.base.agent_context import AgentContext
 from backend.agents.base.agent_result import AgentResult
 from backend.agents.base.base_agent import BaseAgent

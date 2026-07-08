@@ -22,8 +22,10 @@ Progressive reveal strategy:
     being polished by NarrativeGenerator. Target: first insight visible within
     2 seconds of analysis completing.
 """
+
 from __future__ import annotations
 
+import contextlib
 import json
 import re
 from typing import Any
@@ -52,12 +54,12 @@ class InsightAgent(BaseAgent):
         stream_client: BedrockStreamAdapter for executive summary streaming.
     """
 
-    def __init__(self, llm_client: Any = None, stream_client: Any = None) -> None:
+    def __init__(self, llm_client: Any = None, stream_client: Any = None) -> None:  # noqa: ANN401
         super().__init__("insight")
-        self._llm    = llm_client
+        self._llm = llm_client
         self._stream = stream_client
 
-    async def _execute(self, context: AgentContext, **kwargs: Any) -> dict:
+    async def _execute(self, context: AgentContext, **kwargs: Any) -> dict:  # noqa: ANN401
         """Generate the InsightReport for a completed analysis session.
 
         Args:
@@ -68,34 +70,32 @@ class InsightAgent(BaseAgent):
             anomaly_alerts, forecasts, recommendations (empty list — filled
             by RecommendationAgent), is_critic_validated (False initially).
         """
-        sio        = context._sio
+        sio = context._sio
         dataset_id = context.dataset_id
         previous_critique = kwargs.get("previous_critique")
 
         # ── Notify frontend insight generation is starting ─────────────────
         if sio and dataset_id:
-            try:
+            with contextlib.suppress(Exception):
                 await sio.emit(
                     "insight:generation_start",
                     {"dataset_id": dataset_id, "session_id": context.session_id},
                     room=f"dataset:{dataset_id}",
                 )
-            except Exception:
-                pass
 
         await context.push_progress(78, "Generating business insights…", step="insight")
 
         # ── Build context from all agent outputs ──────────────────────────
-        profile   = context.profile or {}
-        sql_rows  = context.sql_results or []
+        profile = context.profile or {}
+        sql_rows = context.sql_results or []
         anomalies = context.anomaly_results or []
         forecasts = context.forecast_results or []
         ml_result = context.ml_results or {}
 
-        sql_summary      = self._summarise_sql(sql_rows)
-        anomaly_summary  = self._summarise_anomalies(anomalies)
+        sql_summary = self._summarise_sql(sql_rows)
+        anomaly_summary = self._summarise_anomalies(anomalies)
         forecast_summary = self._summarise_forecasts(forecasts)
-        ml_summary       = self._summarise_ml(ml_result)
+        ml_summary = self._summarise_ml(ml_result)
 
         # ── Generate 5 ranked insights ────────────────────────────────────
         insights = await self._generate_insights(
@@ -114,18 +114,16 @@ class InsightAgent(BaseAgent):
         # ── Progressive insight reveal via Socket.IO ──────────────────────
         if sio and dataset_id:
             for i, insight in enumerate(insights):
-                try:
+                with contextlib.suppress(Exception):
                     await sio.emit(
                         "insight:insight_ready",
                         {
-                            "dataset_id":    dataset_id,
+                            "dataset_id": dataset_id,
                             "insight_index": i,
-                            "insight":       insight,
+                            "insight": insight,
                         },
                         room=f"dataset:{dataset_id}",
                     )
-                except Exception:
-                    pass
 
         # ── Stream executive summary token-by-token ───────────────────────
         narrator = NarrativeGenerator(
@@ -144,36 +142,34 @@ class InsightAgent(BaseAgent):
 
         # ── Build final report dict ───────────────────────────────────────
         report = {
-            "session_id":          context.session_id,
-            "dataset_id":          dataset_id,
-            "executive_summary":   executive_summary,
-            "insights":            insights,
-            "kpis":                kpis,
-            "anomaly_alerts":      anomalies[:20],   # cap at 20 for UI
-            "forecasts":           forecasts,
-            "recommendations":     [],               # filled by RecommendationAgent
+            "session_id": context.session_id,
+            "dataset_id": dataset_id,
+            "executive_summary": executive_summary,
+            "insights": insights,
+            "kpis": kpis,
+            "anomaly_alerts": anomalies[:20],  # cap at 20 for UI
+            "forecasts": forecasts,
+            "recommendations": [],  # filled by RecommendationAgent
             "is_critic_validated": False,
-            "has_forecasts":       bool(forecasts),
-            "has_anomalies":       bool(anomalies),
-            "insight_count":       len(insights),
+            "has_forecasts": bool(forecasts),
+            "has_anomalies": bool(anomalies),
+            "insight_count": len(insights),
         }
 
         # ── Emit insight:complete ─────────────────────────────────────────
         if sio and dataset_id:
-            try:
+            with contextlib.suppress(Exception):
                 await sio.emit(
                     "insight:complete",
                     {
-                        "dataset_id":    dataset_id,
+                        "dataset_id": dataset_id,
                         "insight_count": len(insights),
-                        "kpi_count":     len(kpis),
+                        "kpi_count": len(kpis),
                         "has_forecasts": bool(forecasts),
                         "has_anomalies": bool(anomalies),
                     },
                     room=f"dataset:{dataset_id}",
                 )
-            except Exception:
-                pass
 
         context.insight_results = insights
         logger.info(
@@ -203,8 +199,7 @@ class InsightAgent(BaseAgent):
         critique_block = ""
         if previous_critique and previous_critique.get("issues"):
             issues_text = "\n".join(
-                f"- {issue.get('description', '')}"
-                for issue in previous_critique.get("issues", [])
+                f"- {issue.get('description', '')}" for issue in previous_critique.get("issues", [])
             )
             critique_block = (
                 f"\n\nPREVIOUS CRITIQUE — fix these issues in this revision:\n{issues_text}"
@@ -238,7 +233,7 @@ class InsightAgent(BaseAgent):
         )
 
         try:
-            raw      = await self._llm.complete(
+            raw = await self._llm.complete(
                 prompt=prompt,
                 system=_SYSTEM,
                 model_id=get_model_id("insight"),
@@ -254,41 +249,39 @@ class InsightAgent(BaseAgent):
 
     # ── KPI calculation ───────────────────────────────────────────────────
 
-    def _compute_kpis(
-        self, profile: dict, sio, dataset_id: str
-    ) -> list[dict]:
+    def _compute_kpis(self, profile: dict, sio: Any, dataset_id: str) -> list[dict]:  # noqa: ANN401
         """Build KPI cards from the DataProfile statistics."""
         import asyncio
 
         kpis = [
             {
-                "name":       "Total Rows",
-                "value":      profile.get("row_count", 0),
-                "unit":       "rows",
-                "format":     "integer",
-                "trend":      None,
+                "name": "Total Rows",
+                "value": profile.get("row_count", 0),
+                "unit": "rows",
+                "format": "integer",
+                "trend": None,
             },
             {
-                "name":       "Columns",
-                "value":      profile.get("column_count", 0),
-                "unit":       "cols",
-                "format":     "integer",
-                "trend":      None,
+                "name": "Columns",
+                "value": profile.get("column_count", 0),
+                "unit": "cols",
+                "format": "integer",
+                "trend": None,
             },
             {
-                "name":       "Completeness",
-                "value":      round(profile.get("completeness_score", 1.0) * 100, 1),
-                "unit":       "%",
-                "format":     "percent",
-                "trend":      None,
-                "benchmark":  95.0,
+                "name": "Completeness",
+                "value": round(profile.get("completeness_score", 1.0) * 100, 1),
+                "unit": "%",
+                "format": "percent",
+                "trend": None,
+                "benchmark": 95.0,
             },
             {
-                "name":       "Duplicate Rows",
-                "value":      profile.get("duplicate_count", 0),
-                "unit":       "rows",
-                "format":     "integer",
-                "trend":      None,
+                "name": "Duplicate Rows",
+                "value": profile.get("duplicate_count", 0),
+                "unit": "rows",
+                "format": "integer",
+                "trend": None,
             },
         ]
 
@@ -299,13 +292,15 @@ class InsightAgent(BaseAgent):
                 continue
             stype = col.get("semantic_type", "")
             if stype == "currency":
-                kpis.append({
-                    "name":    f"Avg {col['column_name']}",
-                    "value":   round(stats.get("mean", 0), 2),
-                    "unit":    "",
-                    "format":  "currency",
-                    "trend":   None,
-                })
+                kpis.append(
+                    {
+                        "name": f"Avg {col['column_name']}",
+                        "value": round(stats.get("mean", 0), 2),
+                        "unit": "",
+                        "format": "currency",
+                        "trend": None,
+                    }
+                )
             if len(kpis) >= 10:
                 break
 
@@ -315,22 +310,20 @@ class InsightAgent(BaseAgent):
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
                     asyncio.ensure_future(self._emit_kpis(sio, dataset_id, kpis))
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("kpi_emit_scheduling_failed", error=str(exc))
 
         return kpis
 
     @staticmethod
-    async def _emit_kpis(sio, dataset_id: str, kpis: list[dict]) -> None:
+    async def _emit_kpis(sio: Any, dataset_id: str, kpis: list[dict]) -> None:  # noqa: ANN401
         for i, kpi in enumerate(kpis):
-            try:
+            with contextlib.suppress(Exception):
                 await sio.emit(
                     "insight:kpi_ready",
                     {"dataset_id": dataset_id, "kpi_index": i, "kpi": kpi},
                     room=f"dataset:{dataset_id}",
                 )
-            except Exception:
-                pass
 
     # ── Summarisers ───────────────────────────────────────────────────────
 
@@ -350,11 +343,10 @@ class InsightAgent(BaseAgent):
     def _summarise_anomalies(anomalies: list[dict]) -> str:
         if not anomalies:
             return ""
-        high   = [a for a in anomalies if a.get("severity") == "high"]
+        high = [a for a in anomalies if a.get("severity") == "high"]
         sample = high[:3] if high else anomalies[:3]
         return "\n".join(
-            f"- [{a.get('severity','?').upper()}] {a.get('description', '')}"
-            for a in sample
+            f"- [{a.get('severity', '?').upper()}] {a.get('description', '')}" for a in sample
         )
 
     @staticmethod
@@ -384,7 +376,9 @@ class InsightAgent(BaseAgent):
     def _parse_insights(raw: str) -> list[dict]:
         text = raw.strip()
         if text.startswith("```"):
-             text = "\n".join(line for line in text.splitlines() if not line.startswith("`""`")).strip()
+            text = "\n".join(
+                line for line in text.splitlines() if not line.startswith("``")
+            ).strip()
         try:
             data = json.loads(text)
             if isinstance(data, list):
@@ -403,36 +397,38 @@ class InsightAgent(BaseAgent):
     @staticmethod
     def _fallback_insights(profile: dict) -> list[dict]:
         """Return basic data quality insights when the LLM is unavailable."""
-        row_count   = profile.get("row_count", 0)
-        col_count   = profile.get("column_count", 0)
+        row_count = profile.get("row_count", 0)
+        col_count = profile.get("column_count", 0)
         completeness = profile.get("completeness_score", 1.0)
-        dup_count   = profile.get("duplicate_count", 0)
+        dup_count = profile.get("duplicate_count", 0)
 
         insights = [
             {
-                "headline":             f"Dataset contains {row_count:,} rows across {col_count} columns",
-                "explanation":          "Basic dataset dimensions are confirmed and ready for analysis.",
-                "business_impact":      "medium",
-                "confidence":           1.0,
-                "source_columns":       [],
+                "headline": f"Dataset contains {row_count:,} rows across {col_count} columns",
+                "explanation": "Basic dataset dimensions are confirmed and ready for analysis.",
+                "business_impact": "medium",
+                "confidence": 1.0,
+                "source_columns": [],
                 "has_anomaly_reference": False,
             },
             {
-                "headline":             f"Data completeness is {completeness:.1%}",
-                "explanation":          "This measures the proportion of non-null values across all fields.",
-                "business_impact":      "high" if completeness < 0.90 else "low",
-                "confidence":           1.0,
-                "source_columns":       [],
+                "headline": f"Data completeness is {completeness:.1%}",
+                "explanation": "This measures the proportion of non-null values across all fields.",
+                "business_impact": "high" if completeness < 0.90 else "low",
+                "confidence": 1.0,
+                "source_columns": [],
                 "has_anomaly_reference": False,
             },
         ]
         if dup_count > 0:
-            insights.append({
-                "headline":             f"{dup_count:,} duplicate rows detected",
-                "explanation":          "Duplicate records were found and removed during data cleaning.",
-                "business_impact":      "medium",
-                "confidence":           1.0,
-                "source_columns":       [],
-                "has_anomaly_reference": False,
-            })
+            insights.append(
+                {
+                    "headline": f"{dup_count:,} duplicate rows detected",
+                    "explanation": "Duplicate records were found and removed during data cleaning.",
+                    "business_impact": "medium",
+                    "confidence": 1.0,
+                    "source_columns": [],
+                    "has_anomaly_reference": False,
+                }
+            )
         return insights

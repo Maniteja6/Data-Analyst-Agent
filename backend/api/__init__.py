@@ -43,7 +43,7 @@ middleware/
     SecurityHeadersMiddleware — OWASP headers (HSTS, X-Frame-Options, etc.)
     RateLimitMiddleware       — Redis INCR sliding window;
                                 60 req/min API, 20 uploads/hour per IP
-    register_exception_handlers() — maps DomainException codes → HTTP status,
+    register_exception_handlers() — maps DomainError codes → HTTP status,
                                     RequestValidationError → 422 with field list
 
 routers/
@@ -138,10 +138,17 @@ Socket.IO room conventions (enforced by all handlers and agents)
     monitoring:<dataset_id>        admin perf dashboard (monitoring:pipeline_report)
     job:<job_id>                   job:status for polling clients
 """
+
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 
-def get_socket_app():
+if TYPE_CHECKING:
+    from fastapi import FastAPI
+    from socketio import ASGIApp
+
+
+def get_socket_app() -> ASGIApp:
     """Return the Socket.IO ASGI app (lazy import avoids circular deps at module load).
 
     Usage in main.py::
@@ -150,10 +157,11 @@ def get_socket_app():
         app.mount("/ws", get_socket_app())
     """
     from backend.api.websocket.ws_server import socket_app
+
     return socket_app
 
 
-def get_fastapi_app():
+def get_fastapi_app() -> FastAPI:
     """Return the configured FastAPI application instance.
 
     Usage (uvicorn, gunicorn, or tests)::
@@ -165,6 +173,7 @@ def get_fastapi_app():
     Prometheus instrumentation, and the Socket.IO mount.
     """
     from backend.api.main import app
+
     return app
 
 

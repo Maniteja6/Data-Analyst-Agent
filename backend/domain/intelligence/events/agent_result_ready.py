@@ -1,4 +1,5 @@
 """AgentResultReady domain event."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -33,25 +34,27 @@ class AgentResultReady(DomainEvent):
         cost_usd:    Estimated Bedrock cost for this invocation.
     """
 
-    session_id:  str   = ""
-    dataset_id:  str   = ""
-    agent_name:  str   = ""
-    task_id:     str   = ""
-    success:     bool  = True
-    duration_ms: int   = 0
-    token_count: int   = 0
-    cost_usd:    float = 0.0
+    session_id: str = ""
+    dataset_id: str = ""
+    agent_name: str = ""
+    task_id: str = ""
+    success: bool = True
+    duration_ms: int = 0
+    token_count: int = 0
+    cost_usd: float = 0.0
 
     def to_dict(self) -> dict:
         base = super().to_dict()
-        base.update({
-            "session_id":  self.session_id,
-            "dataset_id":  self.dataset_id,
-            "agent_name":  self.agent_name,
-            "task_id":     self.task_id,
-            "success":     self.success,
-            "duration_ms": self.duration_ms,
-            "token_count": self.token_count,
-            "cost_usd":    self.cost_usd,
-        })
+        base.update(
+            {
+                "session_id": self.session_id,
+                "dataset_id": self.dataset_id,
+                "agent_name": self.agent_name,
+                "task_id": self.task_id,
+                "success": self.success,
+                "duration_ms": self.duration_ms,
+                "token_count": self.token_count,
+                "cost_usd": self.cost_usd,
+            }
+        )
         return base

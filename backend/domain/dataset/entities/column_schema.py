@@ -1,10 +1,11 @@
 """ColumnSchema entity — one column in an inferred dataset schema."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from backend.shared.entity import Entity
 from backend.domain.dataset.value_objects.semantic_type import SemanticType
+from backend.shared.entity import Entity
 
 
 @dataclass
@@ -28,15 +29,15 @@ class ColumnSchema(Entity):
                         most likely primary key (highest cardinality identifier).
     """
 
-    name:           str
-    data_type:      str
-    semantic_type:  SemanticType = SemanticType.UNKNOWN
-    nullable:       bool         = True
-    unique_count:   int          = 0
-    missing_count:  int          = 0
-    missing_rate:   float        = 0.0
-    sample_values:  list[str]    = field(default_factory=list)
-    is_primary_key: bool         = False
+    name: str
+    data_type: str
+    semantic_type: SemanticType = SemanticType.UNKNOWN
+    nullable: bool = True
+    unique_count: int = 0
+    missing_count: int = 0
+    missing_rate: float = 0.0
+    sample_values: list[str] = field(default_factory=list)
+    is_primary_key: bool = False
 
     # ── Derived helpers ───────────────────────────────────────────────────
 
@@ -71,15 +72,15 @@ class ColumnSchema(Entity):
     def to_dict(self) -> dict:
         """Serialise to the format stored in ``Dataset.schema_json['columns']``."""
         return {
-            "id":            self.id,
-            "name":          self.name,
-            "data_type":     self.data_type,
+            "id": self.id,
+            "name": self.name,
+            "data_type": self.data_type,
             "semantic_type": self.semantic_type.value,
-            "nullable":      self.nullable,
-            "unique_count":  self.unique_count,
+            "nullable": self.nullable,
+            "unique_count": self.unique_count,
             "missing_count": self.missing_count,
-            "missing_rate":  self.missing_rate,
-            "completeness":  self.completeness,
+            "missing_rate": self.missing_rate,
+            "completeness": self.completeness,
             "sample_values": self.sample_values,
             "is_primary_key": self.is_primary_key,
         }

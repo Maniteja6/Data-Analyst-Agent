@@ -19,9 +19,11 @@ Socket.IO events emitted (to the admin monitoring room):
     monitoring:agent_slow      — when any agent exceeds the slow threshold
     monitoring:cost_alert      — when session cost exceeds the threshold
 """
+
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
 from datetime import UTC
 from typing import Any
@@ -35,8 +37,8 @@ from backend.agents.quality.monitoring.trace_instrumentor import add_span_event
 
 logger = structlog.get_logger(__name__)
 
-SLOW_AGENT_THRESHOLD_MS = 10_000   # 10 seconds
-COST_ALERT_THRESHOLD    = 0.10     # $0.10 per session
+SLOW_AGENT_THRESHOLD_MS = 10_000  # 10 seconds
+COST_ALERT_THRESHOLD = 0.10  # $0.10 per session
 
 
 class MonitoringAgent(BaseAgent):
@@ -52,10 +54,10 @@ class MonitoringAgent(BaseAgent):
 
     async def _execute(
         self,
-        context:     AgentContext,
+        context: AgentContext,
         task_results: dict[str, AgentResult] | None = None,
-        start_time:   float | None = None,
-        **kwargs: Any,
+        start_time: float | None = None,
+        **kwargs: Any,  # noqa: ANN401
     ) -> dict:
         """Emit all metrics and traces for the completed pipeline.
 
@@ -67,9 +69,9 @@ class MonitoringAgent(BaseAgent):
         Returns:
             Dict with: agent_metrics, pipeline_metrics, cost_usd, duration_ms.
         """
-        sio        = context._sio
+        sio = context._sio
         dataset_id = context.dataset_id
-        results    = task_results or {}
+        results = task_results or {}
 
         # ── Per-agent metrics ─────────────────────────────────────────────
         for result in results.values():
@@ -77,25 +79,23 @@ class MonitoringAgent(BaseAgent):
 
             # Alert on slow agents
             if result.duration_ms > SLOW_AGENT_THRESHOLD_MS and sio and dataset_id:
-                try:
+                with contextlib.suppress(Exception):
                     await sio.emit(
                         "monitoring:agent_slow",
                         {
-                            "dataset_id":  dataset_id,
-                            "agent":       result.agent_name,
+                            "dataset_id": dataset_id,
+                            "agent": result.agent_name,
                             "duration_ms": result.duration_ms,
                             "threshold_ms": SLOW_AGENT_THRESHOLD_MS,
                         },
                         room=f"dataset:{dataset_id}",
                     )
-                except Exception:
-                    pass
 
         # ── Pipeline-level metrics ────────────────────────────────────────
-        total_ms  = int((time.monotonic() - start_time) * 1000) if start_time else 0
-        cost_usd  = context.get("total_cost_usd", 0.0)
+        total_ms = int((time.monotonic() - start_time) * 1000) if start_time else 0
+        cost_usd = context.get("total_cost_usd", 0.0)
         succeeded = sum(1 for r in results.values() if r.success)
-        failed    = len(results) - succeeded
+        failed = len(results) - succeeded
 
         self._emitter.emit_pipeline_metrics(
             dataset_id=dataset_id,
@@ -106,49 +106,48 @@ class MonitoringAgent(BaseAgent):
         )
 
         # ── OTel span event ───────────────────────────────────────────────
-        add_span_event("pipeline_complete", {
-            "succeeded":  succeeded,
-            "failed":     failed,
-            "total_ms":   total_ms,
-            "cost_usd":   cost_usd,
-        })
+        add_span_event(
+            "pipeline_complete",
+            {
+                "succeeded": succeeded,
+                "failed": failed,
+                "total_ms": total_ms,
+                "cost_usd": cost_usd,
+            },
+        )
 
         # ── Cost alert ────────────────────────────────────────────────────
         if cost_usd >= COST_ALERT_THRESHOLD and sio and dataset_id:
-            try:
+            with contextlib.suppress(Exception):
                 await sio.emit(
                     "monitoring:cost_alert",
                     {
                         "dataset_id": dataset_id,
-                        "cost_usd":   cost_usd,
-                        "threshold":  COST_ALERT_THRESHOLD,
+                        "cost_usd": cost_usd,
+                        "threshold": COST_ALERT_THRESHOLD,
                     },
                     room=f"dataset:{dataset_id}",
                 )
-            except Exception:
-                pass
 
         # ── Persist agent execution audit log (non-blocking) ─────────────
-        asyncio.ensure_future(
-            self._persist_audit_log(context, results, total_ms, cost_usd)
-        )
+        asyncio.ensure_future(self._persist_audit_log(context, results, total_ms, cost_usd))
 
         # ── Emit monitoring:pipeline_report to admin room ─────────────────
         report = {
-            "dataset_id":    dataset_id,
-            "session_id":    context.session_id,
-            "succeeded":     succeeded,
-            "failed":        failed,
-            "total_ms":      total_ms,
-            "cost_usd":      round(cost_usd, 6),
-            "total_tokens":  context.get("total_tokens", 0),
+            "dataset_id": dataset_id,
+            "session_id": context.session_id,
+            "succeeded": succeeded,
+            "failed": failed,
+            "total_ms": total_ms,
+            "cost_usd": round(cost_usd, 6),
+            "total_tokens": context.get("total_tokens", 0),
             "agent_timings": [
                 {
-                    "agent":       r.agent_name,
+                    "agent": r.agent_name,
                     "duration_ms": r.duration_ms,
-                    "tokens":      r.total_tokens,
-                    "cost_usd":    r.estimated_cost_usd,
-                    "success":     r.success,
+                    "tokens": r.total_tokens,
+                    "cost_usd": r.estimated_cost_usd,
+                    "success": r.success,
                 }
                 for r in results.values()
             ],
@@ -159,10 +158,10 @@ class MonitoringAgent(BaseAgent):
                 await sio.emit(
                     "monitoring:pipeline_report",
                     report,
-                    room=f"monitoring:{dataset_id}",   # separate admin room
+                    room=f"monitoring:{dataset_id}",  # separate admin room
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("monitoring_report_emit_failed", error=str(exc))
 
         logger.info(
             "monitoring_complete",

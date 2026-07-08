@@ -23,10 +23,11 @@ Usage::
     if tracker.exceeds_session_threshold:
         logger.warning("session_cost_high", cost=tracker.session_cost_usd)
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import structlog
 
@@ -34,9 +35,9 @@ logger = structlog.get_logger(__name__)
 
 # Pricing table (USD per 1M tokens) — update when AWS revises pricing
 _PRICE_TABLE: dict[str, dict[str, float]] = {
-    "anthropic.claude-sonnet-4-5": {"input": 3.00,  "output": 15.00},
-    "anthropic.claude-haiku-4-5":  {"input": 0.25,  "output": 1.25},
-    "amazon.titan-embed-text-v2:0": {"input": 0.02,  "output": 0.00},
+    "anthropic.claude-sonnet-4-5": {"input": 3.00, "output": 15.00},
+    "anthropic.claude-haiku-4-5": {"input": 0.25, "output": 1.25},
+    "amazon.titan-embed-text-v2:0": {"input": 0.02, "output": 0.00},
 }
 
 # Fallback pricing for unknown models (conservative estimate)
@@ -46,11 +47,12 @@ _DEFAULT_PRICE = {"input": 3.00, "output": 15.00}
 @dataclass
 class InvocationRecord:
     """One recorded Bedrock API call."""
-    model_id:      str
-    input_tokens:  int
+
+    model_id: str
+    input_tokens: int
     output_tokens: int
-    cost_usd:      float
-    recorded_at:   datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    cost_usd: float
+    recorded_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 class BedrockCostTracker:
@@ -69,15 +71,17 @@ class BedrockCostTracker:
         Args:
             session_id:              Session UUID for log correlation.
             session_alert_threshold: Warn when session cost exceeds this USD amount.
-                                     Defaults to ``BedrockConfig.bedrock_cost_alert_threshold_per_session``.
+                                     Defaults to
+                                     ``BedrockConfig.bedrock_cost_alert_threshold_per_session``.
         """
         from backend.config.bedrock_config import get_bedrock_config
+
         cfg = get_bedrock_config()
 
-        self._session_id   = session_id
-        self._threshold    = session_alert_threshold or cfg.bedrock_cost_alert_threshold_per_session
+        self._session_id = session_id
+        self._threshold = session_alert_threshold or cfg.bedrock_cost_alert_threshold_per_session
         self._invocations: list[InvocationRecord] = []
-        self._total_cost   = 0.0
+        self._total_cost = 0.0
 
     # ── Recording ─────────────────────────────────────────────────────────
 
@@ -165,13 +169,13 @@ class BedrockCostTracker:
     def summary(self) -> dict:
         """Return a serialisable summary of session cost metrics."""
         return {
-            "session_id":         self._session_id,
-            "session_cost_usd":   self._total_cost,
-            "invocation_count":   self.invocation_count,
+            "session_id": self._session_id,
+            "session_cost_usd": self._total_cost,
+            "invocation_count": self.invocation_count,
             "total_input_tokens": self.total_input_tokens,
             "total_output_tokens": self.total_output_tokens,
-            "total_tokens":       self.total_tokens,
-            "cost_by_model":      self.cost_by_model(),
+            "total_tokens": self.total_tokens,
+            "cost_by_model": self.cost_by_model(),
         }
 
     # ── CloudWatch emission ───────────────────────────────────────────────
@@ -188,9 +192,10 @@ class BedrockCostTracker:
         try:
             import boto3
             from backend.config.bedrock_config import get_bedrock_config
-            cfg    = get_bedrock_config()
-            cw     = boto3.client("cloudwatch", region_name=cfg.bedrock_region)
-            dims   = [{"Name": "SessionId", "Value": self._session_id or "unknown"}]
+
+            cfg = get_bedrock_config()
+            cw = boto3.client("cloudwatch", region_name=cfg.bedrock_region)
+            dims = [{"Name": "SessionId", "Value": self._session_id or "unknown"}]
             if agent_name:
                 dims.append({"Name": "AgentName", "Value": agent_name})
 
@@ -200,14 +205,14 @@ class BedrockCostTracker:
                     {
                         "MetricName": "SessionCostUSD",
                         "Dimensions": dims,
-                        "Value":      self._total_cost,
-                        "Unit":       "None",
+                        "Value": self._total_cost,
+                        "Unit": "None",
                     },
                     {
                         "MetricName": "TotalTokens",
                         "Dimensions": dims,
-                        "Value":      float(self.total_tokens),
-                        "Unit":       "Count",
+                        "Value": float(self.total_tokens),
+                        "Unit": "Count",
                     },
                 ],
             )
@@ -219,8 +224,8 @@ class BedrockCostTracker:
     @staticmethod
     def _estimate(model_id: str, input_tokens: int, output_tokens: int) -> float:
         """Estimate cost from the pricing table."""
-        prices      = _PRICE_TABLE.get(model_id, _DEFAULT_PRICE)
-        input_cost  = (input_tokens  / 1_000_000) * prices["input"]
+        prices = _PRICE_TABLE.get(model_id, _DEFAULT_PRICE)
+        input_cost = (input_tokens / 1_000_000) * prices["input"]
         output_cost = (output_tokens / 1_000_000) * prices["output"]
         return round(input_cost + output_cost, 8)
 

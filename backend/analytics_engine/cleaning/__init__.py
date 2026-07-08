@@ -1,4 +1,3 @@
-"""Data cleaning — duplicate removal, imputation, type coercion, outlier handling."""
 """Cleaning — deterministic data cleaning pipeline.
 
 DataCleaner:         async clean(df, profile) → (cleaned_df, CleaningReport).
@@ -8,6 +7,7 @@ MissingValueHandler: drop cols ≥ 80% null; numeric=median impute; text=mode im
 TypeCoercer:         string→float (strips $€£%) and string→datetime (dateutil).
 OutlierHandler:      optional Tukey fence clipping; disabled by default.
 """
+
 from backend.analytics_engine.cleaning.data_cleaner import DataCleaner
 
 __all__ = ["DataCleaner"]

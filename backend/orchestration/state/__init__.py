@@ -1,4 +1,3 @@
-"""Graph state TypedDicts."""
 """LangGraph state definitions — TypedDict schemas for each graph.
 
 PipelineState: context, schema_result, profile_result, cleaning_result,
@@ -11,7 +10,8 @@ ChatState:     user_message, conversation_id, dataset_id, messages,
                pii_detected, injection_detected, is_valid,
                errors: Annotated[list[str], operator.add]
 """
+
+from backend.orchestration.state.chat_state import ChatState
 from backend.orchestration.state.pipeline_state import PipelineState
-from backend.orchestration.state.chat_state     import ChatState
 
 __all__ = ["PipelineState", "ChatState"]

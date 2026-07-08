@@ -10,6 +10,7 @@ The agent generates pandas code via Claude Haiku, validates the imports,
 then executes it in a subprocess sandbox with a 60-second timeout.
 The ``result`` variable from the sandbox is captured and returned.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -33,7 +34,7 @@ class PythonAgent(BaseAgent):
 
     SANDBOX_TIMEOUT = 60
 
-    def __init__(self, llm_client: Any) -> None:
+    def __init__(self, llm_client: Any) -> None:  # noqa: ANN401
         super().__init__("python")
         self._llm = llm_client
 
@@ -41,7 +42,7 @@ class PythonAgent(BaseAgent):
         self,
         context: AgentContext,
         task: str = "",
-        **kwargs: Any,
+        **kwargs: Any,  # noqa: ANN401
     ) -> dict:
         """Generate and execute a pandas code snippet for the given task.
 
@@ -53,15 +54,15 @@ class PythonAgent(BaseAgent):
             Dict with keys: task, success, type, data, error, code,
             duration_ms, markdown_output.
         """
-        schema      = context.schema or {}
+        schema = context.schema or {}
         storage_key = context.storage_key
 
         if not task:
             return {
-                "task":   "",
+                "task": "",
                 "success": False,
-                "error":  "No task provided to PythonAgent.",
-                "data":   None,
+                "error": "No task provided to PythonAgent.",
+                "data": None,
             }
 
         # Step 1: Generate code via LLM
@@ -76,7 +77,7 @@ class PythonAgent(BaseAgent):
 
         # Step 3: Parse and normalise output
         parsed = parse_output(raw_result)
-        parsed["task"]            = task
+        parsed["task"] = task
         parsed["markdown_output"] = to_markdown(parsed)
 
         if parsed["success"]:

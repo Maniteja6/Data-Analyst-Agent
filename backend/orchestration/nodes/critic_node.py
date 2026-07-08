@@ -1,9 +1,10 @@
 """CriticNode — validates and optionally revises the InsightReport."""
+
 from __future__ import annotations
 
 import structlog
-from backend.orchestration.state.pipeline_state import PipelineState
 from backend.config.feature_flags import flags
+from backend.orchestration.state.pipeline_state import PipelineState
 
 logger = structlog.get_logger(__name__)
 
@@ -18,18 +19,18 @@ async def critic_node(state: PipelineState) -> dict:
     Writes: state['critique'] — {approved: bool, issues: list[str], revised_insights: list}
     """
     if not flags.critic_enabled:
-        return {
-            "critique": {"approved": True, "issues": [], "revised_insights": []}
-        }
+        return {"critique": {"approved": True, "issues": [], "revised_insights": []}}
 
     insight_report = state.get("insight_report", {})
-    profile        = state.get("profile_result", {})
+    profile = state.get("profile_result", {})
 
     try:
         from backend.agents.critic_agent import CriticAgent
-        from backend.infrastructure.llm.bedrock.bedrock_converse_adapter import BedrockConverseAdapter
+        from backend.infrastructure.llm.bedrock.bedrock_converse_adapter import (
+            BedrockConverseAdapter,
+        )
 
-        agent    = CriticAgent(llm=BedrockConverseAdapter())
+        agent = CriticAgent(llm=BedrockConverseAdapter())
         critique = await agent.run(
             insight_report=insight_report,
             profile=profile,
@@ -45,5 +46,5 @@ async def critic_node(state: PipelineState) -> dict:
         logger.warning("critic_node_failed_auto_approve", error=str(exc))
         return {
             "critique": {"approved": True, "issues": [], "error": str(exc)},
-            "errors":   [f"CriticNode: {exc}"],
+            "errors": [f"CriticNode: {exc}"],
         }

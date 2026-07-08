@@ -1,5 +1,7 @@
 """ExportReportCommand — input DTO for the ExportReportUseCase."""
+
 from __future__ import annotations
+
 from dataclasses import dataclass
 
 SUPPORTED_FORMATS = frozenset({"pdf", "xlsx", "pptx", "json"})
@@ -15,9 +17,10 @@ class ExportReportCommand:
         format:         Output format: ``'pdf'`` | ``'xlsx'`` | ``'pptx'`` | ``'json'``.
         correlation_id: Request-scoped tracing ID.
     """
-    dataset_id:     str
-    session_id:     str
-    format:         str
+
+    dataset_id: str
+    session_id: str
+    format: str
     correlation_id: str = ""
 
     def __post_init__(self) -> None:

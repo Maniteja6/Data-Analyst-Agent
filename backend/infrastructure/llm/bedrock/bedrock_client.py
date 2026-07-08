@@ -37,9 +37,11 @@ Usage::
     client = get_bedrock_runtime_client()
     response = client.converse(modelId="anthropic.claude-sonnet-4-5", messages=[...])
 """
+
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Any
 
 import structlog
 
@@ -47,7 +49,7 @@ logger = structlog.get_logger(__name__)
 
 
 @lru_cache(maxsize=1)
-def get_bedrock_runtime_client():
+def get_bedrock_runtime_client() -> Any:  # noqa: ANN401 — boto3 client has no static type without stubs
     """Return the cached boto3 Bedrock Runtime client.
 
     Uses the AWS default credential provider chain:
@@ -64,7 +66,7 @@ def get_bedrock_runtime_client():
     import boto3
     from backend.config.bedrock_config import get_bedrock_config
 
-    cfg    = get_bedrock_config()
+    cfg = get_bedrock_config()
     kwargs = {"region_name": cfg.bedrock_region}
 
     if cfg.bedrock_endpoint_url:

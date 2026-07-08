@@ -1,5 +1,7 @@
 """Health and readiness check endpoints."""
+
 from __future__ import annotations
+
 from fastapi import APIRouter
 from pydantic import BaseModel
 
@@ -13,18 +15,18 @@ class HealthResponse(BaseModel):
 
 
 @router.get("/health")
-async def health():
+async def health() -> dict:
     return {"status": "ok"}
 
 
 @router.get("/ready", response_model=HealthResponse)
-async def readiness():
+async def readiness() -> HealthResponse:
     from backend.config.settings import get_settings
-    from backend.infrastructure.persistence.database import health_check as db_health
     from backend.infrastructure.cache.redis_cache_adapter import get_redis_cache
+    from backend.infrastructure.persistence.database import health_check as db_health
 
     settings = get_settings()
-    checks   = {}
+    checks = {}
 
     # Database
     try:

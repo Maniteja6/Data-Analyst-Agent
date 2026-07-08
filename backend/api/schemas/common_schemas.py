@@ -1,11 +1,14 @@
 """Common Pydantic response models shared across routers."""
+
 from __future__ import annotations
-from pydantic import BaseModel
+
 from typing import Any
+
+from pydantic import BaseModel
 
 
 class ErrorResponse(BaseModel):
-    error:   str
+    error: str
     message: str
     details: Any = None
 
@@ -15,7 +18,7 @@ class MessageResponse(BaseModel):
 
 
 class PaginatedResponse(BaseModel):
-    items:  list[Any]
-    total:  int
-    limit:  int
+    items: list[Any]
+    total: int
+    limit: int
     offset: int

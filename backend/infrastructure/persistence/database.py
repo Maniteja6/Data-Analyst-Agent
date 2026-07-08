@@ -37,10 +37,11 @@ Usage::
         repo = PostgresDatasetRepository(session)
         await repo.save(dataset)
 """
+
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
 import structlog
 from sqlalchemy.ext.asyncio import (
@@ -56,6 +57,7 @@ logger = structlog.get_logger(__name__)
 # ---------------------------------------------------------------------------
 # ORM base class — imported by all model files
 # ---------------------------------------------------------------------------
+
 
 class Base(DeclarativeBase):
     """SQLAlchemy declarative base for all DataPilot ORM models."""
@@ -78,27 +80,28 @@ def get_engine() -> AsyncEngine:
     global _engine, _session_factory
     if _engine is None:
         from backend.config.settings import get_settings
+
         settings = get_settings()
 
         _engine = create_async_engine(
             settings.database_url,
             pool_size=settings.database_pool_size,
             max_overflow=settings.database_max_overflow,
-            pool_pre_ping=True,          # reconnect after DB restarts
-            pool_recycle=3600,           # replace connections after 1 hour
-            echo=settings.debug,         # log SQL when debug=True
+            pool_pre_ping=True,  # reconnect after DB restarts
+            pool_recycle=3600,  # replace connections after 1 hour
+            echo=settings.debug,  # log SQL when debug=True
             connect_args={
                 "server_settings": {
                     "application_name": settings.app_name,
-                    "search_path":      "public",
+                    "search_path": "public",
                 },
             },
         )
         _session_factory = async_sessionmaker(
             bind=_engine,
             class_=AsyncSession,
-            expire_on_commit=False,      # don't expire objects after commit
-            autoflush=False,             # explicit flush control
+            expire_on_commit=False,  # don't expire objects after commit
+            autoflush=False,  # explicit flush control
         )
         logger.info(
             "db_engine_created",
@@ -112,6 +115,7 @@ def get_engine() -> AsyncEngine:
 # Session factories
 # ---------------------------------------------------------------------------
 
+
 @asynccontextmanager
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     """Async context manager that provides a scoped database session.
@@ -124,7 +128,7 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
             repo = PostgresDatasetRepository(session)
             await repo.save(dataset)
     """
-    get_engine()   # ensure engine is initialised
+    get_engine()  # ensure engine is initialised
     async with _session_factory() as session:
         try:
             yield session
@@ -163,10 +167,12 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 # Lifecycle helpers
 # ---------------------------------------------------------------------------
 
+
 async def health_check() -> bool:
     """Return True when the database is reachable (used by /ready endpoint)."""
     try:
         from sqlalchemy import text
+
         async with _session_factory() as session:
             await session.execute(text("SELECT 1"))
         return True
@@ -184,6 +190,6 @@ async def dispose_engine() -> None:
     global _engine, _session_factory
     if _engine:
         await _engine.dispose()
-        _engine         = None
+        _engine = None
         _session_factory = None
         logger.info("db_engine_disposed")

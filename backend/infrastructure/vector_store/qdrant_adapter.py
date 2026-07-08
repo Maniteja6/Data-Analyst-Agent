@@ -36,12 +36,16 @@ Usage::
     await qdrant.upsert([{"id": uuid, "vector": [...], "payload": {...}}])
     results = await qdrant.search(query_vector, dataset_id="abc-123", top_k=8)
 """
+
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
+
+if TYPE_CHECKING:
+    from qdrant_client import AsyncQdrantClient
 
 logger = structlog.get_logger(__name__)
 
@@ -62,32 +66,34 @@ class QdrantAdapter:
         vector_size: int | None = None,
     ) -> None:
         from backend.config.settings import get_settings
+
         settings = get_settings()
 
-        self._host       = host            or settings.qdrant_host
-        self._port       = port            or settings.qdrant_port
-        self._api_key    = api_key         or settings.qdrant_api_key or None
+        self._host = host or settings.qdrant_host
+        self._port = port or settings.qdrant_port
+        self._api_key = api_key or settings.qdrant_api_key or None
         self._collection = collection_name or settings.qdrant_collection_name
-        self._vector_size = vector_size    or settings.qdrant_vector_size
-        self._client     = None   # lazily initialised
+        self._vector_size = vector_size or settings.qdrant_vector_size
+        self._client = None  # lazily initialised
 
     # ── Client factory ────────────────────────────────────────────────────
 
-    async def _get_client(self):
+    async def _get_client(self) -> AsyncQdrantClient:
         """Return the async Qdrant client, creating it on first use."""
         if self._client is None:
             try:
                 from qdrant_client import AsyncQdrantClient
+
                 kwargs: dict = {"host": self._host, "port": self._port}
                 if self._api_key:
                     kwargs["api_key"] = self._api_key
                 self._client = AsyncQdrantClient(**kwargs)
                 logger.info("qdrant_connected", host=self._host, port=self._port)
-            except ImportError:
+            except ImportError as exc:
                 raise RuntimeError(
                     "qdrant-client is not installed. "
                     "Add it to pyproject.toml or disable the RAG feature flag."
-                )
+                ) from exc
         return self._client
 
     # ── Collection lifecycle ──────────────────────────────────────────────
@@ -103,9 +109,9 @@ class QdrantAdapter:
         """
         from qdrant_client.models import Distance, VectorParams
 
-        client      = await self._get_client()
+        client = await self._get_client()
         collections = await client.get_collections()
-        names       = [c.name for c in collections.collections]
+        names = [c.name for c in collections.collections]
 
         if self._collection not in names:
             await client.create_collection(
@@ -113,7 +119,7 @@ class QdrantAdapter:
                 vectors_config=VectorParams(
                     size=self._vector_size,
                     distance=Distance.COSINE,
-                    on_disk=False,         # keep in RAM for low retrieval latency
+                    on_disk=False,  # keep in RAM for low retrieval latency
                 ),
             )
             logger.info(
@@ -132,13 +138,12 @@ class QdrantAdapter:
 
     async def collection_info(self) -> dict:
         """Return collection metadata (point count, config, status)."""
-        from qdrant_client import models
         client = await self._get_client()
-        info   = await client.get_collection(self._collection)
+        info = await client.get_collection(self._collection)
         return {
-            "name":        self._collection,
+            "name": self._collection,
             "point_count": info.points_count,
-            "status":      info.status.value if info.status else "unknown",
+            "status": info.status.value if info.status else "unknown",
             "vector_size": self._vector_size,
         }
 
@@ -178,7 +183,7 @@ class QdrantAdapter:
         await client.upsert(
             collection_name=self._collection,
             points=structs,
-            wait=True,   # confirm indexing before returning
+            wait=True,  # confirm indexing before returning
         )
         logger.info(
             "qdrant_upsert_complete",
@@ -212,18 +217,16 @@ class QdrantAdapter:
             List of result dicts sorted by score (descending):
             ``[{"id": str, "score": float, "payload": dict}, …]``
         """
-        from qdrant_client.models import Filter, FieldCondition, MatchValue
+        from qdrant_client.models import FieldCondition, Filter, MatchValue
 
-        must_conditions = [
-            FieldCondition(key="dataset_id", match=MatchValue(value=dataset_id))
-        ]
+        must_conditions = [FieldCondition(key="dataset_id", match=MatchValue(value=dataset_id))]
         if chunk_type:
             must_conditions.append(
                 FieldCondition(key="chunk_type", match=MatchValue(value=chunk_type))
             )
 
         filter_ = Filter(must=must_conditions)
-        client  = await self._get_client()
+        client = await self._get_client()
 
         results = await client.search(
             collection_name=self._collection,
@@ -232,13 +235,13 @@ class QdrantAdapter:
             limit=top_k,
             score_threshold=score_threshold,
             with_payload=True,
-            with_vectors=False,   # don't return the vector itself — saves bandwidth
+            with_vectors=False,  # don't return the vector itself — saves bandwidth
         )
 
         hits = [
             {
-                "id":      str(r.id),
-                "score":   round(r.score, 6),
+                "id": str(r.id),
+                "score": round(r.score, 6),
                 "payload": r.payload or {},
             }
             for r in results
@@ -264,7 +267,7 @@ class QdrantAdapter:
         Qdrant ``delete`` with a payload filter is O(n) on point count —
         efficient for typical dataset sizes (< 500 columns → < 500 points).
         """
-        from qdrant_client.models import Filter, FieldCondition, MatchValue, FilterSelector
+        from qdrant_client.models import FieldCondition, Filter, FilterSelector, MatchValue
 
         client = await self._get_client()
         await client.delete(
@@ -282,6 +285,7 @@ class QdrantAdapter:
         if not point_ids:
             return
         from qdrant_client.models import PointIdsList
+
         client = await self._get_client()
         await client.delete(
             collection_name=self._collection,
@@ -316,9 +320,9 @@ class QdrantAdapter:
 
         Used by the eval runner to inspect indexed chunks for a dataset.
         """
-        from qdrant_client.models import Filter, FieldCondition, MatchValue
+        from qdrant_client.models import FieldCondition, Filter, MatchValue
 
-        client  = await self._get_client()
+        client = await self._get_client()
         results, next_page_offset = await client.scroll(
             collection_name=self._collection,
             scroll_filter=Filter(
@@ -329,10 +333,7 @@ class QdrantAdapter:
             with_payload=True,
             with_vectors=False,
         )
-        points = [
-            {"id": str(r.id), "payload": r.payload or {}}
-            for r in results
-        ]
+        points = [{"id": str(r.id), "payload": r.payload or {}} for r in results]
         return points, str(next_page_offset) if next_page_offset else None
 
 

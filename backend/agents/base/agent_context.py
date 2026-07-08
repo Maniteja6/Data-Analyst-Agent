@@ -14,11 +14,17 @@ WebSocket integration:
     Socket.IO event to the dataset's room so the browser updates in real-time
     without polling.
 """
+
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
+
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 
 @dataclass
@@ -51,37 +57,37 @@ class AgentContext:
     """
 
     # ── Identity (required) ───────────────────────────────────────────────
-    session_id:     str
-    dataset_id:     str
+    session_id: str
+    dataset_id: str
     correlation_id: str
-    storage_key:    str
+    storage_key: str
 
     # ── Pipeline stage outputs (populated by agents) ──────────────────────
-    schema:              dict | None = None
-    profile:             dict | None = None
-    cleaning_report:     dict | None = None
-    sql_results:         list[dict]  = field(default_factory=list)
-    python_results:      list[dict]  = field(default_factory=list)
-    forecast_results:    list[dict]  = field(default_factory=list)
-    ml_results:          dict | None = None
-    anomaly_results:     list[dict]  = field(default_factory=list)
-    visualization_specs: list[dict]  = field(default_factory=list)
-    insight_results:     list[dict]  = field(default_factory=list)
-    recommendations:     list[dict]  = field(default_factory=list)
-    rag_context:         str | None  = None
+    schema: dict | None = None
+    profile: dict | None = None
+    cleaning_report: dict | None = None
+    sql_results: list[dict] = field(default_factory=list)
+    python_results: list[dict] = field(default_factory=list)
+    forecast_results: list[dict] = field(default_factory=list)
+    ml_results: dict | None = None
+    anomaly_results: list[dict] = field(default_factory=list)
+    visualization_specs: list[dict] = field(default_factory=list)
+    insight_results: list[dict] = field(default_factory=list)
+    recommendations: list[dict] = field(default_factory=list)
+    rag_context: str | None = None
     conversation_history: list[dict] = field(default_factory=list)
 
     # ── Runtime ───────────────────────────────────────────────────────────
     metadata: dict[str, Any] = field(default_factory=dict)
-    _sio:     Any            = field(default=None, repr=False)  # Socket.IO server
+    _sio: Any = field(default=None, repr=False)  # Socket.IO server
 
     # ── Convenience accessors ─────────────────────────────────────────────
 
-    def set(self, key: str, value: Any) -> None:
+    def set(self, key: str, value: Any) -> None:  # noqa: ANN401
         """Store a value in the free-form metadata dict."""
         self.metadata[key] = value
 
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str, default: Any = None) -> Any:  # noqa: ANN401
         """Retrieve a value from the metadata dict."""
         return self.metadata.get(key, default)
 
@@ -98,8 +104,7 @@ class AgentContext:
         if not self.schema:
             return False
         return any(
-            c.get("semantic_type") in ("date", "datetime")
-            for c in self.schema.get("columns", [])
+            c.get("semantic_type") in ("date", "datetime") for c in self.schema.get("columns", [])
         )
 
     @property
@@ -107,10 +112,7 @@ class AgentContext:
         if not self.schema:
             return 0
         numeric = {"currency", "numeric_measure", "numeric_count", "percentage"}
-        return sum(
-            1 for c in self.schema.get("columns", [])
-            if c.get("semantic_type") in numeric
-        )
+        return sum(1 for c in self.schema.get("columns", []) if c.get("semantic_type") in numeric)
 
     @property
     def column_names(self) -> list[str]:
@@ -139,14 +141,14 @@ class AgentContext:
             return
         try:
             payload = {
-                "type":         "job.progress",
-                "dataset_id":   self.dataset_id,
-                "session_id":   self.session_id,
+                "type": "job.progress",
+                "dataset_id": self.dataset_id,
+                "session_id": self.session_id,
                 "correlation_id": self.correlation_id,
-                "progress":     progress,
-                "message":      message,
-                "step":         step,
-                "timestamp":    datetime.now(UTC).isoformat(),
+                "progress": progress,
+                "message": message,
+                "step": step,
+                "timestamp": datetime.now(UTC).isoformat(),
                 **(extra or {}),
             }
             await self._sio.emit(
@@ -154,8 +156,8 @@ class AgentContext:
                 payload,
                 room=f"dataset:{self.dataset_id}",
             )
-        except Exception:
-            pass   # Never let Socket.IO errors abort the pipeline
+        except Exception as exc:
+            logger.debug("push_progress_emit_failed", error=str(exc))
 
     async def push_token(self, token: str, message_id: str = "") -> None:
         """Emit a single LLM token to the conversation's Socket.IO room.
@@ -171,14 +173,12 @@ class AgentContext:
         conversation_id = self.get("conversation_id", "")
         if not conversation_id:
             return
-        try:
+        with contextlib.suppress(Exception):
             await self._sio.emit(
                 "chat:token",
                 {"token": token, "message_id": message_id},
                 room=f"conversation:{conversation_id}",
             )
-        except Exception:
-            pass
 
     async def push_complete(self, payload: dict) -> None:
         """Emit a chat:complete event when the full response is ready.
@@ -191,28 +191,26 @@ class AgentContext:
         conversation_id = self.get("conversation_id", "")
         if not conversation_id:
             return
-        try:
+        with contextlib.suppress(Exception):
             await self._sio.emit(
                 "chat:complete",
                 payload,
                 room=f"conversation:{conversation_id}",
             )
-        except Exception:
-            pass
 
     # ── Serialisation ─────────────────────────────────────────────────────
 
     def summary_dict(self) -> dict:
         """Return a lightweight summary of the context state for logging."""
         return {
-            "session_id":         self.session_id,
-            "dataset_id":         self.dataset_id,
-            "correlation_id":     self.correlation_id,
-            "has_schema":         self.has_schema,
-            "has_profile":        self.has_profile,
-            "has_time_series":    self.has_time_series,
-            "sql_results_count":  len(self.sql_results),
-            "anomaly_count":      len(self.anomaly_results),
-            "insight_count":      len(self.insight_results),
-            "numeric_col_count":  self.numeric_column_count,
+            "session_id": self.session_id,
+            "dataset_id": self.dataset_id,
+            "correlation_id": self.correlation_id,
+            "has_schema": self.has_schema,
+            "has_profile": self.has_profile,
+            "has_time_series": self.has_time_series,
+            "sql_results_count": len(self.sql_results),
+            "anomaly_count": len(self.anomaly_results),
+            "insight_count": len(self.insight_results),
+            "numeric_col_count": self.numeric_column_count,
         }

@@ -1,4 +1,5 @@
 """MessageRole value object — speaker role in a conversation turn."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -19,9 +20,9 @@ class Role(str, Enum):
     and is not stored as a regular message in the conversation history.
     """
 
-    USER      = "user"
+    USER = "user"
     ASSISTANT = "assistant"
-    SYSTEM    = "system"
+    SYSTEM = "system"
 
 
 @dataclass(frozen=True)
@@ -47,19 +48,19 @@ class MessageRole(ValueObject):
     # ── Convenience factories ─────────────────────────────────────────────
 
     @classmethod
-    def user(cls) -> "MessageRole":
+    def user(cls) -> MessageRole:
         return cls(role=Role.USER)
 
     @classmethod
-    def assistant(cls) -> "MessageRole":
+    def assistant(cls) -> MessageRole:
         return cls(role=Role.ASSISTANT)
 
     @classmethod
-    def system(cls) -> "MessageRole":
+    def system(cls) -> MessageRole:
         return cls(role=Role.SYSTEM)
 
     @classmethod
-    def from_string(cls, value: str) -> "MessageRole":
+    def from_string(cls, value: str) -> MessageRole:
         """Parse a string like ``'user'`` into a MessageRole."""
         return cls(role=Role(value.lower()))
 

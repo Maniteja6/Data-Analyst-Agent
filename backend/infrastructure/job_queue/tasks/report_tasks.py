@@ -14,15 +14,18 @@ Supported formats:
     pptx   — python-pptx branded slide deck
     json   — raw InsightReport dict (for downstream pipeline integrations)
 """
+
 from __future__ import annotations
 
 import asyncio
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
-
 from backend.infrastructure.job_queue.celery_app import celery_app
+
+if TYPE_CHECKING:
+    from celery import Task
 
 logger = structlog.get_logger(__name__)
 
@@ -39,7 +42,7 @@ SUPPORTED_FORMATS = {"pdf", "xlsx", "pptx", "json"}
     time_limit=240,
 )
 def generate_report(
-    self,
+    self: Task,
     dataset_id: str,
     session_id: str,
     format: str,
@@ -103,12 +106,12 @@ def generate_report(
             attempt=self.request.retries + 1,
         )
         if self.request.retries < self.max_retries:
-            raise self.retry(exc=exc)
+            raise self.retry(exc=exc) from exc
         raise
 
 
 async def _generate_report_async(
-    task,
+    task: Task,
     dataset_id: str,
     session_id: str,
     format: str,
@@ -119,7 +122,7 @@ async def _generate_report_async(
     from backend.infrastructure.storage.s3_storage_adapter import S3StorageAdapter
     from backend.shared.utils.uuid_factory import new_uuid
 
-    cache   = get_redis_cache()
+    cache = get_redis_cache()
     storage = S3StorageAdapter()
 
     # ── Load InsightReport from cache (fast) or Postgres (fallback) ───────
@@ -138,10 +141,11 @@ async def _generate_report_async(
     content_type = _content_type(format)
 
     # ── Upload to S3 / MinIO ──────────────────────────────────────────────
-    export_id   = new_uuid()
+    export_id = new_uuid()
     storage_key = f"reports/{dataset_id}/{export_id}.{format}"
 
     import io
+
     await storage.upload_fileobj(
         io.BytesIO(report_bytes),
         storage_key,
@@ -153,26 +157,29 @@ async def _generate_report_async(
 
     # ── Notify frontend via Redis pub/sub ─────────────────────────────────
     import json
+
     await cache.publish(
         f"dataset:{dataset_id}",
-        json.dumps({
-            "type":         "report.ready",
-            "dataset_id":   dataset_id,
-            "format":       format,
-            "storage_key":  storage_key,
-            "download_url": download_url,
-        }),
+        json.dumps(
+            {
+                "type": "report.ready",
+                "dataset_id": dataset_id,
+                "format": format,
+                "storage_key": storage_key,
+                "download_url": download_url,
+            }
+        ),
     )
 
     # ── Cache the download URL (1 hour — matches presigned URL TTL) ────────
     await cache.set(f"report:{export_id}:url", download_url, ttl=900)
 
     return {
-        "storage_key":  storage_key,
-        "format":       format,
+        "storage_key": storage_key,
+        "format": format,
         "download_url": download_url,
-        "export_id":    export_id,
-        "status":       "ready",
+        "export_id": export_id,
+        "status": "ready",
     }
 
 
@@ -183,8 +190,9 @@ async def _load_report_from_db(dataset_id: str, session_id: str) -> dict | None:
         from backend.infrastructure.persistence.repositories.postgres_insight_repository import (
             PostgresInsightRepository,
         )
+
         async with get_session() as db_session:
-            repo   = PostgresInsightRepository(db_session)
+            repo = PostgresInsightRepository(db_session)
             report = await repo.get_by_dataset_id(dataset_id)
             return report.to_dict() if report else None
     except Exception as exc:
@@ -196,6 +204,7 @@ async def _render_report(report_data: dict, format: str) -> bytes:
     """Dispatch to the appropriate renderer and return raw bytes."""
     if format == "json":
         import json
+
         return json.dumps(report_data, indent=2, default=str).encode("utf-8")
 
     if format == "xlsx":
@@ -212,15 +221,16 @@ async def _render_report(report_data: dict, format: str) -> bytes:
 
 async def _render_xlsx(report_data: dict) -> bytes:
     """Generate an Excel workbook from the InsightReport."""
-    import asyncio, io
+    import asyncio
+
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, _render_xlsx_sync, report_data)
 
 
 def _render_xlsx_sync(report_data: dict) -> bytes:
     import io
+
     from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill
 
     wb = Workbook()
 
@@ -236,37 +246,43 @@ def _render_xlsx_sync(report_data: dict) -> bytes:
     ws2 = wb.create_sheet("Insights")
     ws2.append(["Rank", "Headline", "Impact", "Confidence", "Columns"])
     for i, ins in enumerate(report_data.get("insights", []), 1):
-        ws2.append([
-            i,
-            ins.get("headline", ""),
-            ins.get("business_impact", ""),
-            ins.get("confidence", ""),
-            ", ".join(ins.get("source_columns", [])),
-        ])
+        ws2.append(
+            [
+                i,
+                ins.get("headline", ""),
+                ins.get("business_impact", ""),
+                ins.get("confidence", ""),
+                ", ".join(ins.get("source_columns", [])),
+            ]
+        )
 
     # ── Sheet 3: Anomalies ───────────────────────────────────────────────
     ws3 = wb.create_sheet("Anomalies")
     ws3.append(["Column", "Type", "Severity", "Description", "Confidence"])
     for a in report_data.get("anomaly_alerts", []):
-        ws3.append([
-            a.get("column_name", ""),
-            a.get("anomaly_type", ""),
-            a.get("severity", ""),
-            a.get("description", ""),
-            a.get("confidence", ""),
-        ])
+        ws3.append(
+            [
+                a.get("column_name", ""),
+                a.get("anomaly_type", ""),
+                a.get("severity", ""),
+                a.get("description", ""),
+                a.get("confidence", ""),
+            ]
+        )
 
     # ── Sheet 4: Recommendations ─────────────────────────────────────────
     ws4 = wb.create_sheet("Recommendations")
     ws4.append(["Priority", "Title", "Situation", "Action", "Impact"])
     for r in report_data.get("recommendations", []):
-        ws4.append([
-            r.get("priority", ""),
-            r.get("title", ""),
-            r.get("situation", ""),
-            r.get("action", ""),
-            r.get("estimated_impact", ""),
-        ])
+        ws4.append(
+            [
+                r.get("priority", ""),
+                r.get("title", ""),
+                r.get("situation", ""),
+                r.get("action", ""),
+                r.get("estimated_impact", ""),
+            ]
+        )
 
     buf = io.BytesIO()
     wb.save(buf)
@@ -276,6 +292,7 @@ def _render_xlsx_sync(report_data: dict) -> bytes:
 async def _render_pdf(report_data: dict) -> bytes:
     """Generate a PDF report using WeasyPrint (HTML → PDF)."""
     import asyncio
+
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, _render_pdf_sync, report_data)
 
@@ -284,11 +301,13 @@ def _render_pdf_sync(report_data: dict) -> bytes:
     """Synchronous PDF rendering — runs in a thread pool executor."""
     try:
         from weasyprint import HTML
+
         html = _build_pdf_html(report_data)
         return HTML(string=html).write_pdf()
     except ImportError:
         # Graceful degradation — return JSON if WeasyPrint not installed
         import json
+
         return json.dumps(report_data, indent=2, default=str).encode("utf-8")
 
 
@@ -298,7 +317,7 @@ def _build_pdf_html(report_data: dict) -> str:
         f"<div class='insight'>"
         f"<h3>{ins.get('headline', '')}</h3>"
         f"<p>{ins.get('explanation', '')}</p>"
-        f"<span class='badge badge-{ins.get(\"business_impact\", \"low\")}'>"
+        f"<span class='badge badge-{ins.get('business_impact', 'low')}'>"
         f"{ins.get('business_impact', '')} impact</span>"
         f"</div>"
         for ins in report_data.get("insights", [])[:10]
@@ -312,7 +331,8 @@ def _build_pdf_html(report_data: dict) -> str:
   h1   {{ color: #5B4FE8; }}
   h2   {{ color: #1A1A3E; border-bottom: 2px solid #E2E0D8; padding-bottom: 6px; }}
   .insight {{ margin: 16px 0; padding: 12px; border-left: 4px solid #5B4FE8; background: #F5F4F1; }}
-  .badge {{ display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }}
+  .badge {{ display: inline-block; padding: 2px 8px; border-radius: 4px;
+            font-size: 11px; font-weight: 600; }}
   .badge-high   {{ background: #FEE2E2; color: #DC2626; }}
   .badge-medium {{ background: #FEF3C7; color: #D97706; }}
   .badge-low    {{ background: #F3F4F6; color: #6B7280; }}
@@ -321,7 +341,7 @@ def _build_pdf_html(report_data: dict) -> str:
 <body>
 <h1>DataPilot Analysis Report</h1>
 <h2>Executive Summary</h2>
-<p>{report_data.get('executive_summary', 'No summary available.')}</p>
+<p>{report_data.get("executive_summary", "No summary available.")}</p>
 <h2>Top Insights</h2>
 {insights_html}
 </body>
@@ -331,37 +351,41 @@ def _build_pdf_html(report_data: dict) -> str:
 async def _render_pptx(report_data: dict) -> bytes:
     """Generate a PowerPoint slide deck from the InsightReport."""
     import asyncio
+
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, _render_pptx_sync, report_data)
 
 
 def _render_pptx_sync(report_data: dict) -> bytes:
     import io
+
     try:
         from pptx import Presentation
-        from pptx.util import Inches, Pt
         from pptx.dml.color import RGBColor
+        from pptx.util import Inches, Pt
 
-        VIOLET = RGBColor(0x5B, 0x4F, 0xE8)
-        NAVY   = RGBColor(0x1A, 0x1A, 0x3E)
+        violet = RGBColor(0x5B, 0x4F, 0xE8)
+        navy = RGBColor(0x1A, 0x1A, 0x3E)
 
         prs = Presentation()
         blank_layout = prs.slide_layouts[6]
 
         # ── Slide 1: Title ───────────────────────────────────────────────
         slide = prs.slides.add_slide(blank_layout)
-        tf    = slide.shapes.add_textbox(Inches(1), Inches(2), Inches(8), Inches(1.5)).text_frame
+        tf = slide.shapes.add_textbox(Inches(1), Inches(2), Inches(8), Inches(1.5)).text_frame
         tf.text = "DataPilot Analysis Report"
-        tf.paragraphs[0].runs[0].font.size  = Pt(32)
-        tf.paragraphs[0].runs[0].font.bold  = True
-        tf.paragraphs[0].runs[0].font.color.rgb = VIOLET
+        tf.paragraphs[0].runs[0].font.size = Pt(32)
+        tf.paragraphs[0].runs[0].font.bold = True
+        tf.paragraphs[0].runs[0].font.color.rgb = violet
 
         # ── Slide 2: Executive Summary ───────────────────────────────────
         slide2 = prs.slides.add_slide(blank_layout)
-        title2 = slide2.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(0.7)).text_frame
+        title2 = slide2.shapes.add_textbox(
+            Inches(0.5), Inches(0.3), Inches(9), Inches(0.7)
+        ).text_frame
         title2.text = "Executive Summary"
-        title2.paragraphs[0].runs[0].font.bold  = True
-        title2.paragraphs[0].runs[0].font.color.rgb = NAVY
+        title2.paragraphs[0].runs[0].font.bold = True
+        title2.paragraphs[0].runs[0].font.color.rgb = navy
 
         body2 = slide2.shapes.add_textbox(Inches(0.5), Inches(1.2), Inches(9), Inches(5)).text_frame
         body2.word_wrap = True
@@ -369,11 +393,13 @@ def _render_pptx_sync(report_data: dict) -> bytes:
 
         # ── Slides 3-N: Top insights (one per slide) ──────────────────────
         for ins in report_data.get("insights", [])[:5]:
-            sld   = prs.slides.add_slide(blank_layout)
-            title = sld.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(0.7)).text_frame
+            sld = prs.slides.add_slide(blank_layout)
+            title = sld.shapes.add_textbox(
+                Inches(0.5), Inches(0.3), Inches(9), Inches(0.7)
+            ).text_frame
             title.text = ins.get("headline", "")
-            title.paragraphs[0].runs[0].font.bold  = True
-            title.paragraphs[0].runs[0].font.color.rgb = VIOLET
+            title.paragraphs[0].runs[0].font.bold = True
+            title.paragraphs[0].runs[0].font.color.rgb = violet
 
             body = sld.shapes.add_textbox(Inches(0.5), Inches(1.2), Inches(9), Inches(3)).text_frame
             body.word_wrap = True
@@ -385,12 +411,13 @@ def _render_pptx_sync(report_data: dict) -> bytes:
 
     except ImportError:
         import json
+
         return json.dumps(report_data, indent=2, default=str).encode("utf-8")
 
 
 def _content_type(format: str) -> str:
     return {
-        "pdf":  "application/pdf",
+        "pdf": "application/pdf",
         "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         "json": "application/json",

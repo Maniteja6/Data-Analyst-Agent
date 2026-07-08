@@ -1,4 +1,5 @@
 """MessageAdded domain event."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -30,18 +31,20 @@ class MessageAdded(DomainEvent):
     """
 
     conversation_id: str = ""
-    dataset_id:      str = ""
-    message_id:      str = ""
-    role:            str = ""
+    dataset_id: str = ""
+    message_id: str = ""
+    role: str = ""
     content_preview: str = ""
 
     def to_dict(self) -> dict:
         base = super().to_dict()
-        base.update({
-            "conversation_id": self.conversation_id,
-            "dataset_id":      self.dataset_id,
-            "message_id":      self.message_id,
-            "role":            self.role,
-            "content_preview": self.content_preview,
-        })
+        base.update(
+            {
+                "conversation_id": self.conversation_id,
+                "dataset_id": self.dataset_id,
+                "message_id": self.message_id,
+                "role": self.role,
+                "content_preview": self.content_preview,
+            }
+        )
         return base

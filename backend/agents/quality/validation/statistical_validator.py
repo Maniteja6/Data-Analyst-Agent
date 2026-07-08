@@ -14,6 +14,7 @@ Real-time design:
     Returns a list of ValidationFailure objects so the ValidationAgent
     can either reject the claim or flag it for user review.
 """
+
 from __future__ import annotations
 
 import re
@@ -22,11 +23,11 @@ from dataclasses import dataclass
 
 @dataclass
 class ValidationFailure:
-    claim_text:   str
-    failure_type: str   # range | percentage | count | correlation | average
-    expected:     str
-    actual:       str
-    severity:     str = "medium"   # low | medium | high
+    claim_text: str
+    failure_type: str  # range | percentage | count | correlation | average
+    expected: str
+    actual: str
+    severity: str = "medium"  # low | medium | high
 
 
 class StatisticalValidator:
@@ -110,15 +111,20 @@ class StatisticalValidator:
                     stats = cp.get("stats") or {}
                     min_val = stats.get("min_val")
                     max_val = stats.get("max_val")
-                    if min_val is not None and max_val is not None:
-                        if not (float(min_val) <= value <= float(max_val)):
-                            failures.append(ValidationFailure(
+                    if (
+                        min_val is not None
+                        and max_val is not None
+                        and not (float(min_val) <= value <= float(max_val))
+                    ):
+                        failures.append(
+                            ValidationFailure(
                                 claim_text=text[:100],
                                 failure_type="range",
                                 expected=f"between {min_val} and {max_val}",
                                 actual=str(value),
                                 severity="high",
-                            ))
+                            )
+                        )
                     break
         return failures
 
@@ -134,13 +140,15 @@ class StatisticalValidator:
             except ValueError:
                 continue
             if value < 0 or value > 100:
-                failures.append(ValidationFailure(
-                    claim_text=text[:100],
-                    failure_type="percentage",
-                    expected="0% to 100%",
-                    actual=f"{value}%",
-                    severity="high",
-                ))
+                failures.append(
+                    ValidationFailure(
+                        claim_text=text[:100],
+                        failure_type="percentage",
+                        expected="0% to 100%",
+                        actual=f"{value}%",
+                        severity="high",
+                    )
+                )
         return failures
 
     @staticmethod
@@ -148,15 +156,15 @@ class StatisticalValidator:
         """Flag negative counts or obviously wrong row counts."""
         failures = []
         count_words = r"(?:count|total|number\s+of|sum\s+of|quantity\s+of)"
-        neg_pattern = re.compile(
-            rf"\b{count_words}\b.{{0,30}}-(\d+)\b", re.IGNORECASE
-        )
+        neg_pattern = re.compile(rf"\b{count_words}\b.{{0,30}}-(\d+)\b", re.IGNORECASE)
         for match in neg_pattern.finditer(text):
-            failures.append(ValidationFailure(
-                claim_text=text[:100],
-                failure_type="count",
-                expected="non-negative integer",
-                actual=f"-{match.group(1)}",
-                severity="medium",
-            ))
+            failures.append(
+                ValidationFailure(
+                    claim_text=text[:100],
+                    failure_type="count",
+                    expected="non-negative integer",
+                    actual=f"-{match.group(1)}",
+                    severity="medium",
+                )
+            )
         return failures

@@ -1,10 +1,11 @@
 """ProjectRepository — abstract port for Project entity persistence."""
+
 from __future__ import annotations
 
 from abc import abstractmethod
 
-from backend.shared.repository import Repository
 from backend.domain.workspace.entities.project import Project
+from backend.shared.repository import Repository
 
 
 class ProjectRepository(Repository[Project, str]):

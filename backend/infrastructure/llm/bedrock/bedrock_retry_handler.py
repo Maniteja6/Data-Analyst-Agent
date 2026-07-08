@@ -15,7 +15,7 @@ TooManyRequestsException     — alias for throttling in some SDK versions
 
 Non-retryable errors (propagated immediately)
 ---------------------------------------------
-ValidationException          — malformed request; retrying won't help
+ValidationError          — malformed request; retrying won't help
 ModelErrorException          — model returned a hard error (e.g. content policy)
 AccessDeniedException        — IAM permission missing; fix the role before retrying
 ResourceNotFoundException    — model ID does not exist in this region
@@ -44,37 +44,46 @@ The decorator is already applied in ``BedrockConverseAdapter.complete()``,
 Do not stack decorators — applying it to an adapter method and again to a
 caller will double the retry count.
 """
+
 from __future__ import annotations
 
 import asyncio
 import functools
 import random
+from collections.abc import Callable
+from typing import Any
 
 import structlog
 
 logger = structlog.get_logger(__name__)
 
 # Error codes that warrant a retry attempt
-RETRYABLE_ERROR_CODES: frozenset[str] = frozenset({
-    "ThrottlingException",
-    "ServiceUnavailableException",
-    "ModelNotReadyException",
-    "InternalServerException",
-    "TooManyRequestsException",
-    "RequestThrottledException",   # some SDK versions use this alias
-})
+RETRYABLE_ERROR_CODES: frozenset[str] = frozenset(
+    {
+        "ThrottlingException",
+        "ServiceUnavailableException",
+        "ModelNotReadyException",
+        "InternalServerException",
+        "TooManyRequestsException",
+        "RequestThrottledException",  # some SDK versions use this alias
+    }
+)
 
 # Error codes that should be propagated without retrying
-NON_RETRYABLE_ERROR_CODES: frozenset[str] = frozenset({
-    "ValidationException",
-    "ModelErrorException",
-    "AccessDeniedException",
-    "ResourceNotFoundException",
-    "ModelStreamErrorException",
-})
+NON_RETRYABLE_ERROR_CODES: frozenset[str] = frozenset(
+    {
+        "ValidationError",
+        "ModelErrorException",
+        "AccessDeniedException",
+        "ResourceNotFoundException",
+        "ModelStreamErrorException",
+    }
+)
 
 
-def with_bedrock_retry(fn=None, *, max_retries: int | None = None):
+def with_bedrock_retry(
+    fn: Callable[..., Any] | None = None, *, max_retries: int | None = None
+) -> Callable[..., Any]:
     """Decorator that retries Bedrock API calls on transient errors.
 
     Can be applied with or without arguments::
@@ -89,16 +98,17 @@ def with_bedrock_retry(fn=None, *, max_retries: int | None = None):
         fn:          The async function to wrap (when used without parentheses).
         max_retries: Override the default retry count from ``BedrockConfig``.
     """
-    def decorator(func):
+
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
             from backend.config.bedrock_config import get_bedrock_config
             from botocore.exceptions import ClientError
 
-            cfg      = get_bedrock_config()
-            retries  = max_retries if max_retries is not None else cfg.bedrock_max_retries
+            cfg = get_bedrock_config()
+            retries = max_retries if max_retries is not None else cfg.bedrock_max_retries
             base_del = cfg.bedrock_retry_base_delay_seconds
-            max_del  = cfg.bedrock_retry_max_delay_seconds
+            max_del = cfg.bedrock_retry_max_delay_seconds
 
             last_exc: Exception | None = None
 
@@ -141,8 +151,8 @@ def with_bedrock_retry(fn=None, *, max_retries: int | None = None):
 
                     # Compute jittered backoff delay
                     exponential = base_del * (2 ** (attempt - 1))
-                    jitter      = random.uniform(0, exponential * 0.5)
-                    delay       = min(exponential + jitter, max_del)
+                    jitter = random.uniform(0, exponential * 0.5)  # noqa: S311 — retry-backoff jitter, not cryptographic
+                    delay = min(exponential + jitter, max_del)
 
                     logger.warning(
                         "bedrock_retry",
@@ -172,8 +182,8 @@ def with_bedrock_retry(fn=None, *, max_retries: int | None = None):
                         raise
 
                     exponential = base_del * (2 ** (attempt - 1))
-                    jitter      = random.uniform(0, exponential * 0.5)
-                    delay       = min(exponential + jitter, max_del)
+                    jitter = random.uniform(0, exponential * 0.5)  # noqa: S311 — retry-backoff jitter, not cryptographic
+                    delay = min(exponential + jitter, max_del)
 
                     logger.warning(
                         "bedrock_unexpected_error_retry",

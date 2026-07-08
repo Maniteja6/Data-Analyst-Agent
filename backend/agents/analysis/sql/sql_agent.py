@@ -15,6 +15,7 @@ Retry strategy:
     retries once with an error-correction prompt telling the model what
     went wrong. BaseAgent provides outer retry for transient errors.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -34,18 +35,18 @@ class SQLAgent(BaseAgent):
     """NL→SQL→DuckDB agent for structured data queries."""
 
     ROW_LIMIT = 10_000
-    TIMEOUT   = 30
+    TIMEOUT = 30
 
-    def __init__(self, llm_client: Any) -> None:
+    def __init__(self, llm_client: Any) -> None:  # noqa: ANN401
         super().__init__("sql")
-        self._llm       = llm_client
+        self._llm = llm_client
         self._formatter = ResultFormatter()
 
     async def _execute(
         self,
         context: AgentContext,
         question: str = "",
-        **kwargs: Any,
+        **kwargs: Any,  # noqa: ANN401
     ) -> dict:
         """Generate SQL, validate, execute, and return formatted results.
 
@@ -57,8 +58,8 @@ class SQLAgent(BaseAgent):
             Dict with keys: question, generated_sql, rows, column_names,
             row_count, execution_time_ms, markdown_table, summary, error.
         """
-        schema       = context.schema or {}
-        storage_key  = context.storage_key
+        schema = context.schema or {}
+        storage_key = context.storage_key
 
         # ── Step 1: Generate SQL ──────────────────────────────────────────
         raw_sql = await generate_sql(question, schema, self._llm, self.ROW_LIMIT)
@@ -81,20 +82,20 @@ class SQLAgent(BaseAgent):
                 sql=safe_sql[:200],
             )
             return {
-                "question":     question,
+                "question": question,
                 "generated_sql": safe_sql,
-                "rows":         [],
+                "rows": [],
                 "column_names": [],
-                "row_count":    0,
+                "row_count": 0,
                 "markdown_table": "",
-                "summary":      f"Query failed: {exec_result['error']}",
-                "error":        exec_result["error"],
+                "summary": f"Query failed: {exec_result['error']}",
+                "error": exec_result["error"],
             }
 
         # ── Step 4: Format ────────────────────────────────────────────────
-        rows           = exec_result["rows"]
+        rows = exec_result["rows"]
         markdown_table = self._formatter.to_markdown_table(rows, max_rows=50)
-        summary        = self._formatter.summarise(rows)
+        summary = self._formatter.summarise(rows)
 
         logger.info(
             "sql_agent_complete",
@@ -104,17 +105,17 @@ class SQLAgent(BaseAgent):
         )
 
         return {
-            "question":          question,
-            "generated_sql":     safe_sql,
-            "rows":              rows,
-            "column_names":      exec_result["column_names"],
-            "row_count":         exec_result["row_count"],
+            "question": question,
+            "generated_sql": safe_sql,
+            "rows": rows,
+            "column_names": exec_result["column_names"],
+            "row_count": exec_result["row_count"],
             "execution_time_ms": exec_result["execution_time_ms"],
-            "truncated":         exec_result.get("truncated", False),
-            "markdown_table":    markdown_table,
-            "summary":           summary,
-            "vega_data":         self._formatter.to_vega_data(rows[:200]),
-            "error":             None,
+            "truncated": exec_result.get("truncated", False),
+            "markdown_table": markdown_table,
+            "summary": summary,
+            "vega_data": self._formatter.to_vega_data(rows[:200]),
+            "error": None,
         }
 
     async def _correction_attempt(
@@ -126,6 +127,7 @@ class SQLAgent(BaseAgent):
     ) -> str:
         """Ask the LLM to fix its own SQL given the error message."""
         from backend.infrastructure.llm.model_id_registry import get_model_id
+
         correction_prompt = (
             f"The following SQL query failed validation:\n\n{bad_sql}\n\n"
             f"Error: {error}\n\n"

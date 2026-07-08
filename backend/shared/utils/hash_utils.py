@@ -7,15 +7,16 @@ Used for:
   re-calling Bedrock for identical inputs.
 - Agent input/output hashes stored in agent_executions for audit trails.
 """
+
 from __future__ import annotations
 
 import hashlib
 import json
 
-
 # ---------------------------------------------------------------------------
 # SHA-256 helpers
 # ---------------------------------------------------------------------------
+
 
 def sha256_of_bytes(data: bytes) -> str:
     """Return the lowercase hex SHA-256 digest of a byte string.
@@ -55,6 +56,7 @@ def sha256_of_dict(data: dict) -> str:
 # Convenience: cache key builder
 # ---------------------------------------------------------------------------
 
+
 def llm_cache_key(model_id: str, prompt: str) -> str:
     """Build a stable cache key for an LLM (model, prompt) pair.
 
@@ -75,6 +77,7 @@ def file_chunk_key(dataset_id: str, chunk_index: int) -> str:
 # ---------------------------------------------------------------------------
 # Truncated hash (short IDs)
 # ---------------------------------------------------------------------------
+
 
 def short_hash(text: str, length: int = 8) -> str:
     """Return the first ``length`` hex characters of the SHA-256 of ``text``.

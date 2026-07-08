@@ -16,9 +16,12 @@ Batching:
     At ~200ms per Haiku call this processes 10 ambiguous columns in the
     same time as one.
 """
+
 from __future__ import annotations
 
+import contextlib
 import json
+from typing import Any
 
 import structlog
 from backend.agents.data.schema.type_inferencer import TypeInference
@@ -26,16 +29,25 @@ from backend.infrastructure.llm.model_id_registry import get_model_id
 
 logger = structlog.get_logger(__name__)
 
-VALID_SEMANTIC_TYPES = frozenset({
-    "identifier", "currency", "percentage", "date", "datetime",
-    "categorical", "free_text", "email", "phone",
-    "numeric_measure", "numeric_count", "boolean", "unknown",
-})
-
-_SYSTEM = (
-    "You are a data schema classifier. "
-    "Return ONLY valid JSON. No explanation. No markdown."
+VALID_SEMANTIC_TYPES = frozenset(
+    {
+        "identifier",
+        "currency",
+        "percentage",
+        "date",
+        "datetime",
+        "categorical",
+        "free_text",
+        "email",
+        "phone",
+        "numeric_measure",
+        "numeric_count",
+        "boolean",
+        "unknown",
+    }
 )
+
+_SYSTEM = "You are a data schema classifier. Return ONLY valid JSON. No explanation. No markdown."
 
 
 class SemanticClassifier:
@@ -46,13 +58,13 @@ class SemanticClassifier:
                     When None, all ambiguous columns remain 'unknown'.
     """
 
-    def __init__(self, llm_client=None) -> None:
+    def __init__(self, llm_client: Any = None) -> None:  # noqa: ANN401
         self._llm = llm_client
 
     async def classify_batch(
         self,
         inferences: list[TypeInference],
-        sio=None,
+        sio: Any = None,  # noqa: ANN401
         dataset_id: str = "",
     ) -> dict[str, str]:
         """Classify all ambiguous columns in a single LLM call.
@@ -85,19 +97,17 @@ class SemanticClassifier:
         # Emit real-time Socket.IO events for each resolved column
         if sio and dataset_id:
             for col_name, semantic_type in results.items():
-                try:
+                with contextlib.suppress(Exception):
                     await sio.emit(
                         "schema:column_classified",
                         {
-                            "dataset_id":    dataset_id,
-                            "column_name":   col_name,
+                            "dataset_id": dataset_id,
+                            "column_name": col_name,
                             "semantic_type": semantic_type,
-                            "source":        "llm",
+                            "source": "llm",
                         },
                         room=f"dataset:{dataset_id}",
                     )
-                except Exception:
-                    pass
 
         logger.info(
             "semantic_batch_classified",
@@ -141,16 +151,19 @@ class SemanticClassifier:
 
     @staticmethod
     def _build_batch_prompt(inferences: list[TypeInference]) -> str:
-        cols_json = json.dumps([
-            {
-                "name":          inf.column_name,
-                "data_type":     inf.data_type,
-                "sample_values": inf.sample_values[:5],
-                "null_rate_pct": round(inf.null_rate * 100, 1),
-                "unique_count":  inf.unique_count,
-            }
-            for inf in inferences
-        ], indent=2)
+        cols_json = json.dumps(
+            [
+                {
+                    "name": inf.column_name,
+                    "data_type": inf.data_type,
+                    "sample_values": inf.sample_values[:5],
+                    "null_rate_pct": round(inf.null_rate * 100, 1),
+                    "unique_count": inf.unique_count,
+                }
+                for inf in inferences
+            ],
+            indent=2,
+        )
 
         return (
             f"Classify the semantic type of each dataset column.\n\n"
@@ -168,7 +181,9 @@ class SemanticClassifier:
         """Parse the LLM batch response into a column → type dict."""
         text = raw.strip()
         if text.startswith("```"):
-             text = "\n".join(line for line in text.splitlines() if not line.startswith("`""`")).strip()
+            text = "\n".join(
+                line for line in text.splitlines() if not line.startswith("``")
+            ).strip()
 
         # Build fallback using current (pre-LLM) types
         fallback = {inf.column_name: inf.semantic_type for inf in inferences}
@@ -180,7 +195,7 @@ class SemanticClassifier:
 
             results = dict(fallback)
             for item in data:
-                name  = item.get("name", "")
+                name = item.get("name", "")
                 stype = item.get("semantic_type", "unknown")
                 if name in results and stype in VALID_SEMANTIC_TYPES:
                     results[name] = stype

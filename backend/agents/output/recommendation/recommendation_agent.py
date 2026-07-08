@@ -14,8 +14,10 @@ Socket.IO events emitted:
     recommendation:ready  — per recommendation with estimated_impact dict
     recommendation:complete — full list of recommendations
 """
+
 from __future__ import annotations
 
+import contextlib
 import json
 import re
 from typing import Any
@@ -28,10 +30,7 @@ from backend.infrastructure.llm.model_id_registry import get_model_id
 
 logger = structlog.get_logger(__name__)
 
-_SYSTEM = (
-    "You are a strategic business advisor. "
-    "Return ONLY valid JSON. No markdown. No preamble."
-)
+_SYSTEM = "You are a strategic business advisor. Return ONLY valid JSON. No markdown. No preamble."
 _MAX_TOKENS = 1200
 
 
@@ -42,21 +41,21 @@ class RecommendationAgent(BaseAgent):
         llm_client: Claude Sonnet client for recommendation generation.
     """
 
-    def __init__(self, llm_client: Any = None) -> None:
+    def __init__(self, llm_client: Any = None) -> None:  # noqa: ANN401
         super().__init__("recommendation")
-        self._llm       = llm_client
+        self._llm = llm_client
         self._estimator = ImpactEstimator()
 
-    async def _execute(self, context: AgentContext, **kwargs: Any) -> dict:
+    async def _execute(self, context: AgentContext, **kwargs: Any) -> dict:  # noqa: ANN401
         """Generate recommendations from the current InsightReport.
 
         Returns:
             Dict with key ``recommendations``: list of 3 recommendation dicts,
             each with estimated_impact embedded.
         """
-        sio        = context._sio
+        sio = context._sio
         dataset_id = context.dataset_id
-        insights   = context.insight_results or []
+        insights = context.insight_results or []
 
         # Check for InsightReport passed directly (from report generator)
         insight_report = kwargs.get("insight_report", {})
@@ -67,14 +66,12 @@ class RecommendationAgent(BaseAgent):
             return {"recommendations": []}
 
         if sio and dataset_id:
-            try:
+            with contextlib.suppress(Exception):
                 await sio.emit(
                     "recommendation:start",
                     {"dataset_id": dataset_id},
                     room=f"dataset:{dataset_id}",
                 )
-            except Exception:
-                pass
 
         await context.push_progress(93, "Generating recommendations…", step="recommendation")
 
@@ -82,7 +79,7 @@ class RecommendationAgent(BaseAgent):
         recommendations = await self._generate(insights, context.schema or {})
 
         # Estimate impact for each recommendation
-        anomaly_count  = len(context.anomaly_results or [])
+        anomaly_count = len(context.anomaly_results or [])
         forecast_trend = self._extract_trend(context.forecast_results or [])
 
         self._estimator.batch_estimate(
@@ -95,38 +92,32 @@ class RecommendationAgent(BaseAgent):
 
         # Sort by priority: high → medium → low
         priority_order = {"high": 0, "medium": 1, "low": 2}
-        recommendations.sort(
-             key=lambda r: priority_order.get(r.get("priority", "low"), 2)
-        )
+        recommendations.sort(key=lambda r: priority_order.get(r.get("priority", "low"), 2))
 
         # Emit each recommendation progressively
         if sio and dataset_id:
             for i, rec in enumerate(recommendations):
-                try:
+                with contextlib.suppress(Exception):
                     await sio.emit(
                         "recommendation:ready",
                         {
-                            "dataset_id":       dataset_id,
-                            "rec_index":        i,
-                            "recommendation":   rec,
+                            "dataset_id": dataset_id,
+                            "rec_index": i,
+                            "recommendation": rec,
                         },
                         room=f"dataset:{dataset_id}",
                     )
-                except Exception:
-                    pass
 
         if sio and dataset_id:
-            try:
+            with contextlib.suppress(Exception):
                 await sio.emit(
                     "recommendation:complete",
                     {
-                        "dataset_id":           dataset_id,
+                        "dataset_id": dataset_id,
                         "recommendation_count": len(recommendations),
                     },
                     room=f"dataset:{dataset_id}",
                 )
-            except Exception:
-                pass
 
         context.recommendations = recommendations
         logger.info(
@@ -142,18 +133,21 @@ class RecommendationAgent(BaseAgent):
         if not self._llm:
             return self._fallback_recommendations(insights)
 
-        col_count   = schema.get("column_count", len(schema.get("columns", [])))
-        row_count   = schema.get("row_count_sample", 0)
-        col_names   = [c["name"] for c in schema.get("columns", [])[:10]]
+        col_count = schema.get("column_count", len(schema.get("columns", [])))
+        row_count = schema.get("row_count_sample", 0)
+        col_names = [c["name"] for c in schema.get("columns", [])[:10]]
 
-        insights_json = json.dumps([
-            {
-                "headline":        ins.get("headline", ""),
-                "business_impact": ins.get("business_impact", "medium"),
-                "confidence":      ins.get("confidence", 0.8),
-            }
-            for ins in insights[:5]
-        ], indent=2)
+        insights_json = json.dumps(
+            [
+                {
+                    "headline": ins.get("headline", ""),
+                    "business_impact": ins.get("business_impact", "medium"),
+                    "confidence": ins.get("confidence", 0.8),
+                }
+                for ins in insights[:5]
+            ],
+            indent=2,
+        )
 
         prompt = (
             f"Convert these data insights into 3 actionable business recommendations.\n\n"
@@ -173,7 +167,7 @@ class RecommendationAgent(BaseAgent):
             "]"
         )
         try:
-            raw  = await self._llm.complete(
+            raw = await self._llm.complete(
                 prompt=prompt,
                 system=_SYSTEM,
                 model_id=get_model_id("planner"),
@@ -193,7 +187,9 @@ class RecommendationAgent(BaseAgent):
     def _parse_response(raw: str) -> list[dict]:
         text = raw.strip()
         if text.startswith("```"):
-             text = "\n".join(line for line in text.splitlines() if not line.startswith("`""`")).strip()
+            text = "\n".join(
+                line for line in text.splitlines() if not line.startswith("``")
+            ).strip()
         try:
             data = json.loads(text)
             if isinstance(data, list):
@@ -220,10 +216,10 @@ class RecommendationAgent(BaseAgent):
         top = insights[0]
         return [
             {
-                "title":            f"Address: {top.get('headline', 'key finding')[:40]}",
-                "priority":         top.get("business_impact", "medium"),
-                "situation":        top.get("explanation", "")[:150],
-                "action":           "Review this finding with your data team and define next steps.",
+                "title": f"Address: {top.get('headline', 'key finding')[:40]}",
+                "priority": top.get("business_impact", "medium"),
+                "situation": top.get("explanation", "")[:150],
+                "action": "Review this finding with your data team and define next steps.",
                 "estimated_impact": "Impact estimation requires LLM integration.",
             }
         ]

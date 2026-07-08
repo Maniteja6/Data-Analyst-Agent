@@ -8,15 +8,19 @@ Real-time design:
     Histogram data is intentionally compact — only bin_edges and bin_counts
     are sent (Vega-Lite can compute display labels client-side).
 """
+
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from backend.domain.analytics.value_objects.histogram import Histogram
 
 
 class HistogramBuilder:
     """Converts Histogram value objects to JSON-serialisable dicts."""
 
-    def to_dict(self, histogram) -> dict[str, Any] | None:
+    def to_dict(self, histogram: Histogram | None) -> dict[str, Any] | None:
         """Convert a Histogram VO to a dict for Socket.IO / API responses.
 
         Args:
@@ -30,16 +34,16 @@ class HistogramBuilder:
             return None
 
         return {
-            "type":        getattr(histogram, "histogram_type", "numeric"),
-            "bin_edges":   _safe_list(getattr(histogram, "bin_edges",  [])),
-            "bin_counts":  _safe_list(getattr(histogram, "bin_counts", [])),
-            "bin_labels":  _safe_list(getattr(histogram, "bin_labels", [])),
+            "type": getattr(histogram, "histogram_type", "numeric"),
+            "bin_edges": _safe_list(getattr(histogram, "bin_edges", [])),
+            "bin_counts": _safe_list(getattr(histogram, "bin_counts", [])),
+            "bin_labels": _safe_list(getattr(histogram, "bin_labels", [])),
             "total_count": int(getattr(histogram, "total_count", 0)),
         }
 
     def to_vega_histogram(
         self,
-        histogram,
+        histogram: Histogram | None,
         column_name: str,
         color: str = "#5B4FE8",
     ) -> dict[str, Any] | None:
@@ -58,7 +62,7 @@ class HistogramBuilder:
             return None
 
         # Build values array for Vega-Lite
-        bin_edges  = h["bin_edges"]
+        bin_edges = h["bin_edges"]
         bin_counts = h["bin_counts"]
         bin_labels = h.get("bin_labels") or []
 
@@ -66,22 +70,27 @@ class HistogramBuilder:
             # Categorical histogram (value_counts format)
             values = [
                 {"label": label, "count": count}
-                for label, count in zip(bin_labels, bin_counts)
+                for label, count in zip(bin_labels, bin_counts, strict=False)
             ]
             return {
                 "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
-                "mark":    {"type": "bar", "color": color},
-                "data":    {"values": values},
+                "mark": {"type": "bar", "color": color},
+                "data": {"values": values},
                 "encoding": {
-                    "x": {"field": "label", "type": "nominal", "title": column_name,
-                          "axis": {"labelAngle": -30}},
+                    "x": {
+                        "field": "label",
+                        "type": "nominal",
+                        "title": column_name,
+                        "axis": {"labelAngle": -30},
+                    },
                     "y": {"field": "count", "type": "quantitative", "title": "Count"},
                     "tooltip": [
                         {"field": "label", "type": "nominal"},
                         {"field": "count", "type": "quantitative"},
                     ],
                 },
-                "width": "container", "height": 180,
+                "width": "container",
+                "height": 180,
             }
         elif len(bin_edges) >= 2:
             # Numeric histogram (pre-binned)
@@ -91,25 +100,31 @@ class HistogramBuilder:
             ]
             return {
                 "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
-                "mark":    {"type": "bar", "color": color},
-                "data":    {"values": values},
+                "mark": {"type": "bar", "color": color},
+                "data": {"values": values},
                 "encoding": {
-                    "x": {"field": "bin_start", "type": "quantitative", "title": column_name,
-                          "bin": {"binned": True}, "scale": {"zero": False}},
+                    "x": {
+                        "field": "bin_start",
+                        "type": "quantitative",
+                        "title": column_name,
+                        "bin": {"binned": True},
+                        "scale": {"zero": False},
+                    },
                     "x2": {"field": "bin_end"},
                     "y": {"field": "count", "type": "quantitative", "title": "Count"},
                     "tooltip": [
                         {"field": "bin_start", "type": "quantitative", "title": "From"},
-                        {"field": "bin_end",   "type": "quantitative", "title": "To"},
-                        {"field": "count",     "type": "quantitative"},
+                        {"field": "bin_end", "type": "quantitative", "title": "To"},
+                        {"field": "count", "type": "quantitative"},
                     ],
                 },
-                "width": "container", "height": 180,
+                "width": "container",
+                "height": 180,
             }
         return None
 
 
-def _safe_list(value) -> list:
+def _safe_list(value: Any) -> list:  # noqa: ANN401
     """Coerce to a plain Python list for JSON serialisation."""
     if value is None:
         return []

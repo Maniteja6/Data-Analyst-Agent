@@ -29,8 +29,10 @@ Socket.IO events emitted:
     critic:approved          — when insights pass all criteria
     critic:round_complete    — after each revision round
 """
+
 from __future__ import annotations
 
+import contextlib
 import json
 import re
 from typing import Any
@@ -46,8 +48,8 @@ _SYSTEM = (
     "You are a data quality auditor for business analytics reports. "
     "Return ONLY valid JSON. No markdown. No explanation."
 )
-_MAX_TOKENS      = 1500
-_APPROVAL_THRESHOLD = 0.75   # insights scoring below this trigger revision
+_MAX_TOKENS = 1500
+_APPROVAL_THRESHOLD = 0.75  # insights scoring below this trigger revision
 
 
 class CriticAgent(BaseAgent):
@@ -57,11 +59,11 @@ class CriticAgent(BaseAgent):
         llm_client: Claude Sonnet for critique generation.
     """
 
-    def __init__(self, llm_client=None) -> None:
+    def __init__(self, llm_client: Any = None) -> None:  # noqa: ANN401
         super().__init__("critic")
         self._llm = llm_client
 
-    async def _execute(self, context: AgentContext, **kwargs: Any) -> dict:
+    async def _execute(self, context: AgentContext, **kwargs: Any) -> dict:  # noqa: ANN401
         """Critique the current insight results and return a structured critique.
 
         Args:
@@ -71,28 +73,26 @@ class CriticAgent(BaseAgent):
             Dict with keys: approved (bool), overall_score (float),
             issues (list[dict]), revised_insights (list), round (int).
         """
-        sio        = context._sio
+        sio = context._sio
         dataset_id = context.dataset_id
-        insights   = context.insight_results or []
-        profile    = context.profile or {}
+        insights = context.insight_results or []
+        profile = context.profile or {}
 
         # Pull revision round from context metadata
         current_round = context.get("critic_revision_round", 0)
 
         # Notify frontend critique is starting
         if sio and dataset_id:
-            try:
+            with contextlib.suppress(Exception):
                 await sio.emit(
                     "critic:reviewing",
                     {
-                        "dataset_id":  dataset_id,
+                        "dataset_id": dataset_id,
                         "insight_count": len(insights),
-                        "round":       current_round + 1,
+                        "round": current_round + 1,
                     },
                     room=f"dataset:{dataset_id}",
                 )
-            except Exception:
-                pass
 
         await context.push_progress(
             88,
@@ -106,64 +106,58 @@ class CriticAgent(BaseAgent):
         # Emit per-issue events for real-time issue stream
         if sio and dataset_id and critique.get("issues"):
             for issue in critique["issues"]:
-                try:
+                with contextlib.suppress(Exception):
                     await sio.emit(
                         "critic:issue_found",
                         {
-                            "dataset_id":    dataset_id,
-                            "issue":         issue,
-                            "round":         current_round + 1,
+                            "dataset_id": dataset_id,
+                            "issue": issue,
+                            "round": current_round + 1,
                         },
                         room=f"dataset:{dataset_id}",
                     )
-                except Exception:
-                    pass
 
         approved = critique.get("overall_score", 1.0) >= _APPROVAL_THRESHOLD
 
         # Emit approval or revision_needed
         if sio and dataset_id:
             event = "critic:approved" if approved else "critic:revision_needed"
-            try:
+            with contextlib.suppress(Exception):
                 await sio.emit(
                     event,
                     {
-                        "dataset_id":    dataset_id,
+                        "dataset_id": dataset_id,
                         "overall_score": critique.get("overall_score", 0.0),
-                        "issue_count":   len(critique.get("issues", [])),
-                        "round":         current_round + 1,
+                        "issue_count": len(critique.get("issues", [])),
+                        "round": current_round + 1,
                     },
                     room=f"dataset:{dataset_id}",
                 )
-            except Exception:
-                pass
 
         # Update revision round counter
         context.set("critic_revision_round", current_round + 1)
 
         result = {
-            "approved":          approved,
-            "overall_score":     critique.get("overall_score", 0.0),
-            "issues":            critique.get("issues", []),
-            "revised_insights":  critique.get("revised_insights", []),
-            "round":             current_round + 1,
+            "approved": approved,
+            "overall_score": critique.get("overall_score", 0.0),
+            "issues": critique.get("issues", []),
+            "revised_insights": critique.get("revised_insights", []),
+            "round": current_round + 1,
         }
 
         # Emit round_complete with timing info
         if sio and dataset_id:
-            try:
+            with contextlib.suppress(Exception):
                 await sio.emit(
                     "critic:round_complete",
                     {
                         "dataset_id": dataset_id,
-                        "approved":   approved,
-                        "round":      current_round + 1,
-                        "score":      result["overall_score"],
+                        "approved": approved,
+                        "round": current_round + 1,
+                        "score": result["overall_score"],
                     },
                     room=f"dataset:{dataset_id}",
                 )
-            except Exception:
-                pass
 
         logger.info(
             "critic_agent_complete",
@@ -181,17 +175,20 @@ class CriticAgent(BaseAgent):
         if not self._llm or not insights:
             return {"approved": True, "overall_score": 1.0, "issues": [], "revised_insights": []}
 
-        insights_json = json.dumps([
-            {
-                "index":           i,
-                "headline":        ins.get("headline", ""),
-                "explanation":     ins.get("explanation", ""),
-                "business_impact": ins.get("business_impact", ""),
-                "confidence":      ins.get("confidence", 0.0),
-                "source_columns":  ins.get("source_columns", []),
-            }
-            for i, ins in enumerate(insights[:5])
-        ], indent=2)
+        insights_json = json.dumps(
+            [
+                {
+                    "index": i,
+                    "headline": ins.get("headline", ""),
+                    "explanation": ins.get("explanation", ""),
+                    "business_impact": ins.get("business_impact", ""),
+                    "confidence": ins.get("confidence", 0.0),
+                    "source_columns": ins.get("source_columns", []),
+                }
+                for i, ins in enumerate(insights[:5])
+            ],
+            indent=2,
+        )
 
         profile_summary = (
             f"Rows: {profile.get('row_count', 0):,} | "
@@ -215,20 +212,20 @@ class CriticAgent(BaseAgent):
             "{\n"
             '  "overall_score": 0.87,\n'
             '  "issues": [\n'
-            '    {\n'
+            "    {\n"
             '      "insight_index": 0,\n'
             '      "criterion": "specificity",\n'
             '      "severity": "high|medium|low",\n'
             '      "description": "specific description of the issue",\n'
             '      "suggested_fix": "how to correct it"\n'
-            '    }\n'
-            '  ],\n'
+            "    }\n"
+            "  ],\n"
             '  "revised_insights": []\n'
             "}"
         )
 
         try:
-            raw  = await self._llm.complete(
+            raw = await self._llm.complete(
                 prompt=prompt,
                 system=_SYSTEM,
                 model_id=get_model_id("planner"),
@@ -247,7 +244,9 @@ class CriticAgent(BaseAgent):
     def _parse_json(raw: str) -> dict | None:
         text = raw.strip()
         if text.startswith("```"):
-             text = "\n".join(line for line in text.splitlines() if not line.startswith("`""`")).strip()
+            text = "\n".join(
+                line for line in text.splitlines() if not line.startswith("``")
+            ).strip()
         try:
             return json.loads(text)
         except json.JSONDecodeError:

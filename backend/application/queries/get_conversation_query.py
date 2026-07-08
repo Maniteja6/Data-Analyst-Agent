@@ -1,5 +1,7 @@
 """GetConversationQuery — query DTO for retrieving a Conversation."""
+
 from __future__ import annotations
+
 from dataclasses import dataclass
 
 
@@ -12,5 +14,5 @@ class GetConversationQuery:
 @dataclass(frozen=True)
 class ListConversationsQuery:
     dataset_id: str
-    limit:      int  = 20
-    offset:     int  = 0
+    limit: int = 20
+    offset: int = 0

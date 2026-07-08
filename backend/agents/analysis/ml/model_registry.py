@@ -3,6 +3,7 @@
 Optional — only activates when MLflow is installed and
 ``MLFLOW_TRACKING_URI`` is set in the environment.
 """
+
 from __future__ import annotations
 
 import structlog
@@ -27,19 +28,24 @@ def log_model(
     """
     try:
         import mlflow
+
         mlflow.set_experiment(experiment_name)
         with mlflow.start_run():
-            mlflow.log_params({
-                "task":        model_result.get("task"),
-                "target":      model_result.get("target"),
-                "model_type":  model_result.get("model_type", "Unknown"),
-                "feature_count": model_result.get("feature_count", 0),
-                "training_rows": model_result.get("training_rows", 0),
-            })
-            mlflow.log_metrics({
-                "cv_score_mean": model_result.get("cv_score_mean", 0.0),
-                "cv_score_std":  model_result.get("cv_score_std", 0.0),
-            })
+            mlflow.log_params(
+                {
+                    "task": model_result.get("task"),
+                    "target": model_result.get("target"),
+                    "model_type": model_result.get("model_type", "Unknown"),
+                    "feature_count": model_result.get("feature_count", 0),
+                    "training_rows": model_result.get("training_rows", 0),
+                }
+            )
+            mlflow.log_metrics(
+                {
+                    "cv_score_mean": model_result.get("cv_score_mean", 0.0),
+                    "cv_score_std": model_result.get("cv_score_std", 0.0),
+                }
+            )
             run_id = mlflow.active_run().info.run_id
             logger.info("mlflow_run_logged", run_id=run_id, experiment=experiment_name)
             return run_id
@@ -59,8 +65,9 @@ def get_best_run(experiment_name: str = DEFAULT_EXPERIMENT) -> dict | None:
     """
     try:
         import mlflow
+
         client = mlflow.tracking.MlflowClient()
-        exp    = client.get_experiment_by_name(experiment_name)
+        exp = client.get_experiment_by_name(experiment_name)
         if not exp:
             return None
         runs = client.search_runs(
@@ -72,10 +79,10 @@ def get_best_run(experiment_name: str = DEFAULT_EXPERIMENT) -> dict | None:
             return None
         run = runs[0]
         return {
-            "run_id":        run.info.run_id,
+            "run_id": run.info.run_id,
             "cv_score_mean": run.data.metrics.get("cv_score_mean"),
-            "task":          run.data.params.get("task"),
-            "target":        run.data.params.get("target"),
+            "task": run.data.params.get("task"),
+            "target": run.data.params.get("target"),
         }
     except Exception as exc:
         logger.debug("mlflow_get_best_run_failed", error=str(exc))

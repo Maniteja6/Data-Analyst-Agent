@@ -1,19 +1,25 @@
 """DataProfiler — orchestrates per-column profiling and produces a DataProfile."""
+
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 import structlog
-
-from backend.analytics_engine.profiling.numeric_profiler     import NumericProfiler
 from backend.analytics_engine.profiling.categorical_profiler import CategoricalProfiler
-from backend.analytics_engine.profiling.datetime_profiler    import DatetimeProfiler
-from backend.analytics_engine.profiling.text_profiler        import TextProfiler
-from backend.domain.analytics.entities.analysis_session      import AnalysisSession
-from backend.domain.analytics.entities.data_profile          import DataProfile
-from backend.domain.analytics.entities.column_profile        import ColumnProfile, ColumnKind
+from backend.analytics_engine.profiling.datetime_profiler import DatetimeProfiler
+from backend.analytics_engine.profiling.numeric_profiler import NumericProfiler
+from backend.analytics_engine.profiling.text_profiler import TextProfiler
+from backend.domain.analytics.entities.column_profile import ColumnKind, ColumnProfile
+from backend.domain.analytics.entities.data_profile import DataProfile
 from backend.shared.utils.uuid_factory import new_uuid
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
+
+    DataFrameT = pl.DataFrame | pd.DataFrame
 
 logger = structlog.get_logger(__name__)
 
@@ -26,33 +32,38 @@ class DataProfiler:
         sample_size: int = 100_000,
         top_n_values: int = 20,
     ) -> None:
-        self._numeric      = NumericProfiler(sample_size=sample_size)
-        self._categorical  = CategoricalProfiler(top_n=top_n_values)
-        self._datetime_p   = DatetimeProfiler()
-        self._text         = TextProfiler()
+        self._numeric = NumericProfiler(sample_size=sample_size)
+        self._categorical = CategoricalProfiler(top_n=top_n_values)
+        self._datetime_p = DatetimeProfiler()
+        self._text = TextProfiler()
 
-    async def profile(self, df, session_id: str = "", dataset_id: str = "") -> DataProfile:
+    async def profile(
+        self, df: DataFrameT, session_id: str = "", dataset_id: str = ""
+    ) -> DataProfile:
         """Run all column profilers and return a DataProfile entity.
 
         Profiling is offloaded to a thread-pool executor so it doesn't
         block the event loop.
         """
-        loop   = asyncio.get_event_loop()
-        result = await loop.run_in_executor(None, lambda: self._profile_sync(df, session_id, dataset_id))
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None, lambda: self._profile_sync(df, session_id, dataset_id)
+        )
         return result
 
-    def _profile_sync(self, df, session_id: str, dataset_id: str) -> DataProfile:
+    def _profile_sync(self, df: DataFrameT, session_id: str, dataset_id: str) -> DataProfile:
         """Synchronous profiling implementation run in a thread."""
         column_profiles: list[ColumnProfile] = []
 
         try:
             import polars as pl
+
             is_polars = isinstance(df, pl.DataFrame)
         except ImportError:
             is_polars = False
 
-        row_count     = len(df)
-        col_count     = len(df.columns) if is_polars else len(df.columns)
+        row_count = len(df)
+        col_count = len(df.columns) if is_polars else len(df.columns)
         duplicate_count = self._count_duplicates(df, is_polars)
 
         for col in df.columns:
@@ -63,10 +74,10 @@ class DataProfiler:
                 logger.warning("column_profile_failed", column=col, error=str(exc))
 
         # Compute dataset-level completeness
-        total_cells    = row_count * col_count
-        null_cells     = sum(cp.null_count for cp in column_profiles)
-        completeness   = round(1 - (null_cells / total_cells), 6) if total_cells > 0 else 1.0
-        consistency    = round(1 - (duplicate_count / row_count), 6) if row_count > 0 else 1.0
+        total_cells = row_count * col_count
+        null_cells = sum(cp.null_count for cp in column_profiles)
+        completeness = round(1 - (null_cells / total_cells), 6) if total_cells > 0 else 1.0
+        consistency = round(1 - (duplicate_count / row_count), 6) if row_count > 0 else 1.0
 
         profile = DataProfile(
             id=new_uuid(),
@@ -78,7 +89,7 @@ class DataProfiler:
             completeness_score=completeness,
             consistency_score=consistency,
             column_profiles=column_profiles,
-            profiled_at=datetime.now(timezone.utc),
+            profiled_at=datetime.now(UTC),
         )
         logger.info(
             "profiling_complete",
@@ -89,13 +100,15 @@ class DataProfiler:
         )
         return profile
 
-    def _profile_column(self, df, column: str, total_rows: int, is_polars: bool) -> ColumnProfile:
+    def _profile_column(
+        self, df: DataFrameT, column: str, total_rows: int, is_polars: bool
+    ) -> ColumnProfile:
         """Profile one column and return a ColumnProfile entity."""
         kind, data_type = self._detect_kind(df, column, is_polars)
 
-        null_count   = self._null_count(df, column, is_polars)
+        null_count = self._null_count(df, column, is_polars)
         unique_count = self._unique_count(df, column, is_polars)
-        sample_vals  = self._sample_values(df, column, is_polars)
+        sample_vals = self._sample_values(df, column, is_polars)
 
         cp = ColumnProfile(
             id=new_uuid(),
@@ -111,13 +124,13 @@ class DataProfiler:
 
         if kind == ColumnKind.NUMERIC:
             stats, histogram = self._numeric.profile(df, column)
-            cp.stats         = stats
-            cp.histogram     = histogram
+            cp.stats = stats
+            cp.histogram = histogram
 
         elif kind == ColumnKind.TEXT:
             top_values, histogram = self._categorical.profile(df, column)
             cp.top_values = top_values
-            cp.histogram  = histogram
+            cp.histogram = histogram
 
         elif kind == ColumnKind.DATETIME:
             _ = self._datetime_p.profile(df, column)
@@ -127,15 +140,26 @@ class DataProfiler:
     # ── Detection helpers ─────────────────────────────────────────────────
 
     @staticmethod
-    def _detect_kind(df, column: str, is_polars: bool) -> tuple[ColumnKind, str]:
+    def _detect_kind(df: DataFrameT, column: str, is_polars: bool) -> tuple[ColumnKind, str]:
         """Return (ColumnKind, dtype_string) for a column."""
         try:
             if is_polars:
                 import polars as pl
+
                 dtype = df[column].dtype
                 dtype_str = str(dtype)
-                if dtype in (pl.Float32, pl.Float64, pl.Int8, pl.Int16, pl.Int32, pl.Int64,
-                             pl.UInt8, pl.UInt16, pl.UInt32, pl.UInt64):
+                if dtype in (
+                    pl.Float32,
+                    pl.Float64,
+                    pl.Int8,
+                    pl.Int16,
+                    pl.Int32,
+                    pl.Int64,
+                    pl.UInt8,
+                    pl.UInt16,
+                    pl.UInt32,
+                    pl.UInt64,
+                ):
                     return ColumnKind.NUMERIC, dtype_str
                 if dtype in (pl.Date, pl.Datetime, pl.Time, pl.Duration):
                     return ColumnKind.DATETIME, dtype_str
@@ -144,6 +168,7 @@ class DataProfiler:
                 return ColumnKind.TEXT, dtype_str
             else:
                 import numpy as np
+
                 dtype = df[column].dtype
                 if np.issubdtype(dtype, np.number):
                     return ColumnKind.NUMERIC, str(dtype)
@@ -156,7 +181,7 @@ class DataProfiler:
             return ColumnKind.UNKNOWN, "unknown"
 
     @staticmethod
-    def _null_count(df, column: str, is_polars: bool) -> int:
+    def _null_count(df: DataFrameT, column: str, is_polars: bool) -> int:
         try:
             if is_polars:
                 return int(df[column].null_count())
@@ -165,7 +190,7 @@ class DataProfiler:
             return 0
 
     @staticmethod
-    def _unique_count(df, column: str, is_polars: bool) -> int:
+    def _unique_count(df: DataFrameT, column: str, is_polars: bool) -> int:
         try:
             if is_polars:
                 return int(df[column].drop_nulls().n_unique())
@@ -174,7 +199,7 @@ class DataProfiler:
             return 0
 
     @staticmethod
-    def _sample_values(df, column: str, is_polars: bool, n: int = 5) -> list[str]:
+    def _sample_values(df: DataFrameT, column: str, is_polars: bool, n: int = 5) -> list[str]:
         try:
             if is_polars:
                 vals = df[column].drop_nulls().head(n).to_list()
@@ -185,7 +210,7 @@ class DataProfiler:
             return []
 
     @staticmethod
-    def _count_duplicates(df, is_polars: bool) -> int:
+    def _count_duplicates(df: DataFrameT, is_polars: bool) -> int:
         try:
             if is_polars:
                 return len(df) - len(df.unique())

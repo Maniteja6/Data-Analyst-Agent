@@ -20,6 +20,10 @@ from backend.agents.quality.security.pii_detector import detect_pii_sync
 from backend.agents.quality.security.security_agent import SecurityAgent
 
 __all__ = [
-    "SecurityAgent", "GovernanceEngine", "Policy", "Action",
-    "classify_injection", "detect_pii_sync",
+    "SecurityAgent",
+    "GovernanceEngine",
+    "Policy",
+    "Action",
+    "classify_injection",
+    "detect_pii_sync",
 ]

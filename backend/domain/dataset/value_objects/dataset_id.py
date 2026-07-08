@@ -1,4 +1,5 @@
 """DatasetId value object — typed UUID identity for Dataset aggregates."""
+
 from __future__ import annotations
 
 import uuid
@@ -29,20 +30,20 @@ class DatasetId(ValueObject):
     def _validate(self) -> None:
         try:
             uuid.UUID(self.value)
-        except (ValueError, AttributeError):
+        except (ValueError, AttributeError) as exc:
             raise ValueError(
                 f"DatasetId must be a valid UUID4 string, got: {self.value!r}"
-            )
+            ) from exc
 
     @classmethod
-    def generate(cls) -> "DatasetId":
+    def generate(cls) -> DatasetId:
         """Factory — creates a new random DatasetId."""
         return cls(value=str(uuid.uuid4()))
 
     @classmethod
-    def from_string(cls, value: str) -> "DatasetId":
+    def from_string(cls, value: str) -> DatasetId:
         """Parse a string into a DatasetId, normalising to lowercase hyphenated form."""
-        normalised = str(uuid.UUID(value))   # raises ValueError if invalid
+        normalised = str(uuid.UUID(value))  # raises ValueError if invalid
         return cls(value=normalised)
 
     def __str__(self) -> str:

@@ -15,15 +15,19 @@ Pipeline stages (executed sequentially within one task):
 Progress is written to Redis at each stage so the WebSocket gateway can
 push real-time updates to the browser's upload progress bar.
 """
+
 from __future__ import annotations
 
 import asyncio
 import time
-from typing import Any
+from datetime import UTC
+from typing import TYPE_CHECKING, Any
 
 import structlog
-
 from backend.infrastructure.job_queue.celery_app import celery_app
+
+if TYPE_CHECKING:
+    from celery import Task
 
 logger = structlog.get_logger(__name__)
 
@@ -31,6 +35,7 @@ logger = structlog.get_logger(__name__)
 # ---------------------------------------------------------------------------
 # Main pipeline task
 # ---------------------------------------------------------------------------
+
 
 @celery_app.task(
     bind=True,
@@ -40,7 +45,7 @@ logger = structlog.get_logger(__name__)
     acks_late=True,
 )
 def run_analysis_pipeline(
-    self,
+    self: Task,
     dataset_id: str,
     storage_key: str,
     correlation_id: str,
@@ -96,7 +101,7 @@ def run_analysis_pipeline(
             attempt=self.request.retries + 1,
         )
         if self.request.retries < self.max_retries:
-            raise self.retry(exc=exc)
+            raise self.retry(exc=exc) from exc
         # Final failure — mark the dataset as failed in Postgres
         asyncio.run(_mark_dataset_failed(dataset_id, str(exc)))
         raise
@@ -105,6 +110,7 @@ def run_analysis_pipeline(
 # ---------------------------------------------------------------------------
 # Maintenance task (scheduled via beat)
 # ---------------------------------------------------------------------------
+
 
 @celery_app.task(name="analysis.cleanup_stale_jobs")
 def cleanup_stale_jobs() -> dict:
@@ -125,21 +131,22 @@ def cleanup_stale_jobs() -> dict:
 # Async implementation
 # ---------------------------------------------------------------------------
 
+
 async def _run_pipeline_async(
-    task,
+    task: Task,
     dataset_id: str,
     storage_key: str,
     correlation_id: str,
 ) -> dict[str, Any]:
     """Core async pipeline logic executed inside ``asyncio.run()``."""
+    from backend.analytics_engine.anomaly_detection.anomaly_detector import AnomalyDetector
+    from backend.analytics_engine.cleaning.data_cleaner import DataCleaner
     from backend.analytics_engine.ingestion.file_reader import FileReader
     from backend.analytics_engine.profiling.data_profiler import DataProfiler
-    from backend.analytics_engine.cleaning.data_cleaner import DataCleaner
-    from backend.analytics_engine.anomaly_detection.anomaly_detector import AnomalyDetector
     from backend.infrastructure.analytics_db.column_stats_writer import ColumnStatsWriter
     from backend.infrastructure.cache.redis_cache_adapter import get_redis_cache
 
-    cache  = get_redis_cache()
+    cache = get_redis_cache()
     job_id = task.request.id
 
     async def progress(step: str, pct: int) -> None:
@@ -152,15 +159,18 @@ async def _run_pipeline_async(
         )
         # Pub/sub notification → WebSocket gateway
         import json
+
         await cache.publish(
             f"dataset:{dataset_id}",
-            json.dumps({
-                "type":       "job.progress",
-                "job_id":     job_id,
-                "progress":   pct / 100,
-                "message":    step,
-                "dataset_id": dataset_id,
-            }),
+            json.dumps(
+                {
+                    "type": "job.progress",
+                    "job_id": job_id,
+                    "progress": pct / 100,
+                    "message": step,
+                    "dataset_id": dataset_id,
+                }
+            ),
         )
 
     # ── Stage 1: Read file ────────────────────────────────────────────────
@@ -171,7 +181,7 @@ async def _run_pipeline_async(
     # ── Stage 2: Profile ──────────────────────────────────────────────────
     await progress("Profiling columns…", 30)
     profiler = DataProfiler()
-    profile  = await profiler.profile(df)
+    profile = await profiler.profile(df)
 
     # ── Stage 3: Clean ────────────────────────────────────────────────────
     await progress("Cleaning data…", 55)
@@ -180,7 +190,7 @@ async def _run_pipeline_async(
 
     # ── Stage 4: Detect anomalies ─────────────────────────────────────────
     await progress("Detecting anomalies…", 75)
-    detector  = AnomalyDetector()
+    detector = AnomalyDetector()
     anomalies = await detector.detect(cleaned_df, profile)
 
     # ── Stage 5: Write to ClickHouse (optional) ───────────────────────────
@@ -212,32 +222,31 @@ async def _run_pipeline_async(
     )
 
     return {
-        "dataset_id":    dataset_id,
-        "row_count":     profile.row_count,
-        "column_count":  profile.column_count,
+        "dataset_id": dataset_id,
+        "row_count": profile.row_count,
+        "column_count": profile.column_count,
         "anomaly_count": len(anomalies),
-        "status":        "complete",
+        "status": "complete",
     }
 
 
 async def _persist_results(
     dataset_id: str,
-    profile: Any,
-    cleaning_report: Any,
+    profile: Any,  # noqa: ANN401
+    cleaning_report: Any,  # noqa: ANN401
     anomaly_count: int,
     correlation_id: str,
 ) -> None:
     """Persist analysis results and transition the Dataset aggregate to READY."""
     try:
+        from backend.infrastructure.messaging.kafka_event_bus import KafkaEventBus
         from backend.infrastructure.persistence.database import get_session
         from backend.infrastructure.persistence.repositories.postgres_dataset_repository import (
             PostgresDatasetRepository,
         )
-        from backend.infrastructure.messaging.kafka_event_bus import KafkaEventBus
-        import dataclasses
 
         async with get_session() as session:
-            repo    = PostgresDatasetRepository(session)
+            repo = PostgresDatasetRepository(session)
             dataset = await repo.get_by_id(dataset_id)
             if dataset is None:
                 logger.warning("dataset_not_found_during_persist", dataset_id=dataset_id)
@@ -274,7 +283,7 @@ async def _mark_dataset_failed(dataset_id: str, reason: str) -> None:
         )
 
         async with get_session() as session:
-            repo    = PostgresDatasetRepository(session)
+            repo = PostgresDatasetRepository(session)
             dataset = await repo.get_by_id(dataset_id)
             if dataset:
                 dataset.mark_failed(reason[:500])
@@ -285,20 +294,21 @@ async def _mark_dataset_failed(dataset_id: str, reason: str) -> None:
 
 async def _cleanup_stale_jobs_async() -> dict:
     """Implementation of the stale-job cleanup beat task."""
-    from datetime import datetime, timezone, timedelta
+    from datetime import datetime, timedelta
+
     try:
+        from backend.domain.dataset.value_objects.dataset_status import DatasetStatus
         from backend.infrastructure.persistence.database import get_session
         from backend.infrastructure.persistence.repositories.postgres_dataset_repository import (
             PostgresDatasetRepository,
         )
-        from backend.domain.dataset.value_objects.dataset_status import DatasetStatus
 
-        cutoff    = datetime.now(timezone.utc) - timedelta(hours=2)
+        cutoff = datetime.now(UTC) - timedelta(hours=2)
         recovered = []
 
         for status in [DatasetStatus.PROFILING, DatasetStatus.CLEANING]:
             async with get_session() as session:
-                repo     = PostgresDatasetRepository(session)
+                repo = PostgresDatasetRepository(session)
                 datasets = await repo.get_by_status(status)
                 for ds in datasets:
                     if ds.updated_at and ds.updated_at < cutoff:

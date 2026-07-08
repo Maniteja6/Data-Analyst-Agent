@@ -16,9 +16,11 @@ Progress mapping:
     sql/py/forecast/ml → 50-70% (spread across the wave)
     insight   → 80%   critic → 90%      report → 100%
 """
+
 from __future__ import annotations
 
 import asyncio
+import contextlib
 
 import structlog
 from backend.agents.base.agent_context import AgentContext
@@ -29,20 +31,20 @@ logger = structlog.get_logger(__name__)
 
 # Progress milestones by agent name
 _PROGRESS: dict[str, int] = {
-    "schema":         8,
-    "profiling":      22,
-    "cleaning":       38,
-    "sql":            60,
-    "python":         62,
-    "forecast":       64,
-    "ml":             66,
-    "rag":            58,
-    "visualization":  68,
-    "anomaly":        70,
-    "insight":        82,
-    "critic":         90,
+    "schema": 8,
+    "profiling": 22,
+    "cleaning": 38,
+    "sql": 60,
+    "python": 62,
+    "forecast": 64,
+    "ml": 66,
+    "rag": 58,
+    "visualization": 68,
+    "anomaly": 70,
+    "insight": 82,
+    "critic": 90,
     "recommendation": 95,
-    "report":        100,
+    "report": 100,
 }
 
 
@@ -58,7 +60,7 @@ class DAGExecutor:
 
     async def execute(
         self,
-        plan:    ExecutionPlan,
+        plan: ExecutionPlan,
         context: AgentContext,
     ) -> dict[str, AgentResult]:
         """Execute all tasks in the plan, emitting progress after each wave.
@@ -70,36 +72,36 @@ class DAGExecutor:
         Returns:
             Dict mapping task_id → AgentResult for every attempted task.
         """
-        completed: set[str]                = set()
-        skipped:   set[str]                = set()
-        results:   dict[str, AgentResult]  = {}
-        pending:   list[TaskNode]          = list(plan.tasks)
+        completed: set[str] = set()
+        skipped: set[str] = set()
+        results: dict[str, AgentResult] = {}
+        pending: list[TaskNode] = list(plan.tasks)
 
         await context.push_progress(2, "Pipeline started", step="init")
 
         while pending:
             # Find tasks whose dependencies are all satisfied
             ready = [
-                t for t in pending
+                t
+                for t in pending
                 if t.task_id not in completed
                 and t.task_id not in skipped
-                and all(
-                    dep in completed or dep in skipped
-                    for dep in t.depends_on
-                )
+                and all(dep in completed or dep in skipped for dep in t.depends_on)
             ]
 
             if not ready:
                 # Detect deadlock
-                unblocked_count = len([
-                    t for t in pending
-                    if t.task_id not in completed and t.task_id not in skipped
-                ])
+                unblocked_count = len(
+                    [t for t in pending if t.task_id not in completed and t.task_id not in skipped]
+                )
                 if unblocked_count > 0:
                     logger.error(
                         "dag_deadlock",
-                        remaining=[t.task_id for t in pending
-                                   if t.task_id not in completed and t.task_id not in skipped],
+                        remaining=[
+                            t.task_id
+                            for t in pending
+                            if t.task_id not in completed and t.task_id not in skipped
+                        ],
                     )
                 break
 
@@ -117,7 +119,7 @@ class DAGExecutor:
             )
 
             # Process results
-            for task, result in zip(ready, wave_results):
+            for task, result in zip(ready, wave_results, strict=False):
                 pending.remove(task)
 
                 if isinstance(result, BaseException):
@@ -154,14 +156,12 @@ class DAGExecutor:
 
                     # Emit agent:complete event for UI ticker
                     if context._sio:
-                        try:
+                        with contextlib.suppress(Exception):
                             await context._sio.emit(
                                 "agent:complete",
                                 result.to_ws_event(),
                                 room=f"dataset:{context.dataset_id}",
                             )
-                        except Exception:
-                            pass
 
         # Mark any remaining skipped tasks
         for task in pending:
@@ -201,14 +201,11 @@ class DAGExecutor:
     @staticmethod
     def _skip_descendants(
         failed_task_id: str,
-        pending:        list[TaskNode],
-        skipped:        set[str],
+        pending: list[TaskNode],
+        skipped: set[str],
     ) -> None:
         """Recursively mark descendants of a failed task as skipped."""
-        to_skip = {
-            t.task_id for t in pending
-            if failed_task_id in t.depends_on
-        }
+        to_skip = {t.task_id for t in pending if failed_task_id in t.depends_on}
         for task_id in to_skip:
             if task_id not in skipped:
                 skipped.add(task_id)

@@ -8,10 +8,10 @@ Detection strategy (in order):
   2. Magic bytes / file header (reliable for binary formats)
   3. Heuristic CSV sniffing via ``csv.Sniffer`` on the first 4KB
 """
+
 from __future__ import annotations
 
 import csv
-import io
 import os
 
 import structlog
@@ -19,25 +19,25 @@ import structlog
 logger = structlog.get_logger(__name__)
 
 EXTENSION_FORMAT_MAP = {
-    ".csv":     "csv",
-    ".tsv":     "csv",
-    ".txt":     "csv",
-    ".xlsx":    "excel",
-    ".xls":     "excel",
-    ".xlsm":    "excel",
+    ".csv": "csv",
+    ".tsv": "csv",
+    ".txt": "csv",
+    ".xlsx": "excel",
+    ".xls": "excel",
+    ".xlsm": "excel",
     ".parquet": "parquet",
-    ".pq":      "parquet",
-    ".json":    "json",
-    ".jsonl":   "json",
-    ".ndjson":  "json",
+    ".pq": "parquet",
+    ".json": "json",
+    ".jsonl": "json",
+    ".ndjson": "json",
 }
 
 # Magic bytes for binary format detection
 _MAGIC = {
-    b"PK\x03\x04":          "excel",       # XLSX (ZIP archive)
-    b"\xd0\xcf\x11\xe0":    "excel",       # XLS (CFBF)
-    b"PAR1":                 "parquet",
-    b"\xff\xfePAR1":         "parquet",
+    b"PK\x03\x04": "excel",  # XLSX (ZIP archive)
+    b"\xd0\xcf\x11\xe0": "excel",  # XLS (CFBF)
+    b"PAR1": "parquet",
+    b"\xff\xfePAR1": "parquet",
 }
 
 
@@ -52,10 +52,10 @@ class FileFormatInfo:
         has_header: bool = True,
         is_newline_json: bool = False,
     ) -> None:
-        self.format          = format
-        self.encoding        = encoding
-        self.delimiter       = delimiter
-        self.has_header      = has_header
+        self.format = format
+        self.encoding = encoding
+        self.delimiter = delimiter
+        self.has_header = has_header
         self.is_newline_json = is_newline_json
 
     def __repr__(self) -> str:
@@ -95,7 +95,7 @@ class FormatDetector:
                     break
 
         if fmt is None:
-            fmt = "csv"   # safe fallback
+            fmt = "csv"  # safe fallback
 
         info = FileFormatInfo(format=fmt)
 
@@ -120,6 +120,7 @@ class FormatDetector:
         # Encoding detection
         try:
             import chardet
+
             result = chardet.detect(sample)
             info.encoding = result.get("encoding") or "utf-8"
         except ImportError:
@@ -127,12 +128,12 @@ class FormatDetector:
 
         # Delimiter sniffing
         try:
-            text    = sample.decode(info.encoding, errors="replace")
+            text = sample.decode(info.encoding, errors="replace")
             dialect = csv.Sniffer().sniff(text[:4096], delimiters=",\t;|")
-            info.delimiter  = dialect.delimiter
+            info.delimiter = dialect.delimiter
             info.has_header = csv.Sniffer().has_header(text[:4096])
         except csv.Error:
-            info.delimiter  = ","
+            info.delimiter = ","
             info.has_header = True
 
     @staticmethod

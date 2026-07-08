@@ -11,12 +11,18 @@ Usage::
     async for chunk_df in processor.stream_csv(path, encoding="utf-8"):
         profiler.update_incremental(chunk_df)
 """
+
 from __future__ import annotations
 
 import asyncio
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import TYPE_CHECKING
 
 import structlog
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
 
 logger = structlog.get_logger(__name__)
 
@@ -52,8 +58,9 @@ class StreamProcessor:
         """Async generator yielding polars DataFrame chunks from a Parquet file."""
         loop = asyncio.get_event_loop()
 
-        def _read():
+        def _read() -> pl.DataFrame:
             import polars as pl
+
             return pl.read_parquet(path)
 
         df = await loop.run_in_executor(None, _read)
@@ -64,7 +71,12 @@ class StreamProcessor:
     # ── Private streaming implementations ────────────────────────────────
 
     async def _stream_polars_csv(
-        self, path: str, encoding: str, delimiter: str, has_header: bool, loop
+        self,
+        path: str,
+        encoding: str,
+        delimiter: str,
+        has_header: bool,
+        loop: asyncio.AbstractEventLoop,
     ) -> AsyncGenerator:
         import polars as pl
 
@@ -93,11 +105,16 @@ class StreamProcessor:
             offset += self._chunk_size
 
     async def _stream_pandas_csv(
-        self, path: str, encoding: str, delimiter: str, has_header: bool, loop
+        self,
+        path: str,
+        encoding: str,
+        delimiter: str,
+        has_header: bool,
+        loop: asyncio.AbstractEventLoop,
     ) -> AsyncGenerator:
         import pandas as pd
 
-        def _get_reader():
+        def _get_reader() -> pd.io.parsers.TextFileReader:
             return pd.read_csv(
                 path,
                 sep=delimiter,

@@ -1,10 +1,16 @@
 """GetInsightsUseCase — retrieves the InsightReport, preferring Redis cache."""
+
 from __future__ import annotations
 
-import structlog
+from typing import TYPE_CHECKING
 
+import structlog
 from backend.application.queries.get_insights_query import GetInsightsQuery
 from backend.domain.insight.exceptions import InsightReportNotFoundException
+
+if TYPE_CHECKING:
+    from backend.application.ports.cache_port import ICacheService
+    from backend.domain.insight.repositories.insight_repository import InsightRepository
 
 logger = structlog.get_logger(__name__)
 
@@ -17,8 +23,8 @@ class GetInsightsUseCase:
       2. Populate the cache for subsequent requests
     """
 
-    def __init__(self, insight_repo, cache) -> None:
-        self._repo  = insight_repo
+    def __init__(self, insight_repo: InsightRepository, cache: ICacheService) -> None:
+        self._repo = insight_repo
         self._cache = cache
 
     async def execute(self, query: GetInsightsQuery) -> dict:

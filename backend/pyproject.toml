@@ -148,12 +148,17 @@ ignore = [
     "ANN102", # missing cls annotation
     "S101",   # assert statements (allowed in tests)
     "S105",   # hardcoded password (false positives in config)
+    "S106",   # hardcoded password as kwarg (false positives: Prometheus "token_type" labels)
     "B008",   # do not perform function calls in argument defaults (FastAPI Depends)
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"backend/tests/**"          = ["S", "ANN"]
-"backend/infrastructure/persistence/migrations/**" = ["ALL"]
+"tests/**"          = ["S", "ANN"]
+"infrastructure/persistence/migrations/**" = ["ALL"]
+# LLM prompt templates with one long line each (an enum list embedded in an
+# f-string JSON example) — splitting mid-string-literal would corrupt the
+# prompt content, so E501 is exempted for these specific files only.
+"agents/control/intent/intent_agent.py" = ["E501"]
 
 [tool.ruff.format]
 quote-style = "double"

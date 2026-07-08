@@ -1,18 +1,18 @@
 """Conversation aggregate root — manages the multi-turn chat lifecycle."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from backend.shared.aggregate_root import AggregateRoot
 from backend.domain.workspace.entities.message import Message
-from backend.domain.workspace.value_objects.message_role import MessageRole, Role
-from backend.domain.workspace.events.message_added import MessageAdded
 from backend.domain.workspace.events.memory_consolidated import MemoryConsolidated
+from backend.domain.workspace.events.message_added import MessageAdded
 from backend.domain.workspace.exceptions import (
-    ConversationClosedError,
     ContextWindowExceededError,
+    ConversationClosedError,
 )
+from backend.shared.aggregate_root import AggregateRoot
 
 # Maximum messages before the MemoryAgent is triggered to compress
 MAX_MESSAGES_BEFORE_COMPRESSION = 20
@@ -45,14 +45,14 @@ class Conversation(AggregateRoot):
         updated_at:          UTC timestamp of the last message.
     """
 
-    id:             str
-    dataset_id:     str
-    title:          str              = "New conversation"
-    messages:       list[Message]    = field(default_factory=list)
-    memory_summary: str | None       = None
-    is_closed:      bool             = False
-    created_at:     datetime | None  = None
-    updated_at:     datetime | None  = None
+    id: str
+    dataset_id: str
+    title: str = "New conversation"
+    messages: list[Message] = field(default_factory=list)
+    memory_summary: str | None = None
+    is_closed: bool = False
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     def __post_init__(self) -> None:
         super().__init__()
@@ -80,19 +80,21 @@ class Conversation(AggregateRoot):
             raise ContextWindowExceededError(len(self.messages), MAX_MESSAGES_HARD_LIMIT)
 
         self.messages.append(message)
-        self.updated_at = datetime.now(timezone.utc)
+        self.updated_at = datetime.now(UTC)
 
-        self._record_event(MessageAdded(
-            conversation_id=self.id,
-            dataset_id=self.dataset_id,
-            message_id=message.id,
-            role=str(message.role),
-            content_preview=message.content[:100],
-        ))
+        self._record_event(
+            MessageAdded(
+                conversation_id=self.id,
+                dataset_id=self.dataset_id,
+                message_id=message.id,
+                role=str(message.role),
+                content_preview=message.content[:100],
+            )
+        )
 
         # Trigger memory compression when buffer is getting large
         if self.needs_compression:
-            self._record_event(MessageAdded.__class__)   # handled by MemoryAgent via event bus
+            self._record_event(MessageAdded.__class__)  # handled by MemoryAgent via event bus
 
     def apply_memory_summary(self, summary: str) -> None:
         """Store a compressed memory summary and trim the message buffer.
@@ -107,24 +109,26 @@ class Conversation(AggregateRoot):
         self.memory_summary = summary
         # Keep only the most recent turns — earlier ones are now in the summary
         self.messages = self.messages[-4:]
-        self._record_event(MemoryConsolidated(
-            conversation_id=self.id,
-            dataset_id=self.dataset_id,
-            turns_compressed=len(self.messages),
-            summary_preview=summary[:80],
-        ))
+        self._record_event(
+            MemoryConsolidated(
+                conversation_id=self.id,
+                dataset_id=self.dataset_id,
+                turns_compressed=len(self.messages),
+                summary_preview=summary[:80],
+            )
+        )
 
     def close(self) -> None:
         """Archive the conversation — no further messages accepted."""
-        self.is_closed  = True
-        self.updated_at = datetime.now(timezone.utc)
+        self.is_closed = True
+        self.updated_at = datetime.now(UTC)
 
     def rename(self, title: str) -> None:
         """Update the conversation title (auto-set from the first user message)."""
         if not title.strip():
             raise ValueError("Conversation title must not be blank")
-        self.title      = title.strip()[:200]
-        self.updated_at = datetime.now(timezone.utc)
+        self.title = title.strip()[:200]
+        self.updated_at = datetime.now(UTC)
 
     # ── Context building ──────────────────────────────────────────────────
 
@@ -134,11 +138,7 @@ class Conversation(AggregateRoot):
         Excludes SYSTEM messages (passed separately in the ``system`` param)
         and returns only USER/ASSISTANT turns.
         """
-        return [
-            m.to_bedrock_format()
-            for m in self.messages
-            if not m.role.is_system
-        ]
+        return [m.to_bedrock_format() for m in self.messages if not m.role.is_system]
 
     def build_system_prompt(self, schema_summary: str = "", rag_context: str = "") -> str:
         """Compose the Bedrock ``system`` parameter from available context.
@@ -191,8 +191,9 @@ class Conversation(AggregateRoot):
     # ── Factory ───────────────────────────────────────────────────────────
 
     @classmethod
-    def create(cls, conversation_id: str, dataset_id: str, title: str = "") -> "Conversation":
+    def create(cls, conversation_id: str, dataset_id: str, title: str = "") -> Conversation:
         from backend.shared.utils.datetime_utils import utcnow
+
         now = utcnow()
         return cls(
             id=conversation_id,
@@ -204,13 +205,13 @@ class Conversation(AggregateRoot):
 
     def to_dict(self) -> dict:
         return {
-            "id":             self.id,
-            "dataset_id":     self.dataset_id,
-            "title":          self.title,
-            "message_count":  self.message_count,
-            "is_closed":      self.is_closed,
+            "id": self.id,
+            "dataset_id": self.dataset_id,
+            "title": self.title,
+            "message_count": self.message_count,
+            "is_closed": self.is_closed,
             "needs_compression": self.needs_compression,
-            "total_tokens":   self.total_tokens,
-            "created_at":     self.created_at.isoformat() if self.created_at else None,
-            "updated_at":     self.updated_at.isoformat() if self.updated_at else None,
+            "total_tokens": self.total_tokens,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

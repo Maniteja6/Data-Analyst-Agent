@@ -1,27 +1,31 @@
 """DataQualityScorer — domain service that computes the composite quality score."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
 class QualityDimension:
     """Score and weight for one quality dimension."""
-    name:   str
-    score:  float    # 0.0 – 1.0
-    weight: float    # contribution weight (all weights should sum to 1.0)
+
+    name: str
+    score: float  # 0.0 – 1.0
+    weight: float  # contribution weight (all weights should sum to 1.0)
 
 
 @dataclass
 class QualityReport:
     """Full quality report for a dataset profile."""
-    overall_score:      float
-    grade:              str
-    dimensions:         list[QualityDimension]
+
+    overall_score: float
+    grade: str
+    dimensions: list[QualityDimension]
     completeness_score: float
-    consistency_score:  float
-    validity_score:     float
-    timeliness_score:   float
+    consistency_score: float
+    validity_score: float
+    timeliness_score: float
 
 
 class DataQualityScorer:
@@ -38,12 +42,12 @@ class DataQualityScorer:
 
     WEIGHTS = {
         "completeness": 0.40,
-        "consistency":  0.30,
-        "validity":     0.20,
-        "timeliness":   0.10,
+        "consistency": 0.30,
+        "validity": 0.20,
+        "timeliness": 0.10,
     }
 
-    def score(self, profile) -> QualityReport:
+    def score(self, profile: Any) -> QualityReport:  # noqa: ANN401
         """Compute the quality report from a ``DataProfile`` object.
 
         Args:
@@ -51,15 +55,15 @@ class DataQualityScorer:
                      the same attributes).
         """
         completeness = float(getattr(profile, "completeness_score", 1.0))
-        consistency  = float(getattr(profile, "consistency_score",  1.0))
-        validity     = self._validity_score(profile)
-        timeliness   = self._timeliness_score(profile)
+        consistency = float(getattr(profile, "consistency_score", 1.0))
+        validity = self._validity_score(profile)
+        timeliness = self._timeliness_score(profile)
 
         dimensions = [
             QualityDimension("Completeness", completeness, self.WEIGHTS["completeness"]),
-            QualityDimension("Consistency",  consistency,  self.WEIGHTS["consistency"]),
-            QualityDimension("Validity",     validity,     self.WEIGHTS["validity"]),
-            QualityDimension("Timeliness",   timeliness,   self.WEIGHTS["timeliness"]),
+            QualityDimension("Consistency", consistency, self.WEIGHTS["consistency"]),
+            QualityDimension("Validity", validity, self.WEIGHTS["validity"]),
+            QualityDimension("Timeliness", timeliness, self.WEIGHTS["timeliness"]),
         ]
 
         overall = sum(d.score * d.weight for d in dimensions)
@@ -78,19 +82,16 @@ class DataQualityScorer:
     # ── Dimension calculators ─────────────────────────────────────────────
 
     @staticmethod
-    def _validity_score(profile) -> float:
+    def _validity_score(profile: Any) -> float:  # noqa: ANN401
         """Fraction of columns whose null rate is below 20%."""
         cols = getattr(profile, "column_profiles", [])
         if not cols:
             return 1.0
-        valid = sum(
-            1 for c in cols
-            if getattr(c, "null_rate", 0.0) < 0.20
-        )
+        valid = sum(1 for c in cols if getattr(c, "null_rate", 0.0) < 0.20)
         return round(valid / len(cols), 4)
 
     @staticmethod
-    def _timeliness_score(profile) -> float:
+    def _timeliness_score(profile: Any) -> float:  # noqa: ANN401
         """1.0 when datetime columns are present (data is time-aware), 0.5 otherwise."""
         datetime_cols = getattr(profile, "datetime_columns", [])
         return 1.0 if datetime_cols else 0.5

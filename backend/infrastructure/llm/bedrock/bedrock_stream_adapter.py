@@ -25,16 +25,16 @@ Thread safety:
     asyncio via an ``asyncio.Queue``. This allows the caller to ``await`` each
     token without blocking the event loop.
 """
+
 from __future__ import annotations
 
 import asyncio
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 import structlog
-
+from backend.config.bedrock_config import get_bedrock_config
 from backend.infrastructure.llm.bedrock.bedrock_client import get_bedrock_runtime_client
 from backend.infrastructure.llm.token_tracker import TokenTracker
-from backend.config.bedrock_config import get_bedrock_config
 
 logger = structlog.get_logger(__name__)
 
@@ -50,8 +50,8 @@ class BedrockStreamAdapter:
     """
 
     def __init__(self, token_tracker: TokenTracker | None = None) -> None:
-        self._client        = get_bedrock_runtime_client()
-        self._cfg           = get_bedrock_config()
+        self._client = get_bedrock_runtime_client()
+        self._cfg = get_bedrock_config()
         self._token_tracker = token_tracker or TokenTracker()
 
     async def stream(
@@ -83,13 +83,15 @@ class BedrockStreamAdapter:
                 await websocket.send_text(token)
             complete_response = "".join(full_text)
         """
-        model  = model_id or self._cfg.bedrock_model_id_primary
-        body   = {
+        model = model_id or self._cfg.bedrock_model_id_primary
+        body = {
             "messages": [{"role": "user", "content": [{"text": prompt}]}],
             "inferenceConfig": {
-                "maxTokens":   max_tokens   or self._cfg.bedrock_max_tokens,
-                "temperature": temperature  if temperature is not None else self._cfg.bedrock_temperature,
-                "topP":        self._cfg.bedrock_top_p,
+                "maxTokens": max_tokens or self._cfg.bedrock_max_tokens,
+                "temperature": temperature
+                if temperature is not None
+                else self._cfg.bedrock_temperature,
+                "topP": self._cfg.bedrock_top_p,
             },
         }
         if system:
@@ -97,7 +99,7 @@ class BedrockStreamAdapter:
 
         # Queue bridges sync EventStream → async generator
         queue: asyncio.Queue[str | object] = asyncio.Queue(maxsize=512)
-        loop  = asyncio.get_event_loop()
+        loop = asyncio.get_event_loop()
 
         # Token and metadata accumulators (populated in reader thread)
         meta: dict = {"input_tokens": 0, "output_tokens": 0, "stop_reason": "end_turn"}
@@ -113,7 +115,7 @@ class BedrockStreamAdapter:
                             loop.call_soon_threadsafe(queue.put_nowait, delta["text"])
                     elif "metadata" in event:
                         usage = event["metadata"].get("usage", {})
-                        meta["input_tokens"]  = usage.get("inputTokens",  0)
+                        meta["input_tokens"] = usage.get("inputTokens", 0)
                         meta["output_tokens"] = usage.get("outputTokens", 0)
                     elif "messageStop" in event:
                         meta["stop_reason"] = event["messageStop"].get("stopReason", "end_turn")
@@ -131,7 +133,7 @@ class BedrockStreamAdapter:
                 item = await queue.get()
                 if item is _STREAM_DONE:
                     break
-                yield item   # type: ignore[misc]
+                yield item  # type: ignore[misc]
         finally:
             # Ensure the reader thread completes even if the caller cancels
             await executor_future

@@ -11,6 +11,7 @@ Usage::
     except SQLValidationError as exc:
         logger.warning("sql_rejected", reason=str(exc))
 """
+
 from __future__ import annotations
 
 import re
@@ -21,19 +22,51 @@ class SQLValidationError(ValueError):
 
 
 # Keywords that must never appear in agent-generated SQL
-BLOCKED_KEYWORDS: frozenset[str] = frozenset({
-    "INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "ALTER", "TRUNCATE",
-    "EXEC", "EXECUTE", "CALL", "GRANT", "REVOKE", "COPY", "ATTACH",
-    "DETACH", "PRAGMA", "VACUUM", "INSTALL", "LOAD", "EXPORT", "IMPORT",
-    "CHECKPOINT", "FORCE", "SET", "RESET",
-})
+BLOCKED_KEYWORDS: frozenset[str] = frozenset(
+    {
+        "INSERT",
+        "UPDATE",
+        "DELETE",
+        "DROP",
+        "CREATE",
+        "ALTER",
+        "TRUNCATE",
+        "EXEC",
+        "EXECUTE",
+        "CALL",
+        "GRANT",
+        "REVOKE",
+        "COPY",
+        "ATTACH",
+        "DETACH",
+        "PRAGMA",
+        "VACUUM",
+        "INSTALL",
+        "LOAD",
+        "EXPORT",
+        "IMPORT",
+        "CHECKPOINT",
+        "FORCE",
+        "SET",
+        "RESET",
+    }
+)
 
 # DuckDB-specific functions that can read/write the filesystem
-BLOCKED_FUNCTIONS: frozenset[str] = frozenset({
-    "READ_CSV", "READ_PARQUET", "READ_JSON", "READ_TEXT",
-    "WRITE_CSV", "WRITE_PARQUET", "GLOB", "PARQUET_SCHEMA",
-    "DUCKDB_SETTINGS", "DUCKDB_FUNCTIONS",
-})
+BLOCKED_FUNCTIONS: frozenset[str] = frozenset(
+    {
+        "READ_CSV",
+        "READ_PARQUET",
+        "READ_JSON",
+        "READ_TEXT",
+        "WRITE_CSV",
+        "WRITE_PARQUET",
+        "GLOB",
+        "PARQUET_SCHEMA",
+        "DUCKDB_SETTINGS",
+        "DUCKDB_FUNCTIONS",
+    }
+)
 
 
 def validate(sql: str) -> str:
@@ -55,20 +88,14 @@ def validate(sql: str) -> str:
     cleaned = sql.strip()
     if cleaned.startswith("```"):
         lines = cleaned.splitlines()
-        cleaned = "\n".join(
-            line for line in lines
-            if not line.startswith("```")
-        ).strip()
+        cleaned = "\n".join(line for line in lines if not line.startswith("```")).strip()
 
     cleaned = cleaned.rstrip(";").strip()
-    norm    = cleaned.upper()
+    norm = cleaned.upper()
 
     # Must start with SELECT
     if not norm.lstrip().startswith("SELECT"):
-        raise SQLValidationError(
-            f"Only SELECT statements are permitted. "
-            f"Got: {cleaned[:60]!r}"
-        )
+        raise SQLValidationError(f"Only SELECT statements are permitted. Got: {cleaned[:60]!r}")
 
     # Block dangerous DDL / DML keywords
     for kw in BLOCKED_KEYWORDS:
@@ -78,21 +105,15 @@ def validate(sql: str) -> str:
     # Block dangerous DuckDB file-access functions
     for fn in BLOCKED_FUNCTIONS:
         if re.search(rf"\b{fn}\s*\(", norm):
-            raise SQLValidationError(
-                f"Blocked DuckDB function detected: {fn!r}"
-            )
+            raise SQLValidationError(f"Blocked DuckDB function detected: {fn!r}")
 
     # Block SQL comments (injection vector)
     if "--" in cleaned or "/*" in cleaned:
-        raise SQLValidationError(
-            "SQL comments are not permitted in agent-generated queries."
-        )
+        raise SQLValidationError("SQL comments are not permitted in agent-generated queries.")
 
     # Block multiple statements (semicolon splitting)
     if ";" in cleaned:
-        raise SQLValidationError(
-            "Multiple SQL statements are not permitted."
-        )
+        raise SQLValidationError("Multiple SQL statements are not permitted.")
 
     return cleaned
 

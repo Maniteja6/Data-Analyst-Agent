@@ -1,7 +1,8 @@
 """Histogram value object — discrete frequency distribution for a column."""
+
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from backend.shared.value_object import ValueObject
 
@@ -10,9 +11,9 @@ from backend.shared.value_object import ValueObject
 class HistogramBin(ValueObject):
     """One bin in a histogram."""
 
-    label: str          # e.g. "10.0-20.0" for numeric, "London" for categorical
+    label: str  # e.g. "10.0-20.0" for numeric, "London" for categorical
     count: int
-    frequency: float    # count / total (0.0 – 1.0)
+    frequency: float  # count / total (0.0 – 1.0)
 
     def _validate(self) -> None:
         if self.count < 0:
@@ -33,9 +34,9 @@ class Histogram(ValueObject):
     """
 
     column_name: str
-    bins: tuple[HistogramBin, ...]   # tuple keeps the VO frozen/hashable
+    bins: tuple[HistogramBin, ...]  # tuple keeps the VO frozen/hashable
     total_count: int
-    bin_type: str = "numeric"        # "numeric" | "categorical" | "datetime"
+    bin_type: str = "numeric"  # "numeric" | "categorical" | "datetime"
 
     def _validate(self) -> None:
         if not self.column_name:
@@ -49,7 +50,7 @@ class Histogram(ValueObject):
         column_name: str,
         counts: dict[str, int],
         top_n: int = 20,
-    ) -> "Histogram":
+    ) -> Histogram:
         """Build a categorical histogram from a {value: count} dict.
 
         Args:
@@ -80,7 +81,7 @@ class Histogram(ValueObject):
         column_name: str,
         bin_edges: list[float],
         bin_counts: list[int],
-    ) -> "Histogram":
+    ) -> Histogram:
         """Build a numeric histogram from pre-computed bin edges and counts."""
         total = sum(bin_counts)
         bins = tuple(

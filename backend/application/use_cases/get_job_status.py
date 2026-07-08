@@ -1,7 +1,14 @@
 """GetJobStatusUseCase — retrieves job progress from Redis or Celery result backend."""
+
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from backend.application.queries.get_job_status_query import GetJobStatusQuery, JobStatusResult
+
+if TYPE_CHECKING:
+    from backend.application.ports.cache_port import ICacheService
+    from backend.application.ports.job_port import IJobService
 
 
 class GetJobStatusUseCase:
@@ -12,8 +19,8 @@ class GetJobStatusUseCase:
     2. Celery result backend (fallback when Redis has no entry)
     """
 
-    def __init__(self, cache, job_service) -> None:
-        self._cache       = cache
+    def __init__(self, cache: ICacheService, job_service: IJobService) -> None:
+        self._cache = cache
         self._job_service = job_service
 
     async def execute(self, query: GetJobStatusQuery) -> JobStatusResult:
@@ -31,10 +38,12 @@ class GetJobStatusUseCase:
 
         # Fallback: Celery result backend
         celery_status = self._job_service.get_task_status(query.job_id)
-        status        = celery_status.get("status", "PENDING").lower()
+        status = celery_status.get("status", "PENDING").lower()
         return JobStatusResult(
             job_id=query.job_id,
-            status="complete" if status == "success" else ("failed" if status == "failure" else "pending"),
+            status="complete"
+            if status == "success"
+            else ("failed" if status == "failure" else "pending"),
             progress=100 if status == "success" else 0,
             step="",
             error=str(celery_status.get("traceback", "")) if status == "failure" else None,

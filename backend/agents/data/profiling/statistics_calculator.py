@@ -12,10 +12,17 @@ Real-time design:
     Called synchronously from the profiling thread so results are ready
     before the ``profiling:column_complete`` Socket.IO event fires.
 """
+
 from __future__ import annotations
 
 import math
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
+
+    SeriesT = pl.Series | pd.Series
 
 
 class StatisticsCalculator:
@@ -46,14 +53,14 @@ class StatisticsCalculator:
         multiplier: float = 1.5,
     ) -> tuple[float, float]:
         """Return (lower_fence, upper_fence) for Tukey outlier detection."""
-        iqr   = p75 - p25
+        iqr = p75 - p25
         lower = p25 - multiplier * iqr
         upper = p75 + multiplier * iqr
         return round(lower, 6), round(upper, 6)
 
     @staticmethod
     def outlier_count(
-        series,
+        series: SeriesT,
         p25: float,
         p75: float,
         multiplier: float = 1.5,
@@ -68,9 +75,7 @@ class StatisticsCalculator:
         lower, upper = StatisticsCalculator.tukey_fences(p25, p75, multiplier)
         try:
             # polars
-            return int(
-                ((series < lower) | (series > upper)).drop_nulls().sum()
-            )
+            return int(((series < lower) | (series > upper)).drop_nulls().sum())
         except Exception:
             try:
                 # pandas
@@ -136,8 +141,8 @@ class StatisticsCalculator:
         """
         if not value_counts:
             return 0.0
-        total  = sum(value_counts.values())
-        top_k  = sorted(value_counts.values(), reverse=True)[:k]
+        total = sum(value_counts.values())
+        top_k = sorted(value_counts.values(), reverse=True)[:k]
         return round(sum(top_k) / max(total, 1), 6)
 
     # ── Summary builder ───────────────────────────────────────────────────
@@ -148,7 +153,7 @@ class StatisticsCalculator:
         kind: str,
         stats: dict | None = None,
         value_counts: dict[str, int] | None = None,
-        series=None,
+        series: SeriesT | None = None,
     ) -> dict[str, Any]:
         """Compute all applicable supplementary statistics for one column.
 
@@ -164,12 +169,12 @@ class StatisticsCalculator:
         result: dict[str, Any] = {}
 
         if kind == "numeric" and stats:
-            mean   = stats.get("mean", 0) or 0
+            mean = stats.get("mean", 0) or 0
             stddev = stats.get("stddev", 0) or 0
-            p25    = stats.get("p25") or 0
-            p75    = stats.get("p75") or 0
+            p25 = stats.get("p25") or 0
+            p75 = stats.get("p75") or 0
 
-            result["cv"]  = cls.coefficient_of_variation(mean, stddev)
+            result["cv"] = cls.coefficient_of_variation(mean, stddev)
             result["iqr"] = cls.interquartile_range(p25, p75)
             result["tukey_lower"], result["tukey_upper"] = cls.tukey_fences(p25, p75)
 
@@ -177,8 +182,8 @@ class StatisticsCalculator:
                 result["outlier_count_iqr"] = cls.outlier_count(series, p25, p75)
 
         if value_counts:
-            result["entropy"]            = cls.shannon_entropy(value_counts)
+            result["entropy"] = cls.shannon_entropy(value_counts)
             result["normalised_entropy"] = cls.normalised_entropy(value_counts)
-            result["top3_coverage"]      = cls.top_k_coverage(value_counts, k=3)
+            result["top3_coverage"] = cls.top_k_coverage(value_counts, k=3)
 
         return result

@@ -26,13 +26,17 @@ Group ID note:
     analytics pipeline consumer group. This means both groups receive the event
     simultaneously (Kafka fan-out by consumer group).
 """
+
 from __future__ import annotations
 
 import json
+from typing import TYPE_CHECKING
 
 import structlog
-
 from backend.infrastructure.messaging.kafka_consumer import KafkaConsumerBase
+
+if TYPE_CHECKING:
+    from backend.infrastructure.cache.redis_cache_adapter import RedisCacheAdapter
 
 logger = structlog.get_logger(__name__)
 
@@ -40,7 +44,7 @@ logger = structlog.get_logger(__name__)
 class InsightGeneratedConsumer(KafkaConsumerBase):
     """Invalidates caches and notifies WebSocket clients on insight generation."""
 
-    def __init__(self, cache=None) -> None:
+    def __init__(self, cache: RedisCacheAdapter | None = None) -> None:
         super().__init__(
             topics=[
                 "insight.report-generated",
@@ -51,12 +55,12 @@ class InsightGeneratedConsumer(KafkaConsumerBase):
         self._cache = cache
 
     async def handle_message(self, topic: str, payload: dict) -> None:
-        dataset_id     = payload.get("dataset_id", "")
-        correlation_id = payload.get("correlation_id", "")
-        event_type     = payload.get("event_type", "")
+        dataset_id = payload.get("dataset_id", "")
+        payload.get("correlation_id", "")
+        event_type = payload.get("event_type", "")
 
         if not dataset_id:
-            raise self.SkipMessage("Missing dataset_id")
+            raise self.SkipMessageError("Missing dataset_id")
 
         structlog.contextvars.bind_contextvars(
             dataset_id=dataset_id,
@@ -74,12 +78,14 @@ class InsightGeneratedConsumer(KafkaConsumerBase):
 
     # ── Topic handlers ────────────────────────────────────────────────────
 
-    async def _handle_insight_generated(self, payload: dict, cache) -> None:
+    async def _handle_insight_generated(
+        self, payload: dict, cache: RedisCacheAdapter | None
+    ) -> None:
         """Invalidate insight cache and push analysis.complete to WebSocket."""
-        dataset_id     = payload.get("dataset_id", "")
+        dataset_id = payload.get("dataset_id", "")
         correlation_id = payload.get("correlation_id", "")
-        insight_count  = payload.get("insight_count", 0)
-        has_forecasts  = payload.get("has_forecasts", False)
+        insight_count = payload.get("insight_count", 0)
+        has_forecasts = payload.get("has_forecasts", False)
 
         # ── 1. Invalidate the Redis insight cache ─────────────────────────
         if cache:
@@ -98,12 +104,14 @@ class InsightGeneratedConsumer(KafkaConsumerBase):
             try:
                 await cache.publish(
                     f"dataset:{dataset_id}",
-                    json.dumps({
-                        "type":          "analysis.complete",
-                        "dataset_id":    dataset_id,
-                        "insight_count": insight_count,
-                        "has_forecasts": has_forecasts,
-                    }),
+                    json.dumps(
+                        {
+                            "type": "analysis.complete",
+                            "dataset_id": dataset_id,
+                            "insight_count": insight_count,
+                            "has_forecasts": has_forecasts,
+                        }
+                    ),
                 )
                 logger.info("analysis_complete_published", dataset_id=dataset_id)
             except Exception as exc:
@@ -118,7 +126,7 @@ class InsightGeneratedConsumer(KafkaConsumerBase):
                     progress=100,
                     step="Analysis complete",
                     extra={
-                        "dataset_id":    dataset_id,
+                        "dataset_id": dataset_id,
                         "insight_count": str(insight_count),
                     },
                 )
@@ -131,13 +139,15 @@ class InsightGeneratedConsumer(KafkaConsumerBase):
             insight_count=insight_count,
         )
 
-    async def _handle_anomaly_detected(self, payload: dict, cache) -> None:
+    async def _handle_anomaly_detected(
+        self, payload: dict, cache: RedisCacheAdapter | None
+    ) -> None:
         """Push anomaly alert to WebSocket for CRITICAL/HIGH severity anomalies."""
-        dataset_id   = payload.get("dataset_id", "")
-        severity     = payload.get("severity", "low")
-        column_name  = payload.get("column_name", "")
+        dataset_id = payload.get("dataset_id", "")
+        severity = payload.get("severity", "low")
+        column_name = payload.get("column_name", "")
         anomaly_type = payload.get("anomaly_type", "")
-        alert_id     = payload.get("alert_id", "")
+        alert_id = payload.get("alert_id", "")
 
         # Only push real-time notifications for high-priority anomalies
         if severity not in ("critical", "high"):
@@ -147,14 +157,16 @@ class InsightGeneratedConsumer(KafkaConsumerBase):
             try:
                 await cache.publish(
                     f"dataset:{dataset_id}",
-                    json.dumps({
-                        "type":         "anomaly.alert",
-                        "dataset_id":   dataset_id,
-                        "alert_id":     alert_id,
-                        "severity":     severity,
-                        "column_name":  column_name,
-                        "anomaly_type": anomaly_type,
-                    }),
+                    json.dumps(
+                        {
+                            "type": "anomaly.alert",
+                            "dataset_id": dataset_id,
+                            "alert_id": alert_id,
+                            "severity": severity,
+                            "column_name": column_name,
+                            "anomaly_type": anomaly_type,
+                        }
+                    ),
                 )
                 logger.info(
                     "anomaly_alert_published",
@@ -167,10 +179,11 @@ class InsightGeneratedConsumer(KafkaConsumerBase):
 
     # ── Private helpers ───────────────────────────────────────────────────
 
-    def _get_cache(self):
+    def _get_cache(self) -> RedisCacheAdapter | None:
         if self._cache is None:
             try:
                 from backend.infrastructure.cache.redis_cache_adapter import get_redis_cache
+
                 self._cache = get_redis_cache()
             except Exception:
                 return None

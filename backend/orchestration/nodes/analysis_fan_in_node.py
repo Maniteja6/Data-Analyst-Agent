@@ -5,6 +5,7 @@ parallel fan-out branches before calling the InsightNode. It validates
 that at least one agent succeeded and enriches the metadata with
 aggregate token and cost totals.
 """
+
 from __future__ import annotations
 
 import structlog
@@ -19,9 +20,9 @@ async def analysis_fan_in_node(state: PipelineState) -> dict:
     Reads:  state['agent_results']
     Writes: state['metadata'] (enriched with agent completion summary)
     """
-    results   = state.get("agent_results", {})
+    results = state.get("agent_results", {})
     succeeded = [k for k, v in results.items() if "error" not in v]
-    failed    = [k for k, v in results.items() if "error" in v]
+    failed = [k for k, v in results.items() if "error" in v]
 
     logger.info(
         "fan_in_complete",
@@ -31,9 +32,11 @@ async def analysis_fan_in_node(state: PipelineState) -> dict:
     )
 
     meta = state.get("metadata", {}) or {}
-    meta.update({
-        "fan_out_agents":      list(results.keys()),
-        "fan_out_succeeded":   succeeded,
-        "fan_out_failed":      failed,
-    })
+    meta.update(
+        {
+            "fan_out_agents": list(results.keys()),
+            "fan_out_succeeded": succeeded,
+            "fan_out_failed": failed,
+        }
+    )
     return {"metadata": meta}

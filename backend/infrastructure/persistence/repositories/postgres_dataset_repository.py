@@ -1,15 +1,15 @@
 """PostgresDatasetRepository — concrete Dataset repository backed by Postgres."""
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
-from sqlalchemy import select, update
-from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import UTC, datetime
 
 from backend.domain.dataset.entities.dataset import Dataset
 from backend.domain.dataset.repositories.dataset_repository import DatasetRepository
 from backend.domain.dataset.value_objects.dataset_status import DatasetStatus
 from backend.infrastructure.persistence.models.dataset_model import DatasetModel
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class PostgresDatasetRepository(DatasetRepository):
@@ -43,7 +43,7 @@ class PostgresDatasetRepository(DatasetRepository):
         await self._session.execute(
             update(DatasetModel)
             .where(DatasetModel.id == entity_id)
-            .values(deleted_at=datetime.now(timezone.utc))
+            .values(deleted_at=datetime.now(UTC))
         )
 
     # ── Domain queries ────────────────────────────────────────────────────
@@ -61,9 +61,8 @@ class PostgresDatasetRepository(DatasetRepository):
 
     async def get_by_status(self, status: DatasetStatus) -> list[Dataset]:
         result = await self._session.execute(
-            select(DatasetModel)
-            .where(
-                DatasetModel.status     == status.value,
+            select(DatasetModel).where(
+                DatasetModel.status == status.value,
                 DatasetModel.deleted_at.is_(None),
             )
         )
@@ -81,8 +80,11 @@ class PostgresDatasetRepository(DatasetRepository):
 
     async def count_by_project(self, project_id: str) -> int:
         from sqlalchemy import func
+
         result = await self._session.execute(
-            select(func.count()).select_from(DatasetModel).where(
+            select(func.count())
+            .select_from(DatasetModel)
+            .where(
                 DatasetModel.project_id == project_id,
                 DatasetModel.deleted_at.is_(None),
             )
@@ -131,9 +133,9 @@ class PostgresDatasetRepository(DatasetRepository):
 
     @staticmethod
     def _update_model(model: DatasetModel, entity: Dataset) -> None:
-        model.status         = entity.status.value
-        model.row_count      = entity.row_count
-        model.column_count   = entity.column_count
-        model.schema_json    = entity.schema_json
-        model.error_message  = entity.error_message
-        model.updated_at     = entity.updated_at or datetime.now(timezone.utc)
+        model.status = entity.status.value
+        model.row_count = entity.row_count
+        model.column_count = entity.column_count
+        model.schema_json = entity.schema_json
+        model.error_message = entity.error_message
+        model.updated_at = entity.updated_at or datetime.now(UTC)

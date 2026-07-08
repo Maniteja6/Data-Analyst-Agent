@@ -1,10 +1,11 @@
 """ConversationRepository — abstract port for Conversation aggregate persistence."""
+
 from __future__ import annotations
 
 from abc import abstractmethod
 
-from backend.shared.repository import Repository
 from backend.domain.workspace.entities.conversation import Conversation
+from backend.shared.repository import Repository
 
 
 class ConversationRepository(Repository[Conversation, str]):

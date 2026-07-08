@@ -26,9 +26,9 @@ Usage::
         parameters={"pid": "abc-123"},
     )
 """
+
 from __future__ import annotations
 
-import asyncio
 from functools import lru_cache
 from typing import Any
 
@@ -105,21 +105,22 @@ class ClickHouseClient:
         password: str,
         secure: bool = False,
     ) -> None:
-        self._host     = host
-        self._port     = port
+        self._host = host
+        self._port = port
         self._database = database
         self._username = username
         self._password = password
-        self._secure   = secure
-        self._client   = None   # lazily initialised
+        self._secure = secure
+        self._client = None  # lazily initialised
 
     # ── Connection ────────────────────────────────────────────────────────
 
-    async def _get_client(self):
+    async def _get_client(self) -> Any:  # noqa: ANN401 — clickhouse-connect has no type stubs
         """Return the async ClickHouse client, creating it on first call."""
         if self._client is None:
             try:
                 import clickhouse_connect
+
                 self._client = await clickhouse_connect.get_async_client(
                     host=self._host,
                     port=self._port,
@@ -133,11 +134,11 @@ class ClickHouseClient:
                     host=self._host,
                     database=self._database,
                 )
-            except ImportError:
+            except ImportError as exc:
                 raise RuntimeError(
                     "clickhouse-connect is not installed. "
                     "Add it to pyproject.toml or disable FEATURE_CLICKHOUSE."
-                )
+                ) from exc
             except Exception as exc:
                 logger.error("clickhouse_connection_failed", error=str(exc))
                 raise
@@ -158,8 +159,8 @@ class ClickHouseClient:
         if self._client is not None:
             try:
                 await self._client.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("clickhouse_close_failed", error=str(exc))
             finally:
                 self._client = None
 
@@ -202,9 +203,9 @@ class ClickHouseClient:
             )
         """
         ch_client = await self._get_client()
-        result    = await ch_client.query(sql, parameters=parameters or {})
-        columns   = result.column_names
-        return [dict(zip(columns, row)) for row in result.result_rows]
+        result = await ch_client.query(sql, parameters=parameters or {})
+        columns = result.column_names
+        return [dict(zip(columns, row, strict=False)) for row in result.result_rows]
 
     async def query_single(
         self,
@@ -299,9 +300,7 @@ class ClickHouseClient:
         )
         return result or {}
 
-    async def get_high_null_columns(
-        self, dataset_id: str, threshold: float = 0.20
-    ) -> list[dict]:
+    async def get_high_null_columns(self, dataset_id: str, threshold: float = 0.20) -> list[dict]:
         """Return columns with null_rate above the threshold.
 
         Used by the DataQualityPage to surface columns needing attention.
@@ -322,6 +321,7 @@ class ClickHouseClient:
 # Singleton factory
 # ---------------------------------------------------------------------------
 
+
 @lru_cache(maxsize=1)
 def get_clickhouse_client() -> ClickHouseClient:
     """Return the cached ClickHouseClient singleton.
@@ -333,6 +333,7 @@ def get_clickhouse_client() -> ClickHouseClient:
     Call ``get_clickhouse_client.cache_clear()`` in tests to reset.
     """
     from backend.config.settings import get_settings
+
     s = get_settings()
     return ClickHouseClient(
         host=s.clickhouse_host,

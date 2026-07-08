@@ -13,28 +13,33 @@ Workbook structure (5 sheets):
     Anomalies         — detected anomalies with row index and description
     Forecast          — forecast table when time series data exists
 """
+
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import io
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
+
+if TYPE_CHECKING:
+    from openpyxl.worksheet.worksheet import Worksheet
 
 logger = structlog.get_logger(__name__)
 
 # DataPilot brand colours (openpyxl ARGB format)
 BRAND_VIOLET = "FF5B4FE8"
-BRAND_NAVY   = "FF1A1A3E"
-WHITE        = "FFFFFFFF"
-LIGHT_GREY   = "FFF5F4F1"
-DARK_TEXT    = "FF1E1E2E"
+BRAND_NAVY = "FF1A1A3E"
+WHITE = "FFFFFFFF"
+LIGHT_GREY = "FFF5F4F1"
+DARK_TEXT = "FF1E1E2E"
 
 
 async def export_to_excel(
     report: dict[str, Any],
-    sio: Any = None,
+    sio: Any = None,  # noqa: ANN401
     dataset_id: str = "",
 ) -> bytes:
     """Generate an XLSX workbook from an InsightReport dict.
@@ -48,41 +53,35 @@ async def export_to_excel(
         Raw XLSX bytes ready for S3 upload or streaming download.
     """
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(
-        None, _build_workbook, report, sio, dataset_id, loop
-    )
+    return await loop.run_in_executor(None, _build_workbook, report, sio, dataset_id, loop)
 
 
 def _build_workbook(
     report: dict[str, Any],
-    sio: Any,
+    sio: Any,  # noqa: ANN401
     dataset_id: str,
-    loop: Any,
+    loop: asyncio.AbstractEventLoop,
 ) -> bytes:
     """Synchronous workbook construction (runs in thread pool)."""
     try:
         from openpyxl import Workbook
         from openpyxl.styles import (
             Alignment,
-            Border,
-            Fill,
             Font,
-            GradientFill,
             PatternFill,
-            Side,
         )
     except ImportError:
         return b"[XLSX export requires openpyxl: pip install openpyxl]"
 
     wb = Workbook()
-    wb.remove(wb.active)   # remove default blank sheet
+    wb.remove(wb.active)  # remove default blank sheet
 
     sheets_done = [0]
 
     def _emit_progress(sheet_name: str) -> None:
         sheets_done[0] += 1
         if sio and dataset_id:
-            try:
+            with contextlib.suppress(Exception):
                 asyncio.run_coroutine_threadsafe(
                     sio.emit(
                         "report:sheet_complete",
@@ -91,11 +90,10 @@ def _build_workbook(
                     ),
                     loop,
                 )
-            except Exception:
-                pass
 
-    def _header_fill(ws, row, values: list, bg: str = BRAND_VIOLET):
+    def _header_fill(ws: Worksheet, row: int, values: list, bg: str = BRAND_VIOLET) -> None:
         from openpyxl.styles import Alignment, Font, PatternFill
+
         fill = PatternFill(fill_type="solid", fgColor=bg)
         font = Font(color=WHITE, bold=True, size=11)
         for col_idx, val in enumerate(values, start=1):
@@ -110,7 +108,7 @@ def _build_workbook(
     ws1.column_dimensions["B"].width = 50
 
     ws1["A1"] = "DataPilot Analysis Report"
-    ws1["A1"].font = Font(bold=True, size=16, color=BRAND_NAVY.lstrip("FF"))
+    ws1["A1"].font = Font(bold=True, size=16, color=BRAND_NAVY.removeprefix("FF"))
     ws1["B1"] = f"Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}"
 
     ws1["A3"] = "Executive Summary"
@@ -139,16 +137,18 @@ def _build_workbook(
 
     for i, ins in enumerate(report.get("insights", []), start=2):
         ws2.cell(row=i, column=1, value=i - 1)
-        ws2.cell(row=i, column=2, value=ins.get("headline", "")).alignment = Alignment(wrap_text=True)
+        ws2.cell(row=i, column=2, value=ins.get("headline", "")).alignment = Alignment(
+            wrap_text=True
+        )
         ws2.cell(row=i, column=3, value=ins.get("business_impact", "").upper())
-        ws2.cell(row=i, column=4, value=f"{float(ins.get('confidence', 0.8))*100:.0f}%")
+        ws2.cell(row=i, column=4, value=f"{float(ins.get('confidence', 0.8)) * 100:.0f}%")
         ws2.cell(row=i, column=5, value=", ".join(ins.get("source_columns", [])))
 
         # Colour code by impact
         impact_fill = {
-            "high":   PatternFill(fill_type="solid", fgColor="FFFDE68A"),
+            "high": PatternFill(fill_type="solid", fgColor="FFFDE68A"),
             "medium": PatternFill(fill_type="solid", fgColor="FFD1FAE5"),
-            "low":    PatternFill(fill_type="solid", fgColor="FFF5F4F1"),
+            "low": PatternFill(fill_type="solid", fgColor="FFF5F4F1"),
         }
         f = impact_fill.get(ins.get("business_impact", "low").lower())
         if f:
@@ -168,7 +168,9 @@ def _build_workbook(
         ws3.cell(row=i, column=3, value=alert.get("severity", "").upper())
         ws3.cell(row=i, column=4, value=alert.get("row_index", ""))
         ws3.cell(row=i, column=5, value=alert.get("value", ""))
-        ws3.cell(row=i, column=6, value=alert.get("description", "")).alignment = Alignment(wrap_text=True)
+        ws3.cell(row=i, column=6, value=alert.get("description", "")).alignment = Alignment(
+            wrap_text=True
+        )
 
     _emit_progress("Anomalies")
 
@@ -181,7 +183,9 @@ def _build_workbook(
     for i, rec in enumerate(report.get("recommendations", []), start=2):
         ws4.cell(row=i, column=1, value=rec.get("priority", "").upper())
         ws4.cell(row=i, column=2, value=rec.get("title", ""))
-        ws4.cell(row=i, column=3, value=rec.get("situation", "")).alignment = Alignment(wrap_text=True)
+        ws4.cell(row=i, column=3, value=rec.get("situation", "")).alignment = Alignment(
+            wrap_text=True
+        )
         ws4.cell(row=i, column=4, value=rec.get("action", "")).alignment = Alignment(wrap_text=True)
         impact = rec.get("estimated_impact", {})
         impact_str = (

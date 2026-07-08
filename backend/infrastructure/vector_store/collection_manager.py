@@ -26,11 +26,18 @@ Usage::
     indexed = await manager.index_dataset(dataset_id="abc-123", profile=data_profile)
     print(f"Indexed {indexed} chunks for dataset abc-123")
 """
+
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
+
+if TYPE_CHECKING:
+    from backend.infrastructure.vector_store.bedrock_embedding_service import (
+        BedrockEmbeddingService,
+    )
+    from backend.infrastructure.vector_store.qdrant_adapter import QdrantAdapter
 
 logger = structlog.get_logger(__name__)
 
@@ -43,8 +50,8 @@ class CollectionManager:
 
     def __init__(
         self,
-        qdrant_adapter=None,
-        embedding_service=None,
+        qdrant_adapter: QdrantAdapter | None = None,
+        embedding_service: BedrockEmbeddingService | None = None,
     ) -> None:
         """
         Args:
@@ -52,17 +59,21 @@ class CollectionManager:
             embedding_service: ``BedrockEmbeddingService`` instance (or None for singleton).
         """
         self._qdrant = qdrant_adapter
-        self._embed  = embedding_service
+        self._embed = embedding_service
 
-    def _get_qdrant(self):
+    def _get_qdrant(self) -> QdrantAdapter:
         if self._qdrant is None:
             from backend.infrastructure.vector_store.qdrant_adapter import get_qdrant_adapter
+
             self._qdrant = get_qdrant_adapter()
         return self._qdrant
 
-    def _get_embed(self):
+    def _get_embed(self) -> BedrockEmbeddingService:
         if self._embed is None:
-            from backend.infrastructure.vector_store.bedrock_embedding_service import get_embedding_service
+            from backend.infrastructure.vector_store.bedrock_embedding_service import (
+                get_embedding_service,
+            )
+
             self._embed = get_embedding_service()
         return self._embed
 
@@ -94,7 +105,7 @@ class CollectionManager:
     async def index_dataset(
         self,
         dataset_id: str,
-        profile: Any,
+        profile: Any,  # noqa: ANN401
         project_id: str = "",
         schema: dict | None = None,
     ) -> int:
@@ -115,6 +126,7 @@ class CollectionManager:
             Number of chunks indexed.
         """
         from backend.config.feature_flags import flags
+
         if not flags.rag_enabled:
             logger.debug("rag_indexing_skipped", reason="FEATURE_RAG disabled")
             return 0
@@ -125,23 +137,24 @@ class CollectionManager:
             return 0
 
         # Embed all chunk texts in parallel
-        embed  = self._get_embed()
-        texts  = [c["content"] for c in chunks]
+        embed = self._get_embed()
+        texts = [c["content"] for c in chunks]
         vectors = await embed.embed_batch(texts, concurrency=4)
 
         # Build Qdrant points
         from backend.shared.utils.uuid_factory import new_uuid
+
         points = [
             {
-                "id":      new_uuid(),
-                "vector":  vectors[i],
+                "id": new_uuid(),
+                "vector": vectors[i],
                 "payload": {
-                    "dataset_id":  dataset_id,
-                    "project_id":  project_id,
-                    "chunk_type":  chunks[i]["chunk_type"],
+                    "dataset_id": dataset_id,
+                    "project_id": project_id,
+                    "chunk_type": chunks[i]["chunk_type"],
                     "column_name": chunks[i].get("column_name"),
-                    "content":     chunks[i]["content"],
-                    "metadata":    chunks[i].get("metadata", {}),
+                    "content": chunks[i]["content"],
+                    "metadata": chunks[i].get("metadata", {}),
                 },
             }
             for i in range(len(chunks))
@@ -155,7 +168,7 @@ class CollectionManager:
     async def reindex_dataset(
         self,
         dataset_id: str,
-        profile: Any,
+        profile: Any,  # noqa: ANN401
         project_id: str = "",
         schema: dict | None = None,
     ) -> int:
@@ -186,7 +199,7 @@ class CollectionManager:
 
         Used by the eval runner and the admin monitoring dashboard.
         """
-        qdrant  = self._get_qdrant()
+        qdrant = self._get_qdrant()
         results = await qdrant.scroll_dataset(dataset_id, limit=1000)
         return len(results[0])
 
@@ -200,7 +213,7 @@ class CollectionManager:
     def _build_chunks(
         self,
         dataset_id: str,
-        profile: Any,
+        profile: Any,  # noqa: ANN401
         project_id: str,
         schema: dict | None,
     ) -> list[dict]:
@@ -231,17 +244,19 @@ class CollectionManager:
             if indexed >= MAX_COLUMNS_PER_DATASET:
                 break
 
-            col_name  = getattr(col, "column_name", None) or col.get("column_name", "")
+            col_name = getattr(col, "column_name", None) or col.get("column_name", "")
             null_rate = float(getattr(col, "null_rate", 0.0) or col.get("null_rate", 0.0))
             if null_rate > 0.5:
-                continue   # skip very sparse columns
+                continue  # skip very sparse columns
 
-            data_type     = str(getattr(col, "data_type",   None) or col.get("data_type", "unknown"))
-            semantic_type = str(getattr(col, "semantic_type", None) or col.get("semantic_type", "unknown"))
+            data_type = str(getattr(col, "data_type", None) or col.get("data_type", "unknown"))
+            semantic_type = str(
+                getattr(col, "semantic_type", None) or col.get("semantic_type", "unknown")
+            )
             if hasattr(semantic_type, "value"):
                 semantic_type = semantic_type
-            unique_count  = int(getattr(col, "unique_count", 0) or col.get("unique_count", 0))
-            sample_vals   = getattr(col, "sample_values", []) or col.get("sample_values", [])
+            unique_count = int(getattr(col, "unique_count", 0) or col.get("unique_count", 0))
+            sample_vals = getattr(col, "sample_values", []) or col.get("sample_values", [])
 
             # Enrich with schema metadata
             schema_meta = schema_cols.get(col_name, {})
@@ -257,25 +272,27 @@ class CollectionManager:
             if schema_meta.get("is_primary_key"):
                 text += "\nRole: Primary key / identifier"
 
-            chunks.append({
-                "chunk_type":  "column_description",
-                "column_name": col_name,
-                "content":     text,
-                "metadata": {
-                    "data_type":     data_type,
-                    "semantic_type": semantic_type,
-                    "null_rate":     null_rate,
-                    "unique_count":  unique_count,
-                },
-            })
+            chunks.append(
+                {
+                    "chunk_type": "column_description",
+                    "column_name": col_name,
+                    "content": text,
+                    "metadata": {
+                        "data_type": data_type,
+                        "semantic_type": semantic_type,
+                        "null_rate": null_rate,
+                        "unique_count": unique_count,
+                    },
+                }
+            )
             indexed += 1
 
         # Profile summary chunk
-        row_count    = getattr(profile, "row_count",          None) or 0
-        col_count    = getattr(profile, "column_count",       None) or 0
+        row_count = getattr(profile, "row_count", None) or 0
+        col_count = getattr(profile, "column_count", None) or 0
         completeness = getattr(profile, "completeness_score", None) or 1.0
-        consistency  = getattr(profile, "consistency_score",  None) or 1.0
-        duplicates   = getattr(profile, "duplicate_count",    None) or 0
+        consistency = getattr(profile, "consistency_score", None) or 1.0
+        duplicates = getattr(profile, "duplicate_count", None) or 0
 
         summary_text = (
             f"Dataset overview:\n"
@@ -286,15 +303,17 @@ class CollectionManager:
             f"Duplicate rows removed: {duplicates:,}\n"
             f"Columns indexed: {indexed} of {len(col_profiles)}"
         )
-        chunks.append({
-            "chunk_type":  "profile_summary",
-            "column_name": None,
-            "content":     summary_text,
-            "metadata": {
-                "row_count":          row_count,
-                "column_count":       col_count,
-                "completeness_score": completeness,
-            },
-        })
+        chunks.append(
+            {
+                "chunk_type": "profile_summary",
+                "column_name": None,
+                "content": summary_text,
+                "metadata": {
+                    "row_count": row_count,
+                    "column_count": col_count,
+                    "completeness_score": completeness,
+                },
+            }
+        )
 
         return chunks

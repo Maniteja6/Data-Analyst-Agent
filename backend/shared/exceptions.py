@@ -1,27 +1,28 @@
 """Shared exception hierarchy for the DataPilot backend.
 
-All custom exceptions inherit from ``DataPilotException``, making it
+All custom exceptions inherit from ``DataPilotError``, making it
 easy to catch all application-level errors at the API boundary with a
-single ``except DataPilotException`` clause while still distinguishing
+single ``except DataPilotError`` clause while still distinguishing
 error types in more specific handlers.
 
 Layer mapping:
-    DomainException       — invariant violations inside the domain model
-    ApplicationException  — use case / orchestration failures
-    InfrastructureException — adapter / IO failures (DB, S3, Kafka, Bedrock)
-    AgentException        — AI agent execution failures
-    NotFoundException     — entity not found (maps to HTTP 404)
-    ValidationException   — input validation failure (maps to HTTP 422)
-    AuthorisationException — access denied (maps to HTTP 403)
+    DomainError       — invariant violations inside the domain model
+    ApplicationError  — use case / orchestration failures
+    InfrastructureError — adapter / IO failures (DB, S3, Kafka, Bedrock)
+    AgentError        — AI agent execution failures
+    NotFoundError     — entity not found (maps to HTTP 404)
+    ValidationError   — input validation failure (maps to HTTP 422)
+    AuthorisationError — access denied (maps to HTTP 403)
 """
-from __future__ import annotations
 
+from __future__ import annotations
 
 # ---------------------------------------------------------------------------
 # Base
 # ---------------------------------------------------------------------------
 
-class DataPilotException(Exception):
+
+class DataPilotError(Exception):
     """Root exception for all application-level errors.
 
     Args:
@@ -43,7 +44,8 @@ class DataPilotException(Exception):
 # Domain layer
 # ---------------------------------------------------------------------------
 
-class DomainException(DataPilotException):
+
+class DomainError(DataPilotError):
     """Raised when a domain invariant is violated.
 
     Examples:
@@ -52,7 +54,7 @@ class DomainException(DataPilotException):
     """
 
 
-class InvalidStatusTransitionError(DomainException):
+class InvalidStatusTransitionError(DomainError):
     """Raised when an aggregate is transitioned to a state that is not
     reachable from its current state.
     """
@@ -70,11 +72,12 @@ class InvalidStatusTransitionError(DomainException):
 # Application layer
 # ---------------------------------------------------------------------------
 
-class ApplicationException(DataPilotException):
+
+class ApplicationError(DataPilotError):
     """Raised by use cases when orchestration logic fails."""
 
 
-class ConflictException(ApplicationException):
+class ConflictError(ApplicationError):
     """Raised when an operation conflicts with existing state
     (e.g. duplicate dataset upload).
     """
@@ -89,23 +92,24 @@ class ConflictException(ApplicationException):
 # Infrastructure layer
 # ---------------------------------------------------------------------------
 
-class InfrastructureException(DataPilotException):
+
+class InfrastructureError(DataPilotError):
     """Raised when an infrastructure adapter fails (DB, S3, Kafka, Bedrock)."""
 
 
-class StorageException(InfrastructureException):
+class StorageError(InfrastructureError):
     """S3 / local storage operation failed."""
 
 
-class CacheException(InfrastructureException):
+class CacheError(InfrastructureError):
     """Redis cache operation failed."""
 
 
-class MessagingException(InfrastructureException):
+class MessagingError(InfrastructureError):
     """Kafka publish / consume operation failed."""
 
 
-class BedrockException(InfrastructureException):
+class BedrockError(InfrastructureError):
     """AWS Bedrock API call failed after all retries exhausted."""
 
 
@@ -113,7 +117,8 @@ class BedrockException(InfrastructureException):
 # Agent layer
 # ---------------------------------------------------------------------------
 
-class AgentException(DataPilotException):
+
+class AgentError(DataPilotError):
     """Raised when an AI agent fails to complete its task.
 
     Args:
@@ -130,7 +135,7 @@ class AgentException(DataPilotException):
         self.reason = reason
 
 
-class AgentTimeoutError(AgentException):
+class AgentTimeoutError(AgentError):
     """Raised when an agent exceeds its configured execution timeout."""
 
     def __init__(self, agent_name: str, timeout_seconds: int) -> None:
@@ -138,7 +143,7 @@ class AgentTimeoutError(AgentException):
         self.timeout_seconds = timeout_seconds
 
 
-class SQLInjectionDetectedError(AgentException):
+class SQLInjectionDetectedError(AgentError):
     """Raised by the SQL validator when generated SQL contains blocked keywords."""
 
     def __init__(self, keyword: str) -> None:
@@ -150,7 +155,8 @@ class SQLInjectionDetectedError(AgentException):
 # Cross-cutting concerns
 # ---------------------------------------------------------------------------
 
-class NotFoundException(DataPilotException):
+
+class NotFoundError(DataPilotError):
     """Raised when a requested entity does not exist.
 
     Maps to HTTP 404 in the API error handler.
@@ -165,7 +171,7 @@ class NotFoundException(DataPilotException):
         self.entity_id = entity_id
 
 
-class ValidationException(DataPilotException):
+class ValidationError(DataPilotError):
     """Raised when user-supplied input fails domain validation.
 
     Maps to HTTP 422 in the API error handler.
@@ -180,7 +186,7 @@ class ValidationException(DataPilotException):
         self.reason = reason
 
 
-class UnsupportedFileTypeError(ValidationException):
+class UnsupportedFileTypeError(ValidationError):
     """Raised when an uploaded file has an unsupported extension."""
 
     def __init__(self, filename: str) -> None:
@@ -188,21 +194,21 @@ class UnsupportedFileTypeError(ValidationException):
         self.filename = filename
 
 
-class FileTooLargeError(ValidationException):
+class FileTooLargeError(ValidationError):
     """Raised when an uploaded file exceeds the configured size limit."""
 
     def __init__(self, size_bytes: int, max_bytes: int) -> None:
         size_mb = size_bytes / (1024 * 1024)
-        max_mb  = max_bytes  / (1024 * 1024)
+        max_mb = max_bytes / (1024 * 1024)
         super().__init__(
             "file",
             f"File size {size_mb:.1f} MB exceeds the {max_mb:.0f} MB limit.",
         )
         self.size_bytes = size_bytes
-        self.max_bytes  = max_bytes
+        self.max_bytes = max_bytes
 
 
-class AuthorisationException(DataPilotException):
+class AuthorisationError(DataPilotError):
     """Raised when a user attempts an action they are not authorised to perform.
 
     Maps to HTTP 403 in the API error handler.
@@ -213,11 +219,11 @@ class AuthorisationException(DataPilotException):
             f"Not authorised to perform '{action}' on '{resource}'.",
             code="FORBIDDEN",
         )
-        self.action   = action
+        self.action = action
         self.resource = resource
 
 
-class PIIDetectedError(DataPilotException):
+class PIIDetectedError(DataPilotError):
     """Raised by the security agent when PII is found in user input or agent output."""
 
     def __init__(self, entity_types: list[str]) -> None:
@@ -228,7 +234,7 @@ class PIIDetectedError(DataPilotException):
         self.entity_types = entity_types
 
 
-class InjectionDetectedError(DataPilotException):
+class InjectionDetectedError(DataPilotError):
     """Raised when a prompt injection attempt is detected in user input."""
 
     def __init__(self, score: float) -> None:

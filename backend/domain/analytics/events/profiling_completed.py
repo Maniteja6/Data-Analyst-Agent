@@ -1,4 +1,5 @@
 """ProfilingCompleted domain event."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -16,19 +17,21 @@ class ProfilingCompleted(DomainEvent):
     - RAGAgent — triggers async vector indexing of the schema chunks
     """
 
-    dataset_id:         str   = ""
-    session_id:         str   = ""
-    row_count:          int   = 0
-    column_count:       int   = 0
+    dataset_id: str = ""
+    session_id: str = ""
+    row_count: int = 0
+    column_count: int = 0
     completeness_score: float = 1.0
 
     def to_dict(self) -> dict:
         base = super().to_dict()
-        base.update({
-            "dataset_id":         self.dataset_id,
-            "session_id":         self.session_id,
-            "row_count":          self.row_count,
-            "column_count":       self.column_count,
-            "completeness_score": self.completeness_score,
-        })
+        base.update(
+            {
+                "dataset_id": self.dataset_id,
+                "session_id": self.session_id,
+                "row_count": self.row_count,
+                "column_count": self.column_count,
+                "completeness_score": self.completeness_score,
+            }
+        )
         return base

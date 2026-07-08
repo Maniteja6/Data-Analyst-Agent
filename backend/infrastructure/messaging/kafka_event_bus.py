@@ -49,15 +49,15 @@ Usage::
     async with KafkaEventBus() as bus:
         await bus.publish(event)
 """
+
 from __future__ import annotations
 
 import json
 from typing import Any
 
 import structlog
-
-from backend.shared.domain_event import DomainEvent
 from backend.config.settings import get_settings
+from backend.shared.domain_event import DomainEvent
 
 logger = structlog.get_logger(__name__)
 
@@ -67,27 +67,23 @@ logger = structlog.get_logger(__name__)
 
 EVENT_TOPIC_MAP: dict[str, str] = {
     # Dataset lifecycle
-    "DatasetUploaded":         "dataset.uploaded",
-    "SchemaInferred":          "dataset.schema-inferred",
-    "DatasetReady":            "dataset.ready",
-    "DatasetFailed":           "dataset.failed",
-
+    "DatasetUploaded": "dataset.uploaded",
+    "SchemaInferred": "dataset.schema-inferred",
+    "DatasetReady": "dataset.ready",
+    "DatasetFailed": "dataset.failed",
     # Analytics pipeline
-    "ProfilingCompleted":      "analytics.profiling-complete",
-    "CleaningCompleted":       "analytics.cleaning-complete",
-    "AnomaliesDetected":       "anomaly.detected",
-
+    "ProfilingCompleted": "analytics.profiling-complete",
+    "CleaningCompleted": "analytics.cleaning-complete",
+    "AnomaliesDetected": "anomaly.detected",
     # Insight generation
-    "InsightReportGenerated":  "insight.report-generated",
-    "ForecastCompleted":       "insight.report-generated",
-    "AnomalyAlertRaised":      "anomaly.detected",
-
+    "InsightReportGenerated": "insight.report-generated",
+    "ForecastCompleted": "insight.report-generated",
+    "AnomalyAlertRaised": "anomaly.detected",
     # Agent orchestration
-    "AgentResultReady":        "agent.result",
-
+    "AgentResultReady": "agent.result",
     # Chat / workspace
-    "MessageAdded":            "chat.message",
-    "MemoryConsolidated":      "chat.message",
+    "MessageAdded": "chat.message",
+    "MemoryConsolidated": "chat.message",
 }
 
 
@@ -116,15 +112,15 @@ class KafkaEventBus:
             use_avro:          When True, use Avro binary serialisation via ``AvroSerializer``.
                                When False (default), use JSON (simpler for local dev/testing).
         """
-        settings             = get_settings()
-        self._bootstrap      = bootstrap_servers or settings.kafka_bootstrap_servers
+        settings = get_settings()
+        self._bootstrap = bootstrap_servers or settings.kafka_bootstrap_servers
         self._security_protocol = settings.kafka_security_protocol
         self._sasl_mechanism = settings.kafka_sasl_mechanism
-        self._sasl_username  = settings.kafka_sasl_username
-        self._sasl_password  = settings.kafka_sasl_password
-        self._use_avro       = use_avro
-        self._producer       = None
-        self._started        = False
+        self._sasl_username = settings.kafka_sasl_username
+        self._sasl_password = settings.kafka_sasl_password
+        self._use_avro = use_avro
+        self._producer = None
+        self._started = False
 
     # ── Lifecycle ─────────────────────────────────────────────────────────
 
@@ -141,14 +137,14 @@ class KafkaEventBus:
             from aiokafka import AIOKafkaProducer
 
             kwargs: dict[str, Any] = {
-                "bootstrap_servers":  self._bootstrap,
-                "value_serializer":   lambda v: json.dumps(v, default=str).encode("utf-8"),
-                "key_serializer":     lambda k: k.encode("utf-8") if k else None,
-                "acks":               "all",          # wait for all ISR replicas
-                "compression_type":   "gzip",
+                "bootstrap_servers": self._bootstrap,
+                "value_serializer": lambda v: json.dumps(v, default=str).encode("utf-8"),
+                "key_serializer": lambda k: k.encode("utf-8") if k else None,
+                "acks": "all",  # wait for all ISR replicas
+                "compression_type": "gzip",
                 "request_timeout_ms": 10_000,
-                "retry_backoff_ms":   500,
-                "max_batch_size":     32_768,         # 32 KB batch
+                "retry_backoff_ms": 500,
+                "max_batch_size": 32_768,  # 32 KB batch
             }
 
             # MSK IAM / SASL_SSL configuration
@@ -184,15 +180,15 @@ class KafkaEventBus:
                 logger.warning("kafka_producer_stop_failed", error=str(exc))
             finally:
                 self._producer = None
-                self._started  = False
+                self._started = False
 
     # ── Context manager ───────────────────────────────────────────────────
 
-    async def __aenter__(self) -> "KafkaEventBus":
+    async def __aenter__(self) -> KafkaEventBus:
         await self.start()
         return self
 
-    async def __aexit__(self, *exc_info) -> None:
+    async def __aexit__(self, *exc_info: object) -> None:
         await self.stop()
 
     # ── Publishing ────────────────────────────────────────────────────────
@@ -237,7 +233,7 @@ class KafkaEventBus:
         # Determine partition key for ordering
         key = (
             partition_key
-            or getattr(event, "dataset_id",    None)
+            or getattr(event, "dataset_id", None)
             or getattr(event, "conversation_id", None)
             or event.correlation_id
         )
@@ -245,9 +241,10 @@ class KafkaEventBus:
         # Serialise payload
         if self._use_avro:
             from backend.infrastructure.messaging.avro.serializer import get_avro_serializer
+
             payload = await get_avro_serializer().serialize(event.event_type, event.to_dict())
         else:
-            payload = event.to_dict()   # JSON serialiser applied by the producer's value_serializer
+            payload = event.to_dict()  # JSON serialiser applied by the producer's value_serializer
 
         try:
             await self._producer.send_and_wait(topic, value=payload, key=key)

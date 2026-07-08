@@ -1,4 +1,5 @@
 """SessionId value object — typed UUID for analysis sessions."""
+
 from __future__ import annotations
 
 import uuid
@@ -21,13 +22,11 @@ class SessionId(ValueObject):
     def _validate(self) -> None:
         try:
             uuid.UUID(self.value)
-        except (ValueError, AttributeError):
-            raise ValueError(
-                f"SessionId must be a valid UUID, got: {self.value!r}"
-            )
+        except (ValueError, AttributeError) as exc:
+            raise ValueError(f"SessionId must be a valid UUID, got: {self.value!r}") from exc
 
     @classmethod
-    def generate(cls) -> "SessionId":
+    def generate(cls) -> SessionId:
         """Factory — creates a new random SessionId."""
         return cls(value=str(uuid.uuid4()))
 

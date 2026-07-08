@@ -26,7 +26,8 @@ Grafana dashboard queries (PromQL examples):
     rate(datapilot_datasets_uploaded_total[5m])
 
     # Agent P95 latency by agent name
-    histogram_quantile(0.95, sum(rate(datapilot_agent_duration_seconds_bucket[5m])) by (le, agent_name))
+    histogram_quantile(0.95, sum(rate(datapilot_agent_duration_seconds_bucket[5m]))
+        by (le, agent_name))
 
     # Bedrock cost rate (USD/minute)
     rate(datapilot_llm_cost_usd_total[1m]) * 60
@@ -34,12 +35,21 @@ Grafana dashboard queries (PromQL examples):
     # Active WebSocket connections
     datapilot_websocket_connections_active
 """
+
 from __future__ import annotations
 
-from prometheus_client import Counter, Gauge, Histogram, Summary, REGISTRY
+from typing import Any
+
+from prometheus_client import REGISTRY, Counter, Gauge, Histogram
+
 
 # Guard against double-registration (e.g. during test collection)
-def _metric(cls, name: str, documentation: str, **kwargs):
+def _metric(
+    cls: type[Counter | Gauge | Histogram],
+    name: str,
+    documentation: str,
+    **kwargs: Any,  # noqa: ANN401 — forwarded to a Prometheus metric constructor
+) -> Counter | Gauge | Histogram:
     """Create a Prometheus metric, skipping if already registered."""
     try:
         return cls(name, documentation, **kwargs)
@@ -84,13 +94,13 @@ dataset_size_bytes = _metric(
     "datapilot_dataset_size_bytes",
     "Distribution of uploaded dataset file sizes in bytes.",
     buckets=[
-        1_024,           # 1 KB
-        10_240,          # 10 KB
-        102_400,         # 100 KB
-        1_048_576,       # 1 MB
-        10_485_760,      # 10 MB
-        104_857_600,     # 100 MB
-        1_073_741_824,   # 1 GB
+        1_024,  # 1 KB
+        10_240,  # 10 KB
+        102_400,  # 100 KB
+        1_048_576,  # 1 MB
+        10_485_760,  # 10 MB
+        104_857_600,  # 100 MB
+        1_073_741_824,  # 1 GB
     ],
 )
 
@@ -117,7 +127,7 @@ agent_executions_total = _metric(
     Counter,
     "datapilot_agent_executions_total",
     "Total agent invocations by agent name and outcome.",
-    labelnames=["agent_name", "status"],   # status: success | failure | retry
+    labelnames=["agent_name", "status"],  # status: success | failure | retry
 )
 """Incremented by ``BaseAgent.run()`` after each invocation completes."""
 
@@ -144,7 +154,7 @@ llm_tokens_total = _metric(
     Counter,
     "datapilot_llm_tokens_total",
     "Total LLM tokens consumed split by agent and token type.",
-    labelnames=["agent_name", "model", "token_type"],   # token_type: input | output
+    labelnames=["agent_name", "model", "token_type"],  # token_type: input | output
 )
 """Incremented by ``TokenTracker.record()`` after each Bedrock call."""
 
@@ -174,7 +184,7 @@ llm_errors_total = _metric(
     Counter,
     "datapilot_llm_errors_total",
     "Total Bedrock API errors by error code.",
-    labelnames=["error_code"],   # ThrottlingException | ModelNotReadyException | etc.
+    labelnames=["error_code"],  # ThrottlingException | ModelNotReadyException | etc.
 )
 
 # ---------------------------------------------------------------------------
@@ -185,7 +195,7 @@ chat_messages_total = _metric(
     Counter,
     "datapilot_chat_messages_total",
     "Total chat messages by role.",
-    labelnames=["role"],   # user | assistant
+    labelnames=["role"],  # user | assistant
 )
 
 chat_session_duration_seconds = _metric(
@@ -254,7 +264,7 @@ db_query_duration_seconds = _metric(
     Histogram,
     "datapilot_db_query_duration_seconds",
     "PostgreSQL query duration in seconds.",
-    labelnames=["operation"],   # select | insert | update | delete
+    labelnames=["operation"],  # select | insert | update | delete
     buckets=[0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0],
 )
 
@@ -262,7 +272,7 @@ s3_operation_duration_seconds = _metric(
     Histogram,
     "datapilot_s3_operation_duration_seconds",
     "S3/MinIO operation duration in seconds.",
-    labelnames=["operation"],   # upload | download | delete | presign
+    labelnames=["operation"],  # upload | download | delete | presign
     buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 15.0, 30.0],
 )
 
@@ -283,6 +293,7 @@ kafka_events_consumed_total = _metric(
 # ---------------------------------------------------------------------------
 # Convenience emission helpers
 # ---------------------------------------------------------------------------
+
 
 def record_agent_execution(
     agent_name: str,
@@ -311,8 +322,12 @@ def record_agent_execution(
     agent_duration_seconds.labels(agent_name=agent_name).observe(duration_seconds)
 
     if model:
-        llm_tokens_total.labels(agent_name=agent_name, model=model, token_type="input").inc(input_tokens)
-        llm_tokens_total.labels(agent_name=agent_name, model=model, token_type="output").inc(output_tokens)
+        llm_tokens_total.labels(agent_name=agent_name, model=model, token_type="input").inc(
+            input_tokens
+        )
+        llm_tokens_total.labels(agent_name=agent_name, model=model, token_type="output").inc(
+            output_tokens
+        )
         llm_cost_usd_total.labels(agent_name=agent_name, model=model).inc(cost_usd)
 
 

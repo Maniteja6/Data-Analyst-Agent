@@ -26,26 +26,35 @@ Usage::
     detector = IsolationForestDetector(contamination=0.05)
     results  = detector.detect_multivariate(df, numeric_columns=["revenue", "units", "margin"])
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import structlog
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
+
+    DataFrameT = pl.DataFrame | pd.DataFrame
 
 logger = structlog.get_logger(__name__)
 
 # Maximum rows to pass to IsolationForest to keep memory bounded
-_MAX_ROWS_FULL   = 50_000
-_SAMPLE_FRACTION = 0.1   # fraction to use above _MAX_ROWS_FULL
+_MAX_ROWS_FULL = 50_000
+_SAMPLE_FRACTION = 0.1  # fraction to use above _MAX_ROWS_FULL
 
 
 @dataclass
 class IFAnomaly:
     """One anomalous row flagged by Isolation Forest."""
-    row_index:       int
-    anomaly_score:   float    # raw decision function score; more negative = more anomalous
-    confidence:      float    # normalised [0.5, 1.0]
-    column_values:   dict[str, float] = field(default_factory=dict)
+
+    row_index: int
+    anomaly_score: float  # raw decision function score; more negative = more anomalous
+    confidence: float  # normalised [0.5, 1.0]
+    column_values: dict[str, float] = field(default_factory=dict)
 
 
 class IsolationForestDetector:
@@ -65,13 +74,13 @@ class IsolationForestDetector:
         random_state: int = 42,
     ) -> None:
         self._contamination = contamination
-        self._n_estimators  = n_estimators
-        self._max_results   = max_results
-        self._random_state  = random_state
+        self._n_estimators = n_estimators
+        self._max_results = max_results
+        self._random_state = random_state
 
     def detect_multivariate(
         self,
-        df,
+        df: DataFrameT,
         numeric_columns: list[str],
     ) -> list[IFAnomaly]:
         """Run Isolation Forest across multiple numeric columns simultaneously.
@@ -96,7 +105,7 @@ class IsolationForestDetector:
             logger.warning("isolation_forest_failed", error=str(exc))
             return []
 
-    def _run(self, df, columns: list[str]) -> list[IFAnomaly]:
+    def _run(self, df: DataFrameT, columns: list[str]) -> list[IFAnomaly]:
         import numpy as np
         from sklearn.ensemble import IsolationForest as SKLearnIF
         from sklearn.preprocessing import StandardScaler
@@ -104,6 +113,7 @@ class IsolationForestDetector:
         # Extract numeric matrix — handle polars and pandas
         try:
             import polars as pl
+
             if isinstance(df, pl.DataFrame):
                 data = df.select(columns).fill_null(0).to_numpy()
             else:
@@ -116,42 +126,44 @@ class IsolationForestDetector:
 
         # Sample for very large datasets
         if data.shape[0] > _MAX_ROWS_FULL:
-            rng         = np.random.default_rng(self._random_state)
+            rng = np.random.default_rng(self._random_state)
             sample_size = int(data.shape[0] * _SAMPLE_FRACTION)
-            indices     = rng.choice(data.shape[0], size=sample_size, replace=False)
-            fit_data    = data[indices]
+            indices = rng.choice(data.shape[0], size=sample_size, replace=False)
+            fit_data = data[indices]
         else:
             fit_data = data
 
         # Fit and score
         scaler = StandardScaler()
-        fit_scaled  = scaler.fit_transform(fit_data)
+        fit_scaled = scaler.fit_transform(fit_data)
         full_scaled = scaler.transform(data)
 
         model = SKLearnIF(
             n_estimators=self._n_estimators,
             contamination=self._contamination,
             random_state=self._random_state,
-            n_jobs=-1,   # use all CPU cores
+            n_jobs=-1,  # use all CPU cores
         )
         model.fit(fit_scaled)
-        scores    = model.decision_function(full_scaled)  # lower = more anomalous
-        labels    = model.predict(full_scaled)            # -1 = anomaly, 1 = normal
+        scores = model.decision_function(full_scaled)  # lower = more anomalous
+        labels = model.predict(full_scaled)  # -1 = anomaly, 1 = normal
 
-        results   = []
-        for idx, (label, score) in enumerate(zip(labels, scores)):
+        results = []
+        for idx, (label, score) in enumerate(zip(labels, scores, strict=False)):
             if label == -1:
                 # Normalise score to [0.5, 1.0] confidence
                 # decision_function returns values around 0 for the boundary;
                 # more negative = higher confidence anomaly
                 confidence = min(1.0, 0.5 + abs(score) * 2)
                 row_values = {col: float(data[idx, j]) for j, col in enumerate(columns)}
-                results.append(IFAnomaly(
-                    row_index=idx,
-                    anomaly_score=round(float(score), 6),
-                    confidence=round(confidence, 4),
-                    column_values=row_values,
-                ))
+                results.append(
+                    IFAnomaly(
+                        row_index=idx,
+                        anomaly_score=round(float(score), 6),
+                        confidence=round(confidence, 4),
+                        column_values=row_values,
+                    )
+                )
             if len(results) >= self._max_results:
                 break
 
@@ -165,20 +177,20 @@ class IsolationForestDetector:
         )
         return results
 
-    def to_anomaly_dicts(self, df, numeric_columns: list[str]) -> list[dict]:
+    def to_anomaly_dicts(self, df: DataFrameT, numeric_columns: list[str]) -> list[dict]:
         """Run detection and return plain dicts for the pipeline."""
         anomalies = self.detect_multivariate(df, numeric_columns)
         return [
             {
-                "column":           "multivariate",
+                "column": "multivariate",
                 "detection_method": "IsolationForest",
-                "anomaly_type":     "outlier",
-                "severity":         "medium" if a.confidence > 0.8 else "low",
-                "confidence":       a.confidence,
-                "rows_affected":    1,
-                "value":            str(a.column_values),
-                "row_index":        a.row_index,
-                "description":      (
+                "anomaly_type": "outlier",
+                "severity": "medium" if a.confidence > 0.8 else "low",
+                "confidence": a.confidence,
+                "rows_affected": 1,
+                "value": str(a.column_values),
+                "row_index": a.row_index,
+                "description": (
                     f"Row {a.row_index} is a multivariate outlier "
                     f"(Isolation Forest score {a.anomaly_score:.4f}). "
                     f"Unusual combination of values: "

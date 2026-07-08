@@ -7,12 +7,13 @@ infrastructure layer provides the implementation (e.g. PostgresDatasetRepository
 This follows the Dependency Inversion Principle: high-level use cases
 depend on the abstract ``Repository``, not on SQLAlchemy or any other ORM.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import Generic, TypeVar
 
-T  = TypeVar("T")   # Entity / Aggregate type
+T = TypeVar("T")  # Entity / Aggregate type
 ID = TypeVar("ID")  # Identity type (str UUID in this codebase)
 
 
@@ -42,7 +43,7 @@ class Repository(ABC, Generic[T, ID]):
         """Retrieve a single entity by its unique identifier.
 
         Returns ``None`` if the entity does not exist (callers that
-        require existence should raise ``NotFoundException`` themselves).
+        require existence should raise ``NotFoundError`` themselves).
         """
 
     @abstractmethod

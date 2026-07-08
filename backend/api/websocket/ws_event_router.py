@@ -1,7 +1,9 @@
 """WebSocket event router — maps event type strings to handler coroutines."""
+
 from __future__ import annotations
 
-from typing import Any, Callable, Awaitable
+from collections.abc import Callable
+from typing import Any
 
 import structlog
 
@@ -11,15 +13,17 @@ logger = structlog.get_logger(__name__)
 _HANDLERS: dict[str, Callable] = {}
 
 
-def register(event_type: str):
+def register(event_type: str) -> Callable[[Callable], Callable]:
     """Decorator to register a WebSocket event handler."""
+
     def decorator(fn: Callable) -> Callable:
         _HANDLERS[event_type] = fn
         return fn
+
     return decorator
 
 
-async def dispatch(sio, sid: str, event_type: str, data: dict) -> None:
+async def dispatch(sio: Any, sid: str, event_type: str, data: dict) -> None:  # noqa: ANN401
     """Dispatch an incoming Socket.IO event to the registered handler."""
     handler = _HANDLERS.get(event_type)
     if handler is None:

@@ -11,17 +11,18 @@ Compression strategy:
     assistant context block. The summary is prepended as a "system" turn
     so subsequent messages benefit from the prior conversation's facts.
 """
+
 from __future__ import annotations
 
-from alembic.environment import Any
 import structlog
+from alembic.environment import Any
 from backend.infrastructure.llm.model_id_registry import get_model_id
 
 logger = structlog.get_logger(__name__)
 
 MAX_TURNS_BEFORE_COMPRESS = 10
-KEEP_RECENT_TURNS         = 4
-MAX_SUMMARY_TOKENS        = 800
+KEEP_RECENT_TURNS = 4
+MAX_SUMMARY_TOKENS = 800
 
 
 class ConversationCompressor:
@@ -39,17 +40,15 @@ class ConversationCompressor:
         """Return True when the message list exceeds the compression threshold."""
         return len(messages) >= MAX_TURNS_BEFORE_COMPRESS
 
-    def split_for_compression(
-        self, messages: list[dict]
-    ) -> tuple[list[dict], list[dict]]:
+    def split_for_compression(self, messages: list[dict]) -> tuple[list[dict], list[dict]]:
         """Split messages into (to_compress, to_keep).
 
         The last KEEP_RECENT_TURNS messages are always kept verbatim.
         Earlier messages are compressed into a summary.
         """
-        keep_start  = max(0, len(messages) - KEEP_RECENT_TURNS)
+        keep_start = max(0, len(messages) - KEEP_RECENT_TURNS)
         to_compress = messages[:keep_start]
-        to_keep     = messages[keep_start:]
+        to_keep = messages[keep_start:]
         return to_compress, to_keep
 
     async def compress(self, messages: list[dict]) -> str:
@@ -69,10 +68,7 @@ class ConversationCompressor:
             n = len(messages)
             return f"[Prior conversation: {n} turns about this dataset were summarised here.]"
 
-        history_text = "\n".join(
-            f"{m['role'].upper()}: {self._extract_text(m)}"
-            for m in messages
-        )
+        history_text = "\n".join(f"{m['role'].upper()}: {self._extract_text(m)}" for m in messages)
 
         prompt = (
             "Summarise the following data analytics conversation in 4-6 sentences. "
@@ -99,9 +95,7 @@ class ConversationCompressor:
             logger.warning("compression_failed", error=str(exc))
             return f"[Prior conversation with {len(messages)} turns compressed due to error.]"
 
-    async def compress_and_replace(
-        self, messages: list[dict]
-    ) -> list[dict]:
+    async def compress_and_replace(self, messages: list[dict]) -> list[dict]:
         """Compress old turns and return a new, shorter message list.
 
         The returned list starts with a synthetic user message containing the
@@ -124,12 +118,12 @@ class ConversationCompressor:
 
         # Inject summary as a user message so it reads naturally in context
         summary_block = {
-            "role":    "user",
+            "role": "user",
             "content": [{"text": f"[Context from prior conversation]\n{summary}"}],
         }
         # Add a synthetic assistant acknowledgement
         ack_block = {
-            "role":    "assistant",
+            "role": "assistant",
             "content": [{"text": "Understood. I have the context from our earlier discussion."}],
         }
 

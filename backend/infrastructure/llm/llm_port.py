@@ -24,10 +24,12 @@ The concrete implementation is injected via ``api/dependencies.py``:
             return MockLLMService()
         return BedrockLLMService()
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import AsyncGenerator, Any
+from collections.abc import AsyncGenerator
+from typing import Any
 
 
 class ILLMService(ABC):
@@ -78,6 +80,7 @@ class ILLMService(ABC):
 # Production implementation
 # ---------------------------------------------------------------------------
 
+
 class BedrockLLMService(ILLMService):
     """Production ILLMService backed by AWS Bedrock.
 
@@ -86,30 +89,62 @@ class BedrockLLMService(ILLMService):
     """
 
     def __init__(self) -> None:
-        from backend.infrastructure.llm.bedrock.bedrock_converse_adapter import BedrockConverseAdapter
-        from backend.infrastructure.llm.bedrock.bedrock_stream_adapter   import BedrockStreamAdapter
-        from backend.infrastructure.vector_store.bedrock_embedding_service import BedrockEmbeddingService
+        from backend.infrastructure.llm.bedrock.bedrock_converse_adapter import (
+            BedrockConverseAdapter,
+        )
+        from backend.infrastructure.llm.bedrock.bedrock_stream_adapter import BedrockStreamAdapter
+        from backend.infrastructure.vector_store.bedrock_embedding_service import (
+            BedrockEmbeddingService,
+        )
 
-        self._converse  = BedrockConverseAdapter()
-        self._stream    = BedrockStreamAdapter()
+        self._converse = BedrockConverseAdapter()
+        self._stream = BedrockStreamAdapter()
         self._embedding = BedrockEmbeddingService()
 
-    async def complete(self, prompt, system=None, model_id=None, max_tokens=None,
-                       temperature=None, response_format=None) -> str:
+    async def complete(
+        self,
+        prompt: str,
+        system: str | None = None,
+        model_id: str | None = None,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        response_format: type | None = None,
+    ) -> str:
         return await self._converse.complete(
-            prompt=prompt, system=system, model_id=model_id,
-            max_tokens=max_tokens, temperature=temperature,
+            prompt=prompt,
+            system=system,
+            model_id=model_id,
+            max_tokens=max_tokens,
+            temperature=temperature,
             response_format=response_format,
         )
 
-    async def converse(self, messages, system=None, model_id=None, max_tokens=None) -> str:
+    async def converse(
+        self,
+        messages: list[dict],
+        system: str | None = None,
+        model_id: str | None = None,
+        max_tokens: int | None = None,
+    ) -> str:
         return await self._converse.converse_multi_turn(
-            messages=messages, system=system, model_id=model_id, max_tokens=max_tokens,
+            messages=messages,
+            system=system,
+            model_id=model_id,
+            max_tokens=max_tokens,
         )
 
-    async def stream(self, prompt, system=None, model_id=None, max_tokens=None):
+    async def stream(
+        self,
+        prompt: str,
+        system: str | None = None,
+        model_id: str | None = None,
+        max_tokens: int | None = None,
+    ) -> AsyncGenerator[str, None]:
         async for token in self._stream.stream(
-            prompt=prompt, system=system, model_id=model_id, max_tokens=max_tokens,
+            prompt=prompt,
+            system=system,
+            model_id=model_id,
+            max_tokens=max_tokens,
         ):
             yield token
 
@@ -120,6 +155,7 @@ class BedrockLLMService(ILLMService):
 # ---------------------------------------------------------------------------
 # Test double
 # ---------------------------------------------------------------------------
+
 
 class MockLLMService(ILLMService):
     """Configurable mock LLM service for unit and integration tests.
@@ -139,9 +175,9 @@ class MockLLMService(ILLMService):
     """
 
     def __init__(self, default_response: str = '{"result": "mock"}') -> None:
-        self._default   = default_response
-        self._responses: dict[str, str]  = {}
-        self.calls:      list[dict[str, Any]] = []
+        self._default = default_response
+        self._responses: dict[str, str] = {}
+        self.calls: list[dict[str, Any]] = []
 
     def set_response(self, prompt_contains: str, response: str) -> None:
         """Register a canned response for prompts containing ``prompt_contains``."""
@@ -153,19 +189,38 @@ class MockLLMService(ILLMService):
                 return val
         return self._default
 
-    async def complete(self, prompt, system=None, model_id=None, max_tokens=None,
-                       temperature=None, response_format=None) -> str:
+    async def complete(
+        self,
+        prompt: str,
+        system: str | None = None,
+        model_id: str | None = None,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        response_format: type | None = None,
+    ) -> str:
         self.calls.append({"method": "complete", "prompt": prompt, "model_id": model_id})
         return self._match(prompt)
 
-    async def converse(self, messages, system=None, model_id=None, max_tokens=None) -> str:
+    async def converse(
+        self,
+        messages: list[dict],
+        system: str | None = None,
+        model_id: str | None = None,
+        max_tokens: int | None = None,
+    ) -> str:
         last_user = next(
             (m["content"][0]["text"] for m in reversed(messages) if m["role"] == "user"), ""
         )
         self.calls.append({"method": "converse", "last_user_message": last_user})
         return self._match(last_user)
 
-    async def stream(self, prompt, system=None, model_id=None, max_tokens=None):
+    async def stream(
+        self,
+        prompt: str,
+        system: str | None = None,
+        model_id: str | None = None,
+        max_tokens: int | None = None,
+    ) -> AsyncGenerator[str, None]:
         response = self._match(prompt)
         self.calls.append({"method": "stream", "prompt": prompt})
         for word in response.split():
@@ -186,6 +241,7 @@ class MockLLMService(ILLMService):
 # No-op implementation
 # ---------------------------------------------------------------------------
 
+
 class NullLLMService(ILLMService):
     """LLM service that always returns empty strings.
 
@@ -194,15 +250,35 @@ class NullLLMService(ILLMService):
     flags are all disabled).
     """
 
-    async def complete(self, *args, **kwargs) -> str:
+    async def complete(
+        self,
+        prompt: str,
+        system: str | None = None,
+        model_id: str | None = None,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        response_format: type | None = None,
+    ) -> str:
         return ""
 
-    async def converse(self, *args, **kwargs) -> str:
+    async def converse(
+        self,
+        messages: list[dict],
+        system: str | None = None,
+        model_id: str | None = None,
+        max_tokens: int | None = None,
+    ) -> str:
         return ""
 
-    async def stream(self, *args, **kwargs):
+    async def stream(
+        self,
+        prompt: str,
+        system: str | None = None,
+        model_id: str | None = None,
+        max_tokens: int | None = None,
+    ) -> AsyncGenerator[str, None]:
         return
-        yield   # make it a generator
+        yield  # make it a generator
 
     async def embed(self, text: str) -> list[float]:
         return [0.0] * 1536

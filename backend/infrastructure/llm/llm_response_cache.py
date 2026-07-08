@@ -43,9 +43,15 @@ Usage::
     await cache.set(model_id, prompt, response)
     return response
 """
+
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import structlog
+
+if TYPE_CHECKING:
+    from backend.infrastructure.cache.redis_cache_adapter import RedisCacheAdapter
 
 logger = structlog.get_logger(__name__)
 
@@ -62,7 +68,7 @@ class LLMResponseCache:
 
     def __init__(
         self,
-        cache_adapter=None,
+        cache_adapter: RedisCacheAdapter | None = None,
         ttl: int | None = None,
         enabled: bool = True,
     ) -> None:
@@ -73,11 +79,11 @@ class LLMResponseCache:
             ttl:           Cache TTL in seconds. Defaults to ``Settings.redis_ttl_seconds``.
             enabled:       Set False to disable caching (e.g. for debugging).
         """
-        self._cache   = cache_adapter
-        self._ttl     = ttl
+        self._cache = cache_adapter
+        self._ttl = ttl
         self._enabled = enabled
-        self._hits    = 0   # diagnostic counter
-        self._misses  = 0
+        self._hits = 0  # diagnostic counter
+        self._misses = 0
 
     # ── Cache operations ──────────────────────────────────────────────────
 
@@ -96,7 +102,7 @@ class LLMResponseCache:
 
         key = self._build_key(model_id, prompt)
         try:
-            adapter  = self._get_adapter()
+            adapter = self._get_adapter()
             response = await adapter.get(key)
             if response is not None:
                 self._hits += 1
@@ -127,7 +133,7 @@ class LLMResponseCache:
         key = self._build_key(model_id, prompt)
         try:
             adapter = self._get_adapter()
-            ttl     = self._ttl or self._default_ttl()
+            ttl = self._ttl or self._default_ttl()
             await adapter.set(key, response, ttl=ttl)
             logger.debug(
                 "llm_cache_set",
@@ -174,7 +180,7 @@ class LLMResponseCache:
 
     def reset_counters(self) -> None:
         """Reset hit/miss counters — useful between test cases."""
-        self._hits   = 0
+        self._hits = 0
         self._misses = 0
 
     # ── Private helpers ───────────────────────────────────────────────────
@@ -182,15 +188,18 @@ class LLMResponseCache:
     def _build_key(self, model_id: str, prompt: str) -> str:
         """Construct the Redis key for a (model_id, prompt) pair."""
         from backend.shared.utils.hash_utils import llm_cache_key
+
         return self._KEY_PREFIX + llm_cache_key(model_id, prompt)
 
-    def _get_adapter(self):
+    def _get_adapter(self) -> RedisCacheAdapter:
         """Return the cache adapter, initialising the Redis singleton if needed."""
         if self._cache is None:
             from backend.infrastructure.cache.redis_cache_adapter import get_redis_cache
+
             self._cache = get_redis_cache()
         return self._cache
 
     def _default_ttl(self) -> int:
         from backend.config.settings import get_settings
+
         return get_settings().agent_llm_cache_ttl_seconds

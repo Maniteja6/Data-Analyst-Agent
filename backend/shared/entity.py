@@ -10,6 +10,7 @@ over time while their identity remains constant.
 Examples in this codebase:
     ColumnSchema, FileMetadata, AnalysisSession, AnomalyAlert, Message
 """
+
 from __future__ import annotations
 
 import uuid
@@ -56,6 +57,6 @@ class Entity:
     # Helpers
     # ------------------------------------------------------------------
 
-    def is_same_entity(self, other: "Entity") -> bool:
+    def is_same_entity(self, other: Entity) -> bool:
         """Explicit identity check — clearer than ``==`` in domain methods."""
         return self.__class__ is other.__class__ and self.id == other.id

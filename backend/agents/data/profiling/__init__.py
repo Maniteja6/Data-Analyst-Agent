@@ -11,5 +11,8 @@ from backend.agents.data.profiling.profiling_agent import ProfilingAgent
 from backend.agents.data.profiling.statistics_calculator import StatisticsCalculator
 
 __all__ = [
-    "ProfilingAgent", "CorrelationAnalyzer", "HistogramBuilder", "StatisticsCalculator",
+    "ProfilingAgent",
+    "CorrelationAnalyzer",
+    "HistogramBuilder",
+    "StatisticsCalculator",
 ]

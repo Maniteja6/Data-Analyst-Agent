@@ -18,11 +18,17 @@ Idempotency:
     agents. If the dataset is already READY (pipeline was re-triggered), the
     agent task is not re-enqueued to avoid duplicate insight reports.
 """
+
 from __future__ import annotations
 
-import structlog
+from typing import TYPE_CHECKING
 
+import structlog
 from backend.infrastructure.messaging.kafka_consumer import KafkaConsumerBase
+
+if TYPE_CHECKING:
+    from backend.infrastructure.cache.redis_cache_adapter import RedisCacheAdapter
+    from celery import Celery
 
 logger = structlog.get_logger(__name__)
 
@@ -33,7 +39,9 @@ TRIGGER_STAGE = "CLEANING_COMPLETE"
 class AnalyticsCompletedConsumer(KafkaConsumerBase):
     """Triggers the AI agent pipeline when analytics finishes."""
 
-    def __init__(self, celery_app=None, cache=None) -> None:
+    def __init__(
+        self, celery_app: Celery | None = None, cache: RedisCacheAdapter | None = None
+    ) -> None:
         super().__init__(
             topics=[
                 "analytics.profiling-complete",
@@ -42,16 +50,16 @@ class AnalyticsCompletedConsumer(KafkaConsumerBase):
             group_id="datapilot-analytics-engine",
         )
         self._celery = celery_app
-        self._cache  = cache
+        self._cache = cache
 
     async def handle_message(self, topic: str, payload: dict) -> None:
-        dataset_id     = payload.get("dataset_id", "")
-        session_id     = payload.get("session_id", "")
+        dataset_id = payload.get("dataset_id", "")
+        session_id = payload.get("session_id", "")
         correlation_id = payload.get("correlation_id", "")
-        stage          = payload.get("stage", "")
+        stage = payload.get("stage", "")
 
         if not dataset_id:
-            raise self.SkipMessage("Missing dataset_id in analytics completed event")
+            raise self.SkipMessageError("Missing dataset_id in analytics completed event")
 
         structlog.contextvars.bind_contextvars(
             dataset_id=dataset_id,
@@ -114,14 +122,17 @@ class AnalyticsCompletedConsumer(KafkaConsumerBase):
                 extra={"dataset_id": dataset_id},
             )
             import json
+
             await cache.publish(
                 f"dataset:{dataset_id}",
-                json.dumps({
-                    "type":       "job.progress",
-                    "progress":   progress / 100,
-                    "message":    step,
-                    "dataset_id": dataset_id,
-                }),
+                json.dumps(
+                    {
+                        "type": "job.progress",
+                        "progress": progress / 100,
+                        "message": step,
+                        "dataset_id": dataset_id,
+                    }
+                ),
             )
         except Exception as exc:
             logger.warning("progress_update_failed", error=str(exc))
@@ -130,11 +141,12 @@ class AnalyticsCompletedConsumer(KafkaConsumerBase):
         """Return True when the dataset is already in READY status."""
         try:
             from backend.infrastructure.persistence.database import get_session
-            from backend.infrastructure.persistence.repositories.postgres_dataset_repository import (
+            from backend.infrastructure.persistence.repositories.postgres_dataset_repository import (  # noqa: E501
                 PostgresDatasetRepository,
             )
+
             async with get_session() as session:
-                repo    = PostgresDatasetRepository(session)
+                repo = PostgresDatasetRepository(session)
                 dataset = await repo.get_by_id(dataset_id)
                 return dataset is not None and dataset.status.value == "ready"
         except Exception:
@@ -148,23 +160,26 @@ class AnalyticsCompletedConsumer(KafkaConsumerBase):
     ) -> str:
         if self._celery is None:
             from backend.infrastructure.job_queue.celery_app import celery_app
+
             self._celery = celery_app
 
         from backend.infrastructure.job_queue.tasks.agent_tasks import run_agent_pipeline
+
         result = run_agent_pipeline.apply_async(
             kwargs={
-                "dataset_id":     dataset_id,
-                "session_id":     session_id,
+                "dataset_id": dataset_id,
+                "session_id": session_id,
                 "correlation_id": correlation_id,
             },
             queue="agents",
         )
         return result.id
 
-    def _get_cache(self):
+    def _get_cache(self) -> RedisCacheAdapter | None:
         if self._cache is None:
             try:
                 from backend.infrastructure.cache.redis_cache_adapter import get_redis_cache
+
                 self._cache = get_redis_cache()
             except Exception:
                 return None

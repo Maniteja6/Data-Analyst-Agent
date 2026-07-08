@@ -1,8 +1,17 @@
 """DuplicateRemover — removes exact duplicate rows from a DataFrame."""
+
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import structlog
-from backend.domain.analytics.entities.cleaning_report import CleaningStep, CleaningAction
+from backend.domain.analytics.entities.cleaning_report import CleaningAction, CleaningStep
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
+
+    DataFrameT = pl.DataFrame | pd.DataFrame
 
 logger = structlog.get_logger(__name__)
 
@@ -10,15 +19,13 @@ logger = structlog.get_logger(__name__)
 class DuplicateRemover:
     """Removes exact duplicate rows (all columns must match)."""
 
-    def remove(self, df) -> tuple:
+    def remove(self, df: DataFrameT) -> tuple:
         """Remove duplicate rows and return (cleaned_df, CleaningStep | None)."""
         before = len(df)
         try:
             import polars as pl
-            if isinstance(df, pl.DataFrame):
-                cleaned = df.unique()
-            else:
-                cleaned = df.drop_duplicates()
+
+            cleaned = df.unique() if isinstance(df, pl.DataFrame) else df.drop_duplicates()
         except Exception:
             cleaned = df.drop_duplicates()
 
@@ -30,7 +37,9 @@ class DuplicateRemover:
             action=CleaningAction.REMOVE_DUPLICATES,
             column=None,
             rows_affected=removed,
-            description=f"Removed {removed:,} duplicate rows ({removed/before*100:.1f}% of dataset).",
+            description=(
+                f"Removed {removed:,} duplicate rows ({removed / before * 100:.1f}% of dataset)."
+            ),
         )
         logger.info("duplicates_removed", count=removed, before=before)
         return cleaned, step

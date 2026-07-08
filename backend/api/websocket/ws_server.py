@@ -14,6 +14,7 @@ Redis pub/sub bridge:
   and re-emits each event as a Socket.IO event to the appropriate room.
   This decouples the workers from the WebSocket server.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -46,15 +47,18 @@ _redis_subscriber_task: asyncio.Task | None = None
 # Socket.IO event handlers (delegated to ws_handlers/)
 # ---------------------------------------------------------------------------
 
+
 @sio.on("connect")
 async def on_connect(sid: str, environ: dict, auth: dict | None = None) -> None:
     from backend.api.websocket.ws_handlers.connect_handler import handle_connect
+
     await handle_connect(sio, sid, environ, auth)
 
 
 @sio.on("disconnect")
 async def on_disconnect(sid: str) -> None:
     from backend.api.websocket.ws_handlers.disconnect_handler import handle_disconnect
+
     await handle_disconnect(sio, sid)
 
 
@@ -80,18 +84,21 @@ async def on_unsubscribe_dataset(sid: str, data: dict) -> None:
 @sio.on("chat_message")
 async def on_chat_message(sid: str, data: dict) -> None:
     from backend.api.websocket.ws_handlers.chat_handler import handle_chat_message
+
     await handle_chat_message(sio, sid, data)
 
 
 @sio.on("subscribe_job")
 async def on_subscribe_job(sid: str, data: dict) -> None:
     from backend.api.websocket.ws_handlers.job_handler import handle_subscribe_job
+
     await handle_subscribe_job(sio, sid, data)
 
 
 # ---------------------------------------------------------------------------
 # Redis → Socket.IO bridge
 # ---------------------------------------------------------------------------
+
 
 async def start_redis_subscriber() -> None:
     """Start a background task that listens to Redis pub/sub and forwards events."""
@@ -107,9 +114,10 @@ async def _redis_bridge_loop() -> None:
     try:
         import redis.asyncio as aioredis
         from backend.config.settings import get_settings
+
         settings = get_settings()
-        client   = aioredis.from_url(settings.redis_url, decode_responses=True)
-        pubsub   = client.pubsub()
+        client = aioredis.from_url(settings.redis_url, decode_responses=True)
+        pubsub = client.pubsub()
 
         # Subscribe to the pattern channel
         await pubsub.psubscribe("dataset:*")

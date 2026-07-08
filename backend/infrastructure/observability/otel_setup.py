@@ -28,11 +28,18 @@ Usage (called once in the FastAPI lifespan handler):
         span.set_attribute("sql.row_limit", row_limit)
         result = await duckdb_executor.execute(sql)
 """
+
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
+
+if TYPE_CHECKING:
+    import redis.asyncio as redis
+    from fastapi import FastAPI
+    from sqlalchemy import Engine
+    from sqlalchemy.ext.asyncio import AsyncEngine
 
 logger = structlog.get_logger(__name__)
 
@@ -40,6 +47,7 @@ logger = structlog.get_logger(__name__)
 # ---------------------------------------------------------------------------
 # Core setup
 # ---------------------------------------------------------------------------
+
 
 def setup_otel(
     service_name: str,
@@ -61,11 +69,11 @@ def setup_otel(
                                         every span, e.g. ``{'service.version': '1.0.0'}``.
     """
     try:
+        from backend.config.settings import get_settings
         from opentelemetry import trace
+        from opentelemetry.sdk.resources import SERVICE_NAME, SERVICE_VERSION, Resource
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
-        from opentelemetry.sdk.resources import Resource, SERVICE_NAME, SERVICE_VERSION
-        from backend.config.settings import get_settings
 
         settings = get_settings()
 
@@ -77,7 +85,7 @@ def setup_otel(
 
         # Build the resource describing this service
         resource_attrs = {
-            SERVICE_NAME:    service_name,
+            SERVICE_NAME: service_name,
             SERVICE_VERSION: settings.app_version,
             "deployment.environment": settings.app_env,
         }
@@ -91,12 +99,14 @@ def setup_otel(
         # Configure the OTLP exporter
         if protocol == "grpc":
             from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+
             exporter = OTLPSpanExporter(
                 endpoint=endpoint,
                 insecure=not endpoint.startswith("https"),
             )
         else:
             from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
             exporter = OTLPSpanExporter(endpoint=f"{endpoint}/v1/traces")
 
         # Batch processor — buffers spans and sends in batches to reduce overhead
@@ -132,7 +142,8 @@ def setup_otel(
 # Instrumentation helpers
 # ---------------------------------------------------------------------------
 
-def instrument_fastapi(app: Any) -> None:
+
+def instrument_fastapi(app: FastAPI) -> None:
     """Instrument a FastAPI application with automatic span creation.
 
     Creates one span per HTTP request with ``http.method``, ``http.url``,
@@ -143,6 +154,7 @@ def instrument_fastapi(app: Any) -> None:
     """
     try:
         from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+
         FastAPIInstrumentor.instrument_app(
             app,
             excluded_urls="/health,/ready,/metrics",  # skip infra endpoints
@@ -154,7 +166,7 @@ def instrument_fastapi(app: Any) -> None:
         logger.error("otel_fastapi_instrument_failed", error=str(exc))
 
 
-def instrument_sqlalchemy(engine: Any) -> None:
+def instrument_sqlalchemy(engine: AsyncEngine | Engine) -> None:
     """Instrument a SQLAlchemy engine to trace all DB queries.
 
     Creates child spans under the active request span with
@@ -165,6 +177,7 @@ def instrument_sqlalchemy(engine: Any) -> None:
     """
     try:
         from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+
         SQLAlchemyInstrumentor().instrument(engine=engine)
         logger.info("otel_sqlalchemy_instrumented")
     except ImportError:
@@ -173,7 +186,7 @@ def instrument_sqlalchemy(engine: Any) -> None:
         logger.error("otel_sqlalchemy_instrument_failed", error=str(exc))
 
 
-def instrument_redis(client: Any) -> None:
+def instrument_redis(client: redis.Redis) -> None:
     """Instrument a Redis client to trace cache operations.
 
     Args:
@@ -181,6 +194,7 @@ def instrument_redis(client: Any) -> None:
     """
     try:
         from opentelemetry.instrumentation.redis import RedisInstrumentor
+
         RedisInstrumentor().instrument()
         logger.info("otel_redis_instrumented")
     except ImportError:
@@ -193,7 +207,8 @@ def instrument_redis(client: Any) -> None:
 # Tracer factory
 # ---------------------------------------------------------------------------
 
-def get_tracer(name: str):
+
+def get_tracer(name: str) -> Any:  # noqa: ANN401 — real OTel Tracer or no-op fallback
     """Return an OpenTelemetry ``Tracer`` for the given component name.
 
     When OTel is not configured (e.g. in unit tests), returns a no-op tracer
@@ -215,6 +230,7 @@ def get_tracer(name: str):
                 return result
     """
     from opentelemetry import trace
+
     return trace.get_tracer(name)
 
 
@@ -222,22 +238,23 @@ def get_tracer(name: str):
 # Span attribute helpers
 # ---------------------------------------------------------------------------
 
-def set_agent_attributes(span: Any, agent_name: str, session_id: str, attempt: int = 1) -> None:
+
+def set_agent_attributes(span: Any, agent_name: str, session_id: str, attempt: int = 1) -> None:  # noqa: ANN401
     """Set standard agent span attributes in a single call.
 
     Standardises the attribute names used across all agents so Jaeger
     can filter and group spans by agent name, session, or attempt count.
     """
     try:
-        span.set_attribute("agent.name",       agent_name)
+        span.set_attribute("agent.name", agent_name)
         span.set_attribute("agent.session_id", session_id)
-        span.set_attribute("agent.attempt",    attempt)
-    except Exception:
-        pass
+        span.set_attribute("agent.attempt", attempt)
+    except Exception as exc:
+        logger.debug("agent_span_attributes_failed", error=str(exc))
 
 
 def set_bedrock_attributes(
-    span: Any,
+    span: Any,  # noqa: ANN401
     model_id: str,
     input_tokens: int,
     output_tokens: int,
@@ -245,16 +262,16 @@ def set_bedrock_attributes(
 ) -> None:
     """Set Bedrock LLM span attributes."""
     try:
-        span.set_attribute("llm.model_id",      model_id)
-        span.set_attribute("llm.input_tokens",  input_tokens)
+        span.set_attribute("llm.model_id", model_id)
+        span.set_attribute("llm.input_tokens", input_tokens)
         span.set_attribute("llm.output_tokens", output_tokens)
-        span.set_attribute("llm.latency_ms",    latency_ms)
-        span.set_attribute("llm.total_tokens",  input_tokens + output_tokens)
-    except Exception:
-        pass
+        span.set_attribute("llm.latency_ms", latency_ms)
+        span.set_attribute("llm.total_tokens", input_tokens + output_tokens)
+    except Exception as exc:
+        logger.debug("bedrock_span_attributes_failed", error=str(exc))
 
 
-def record_exception(span: Any, exc: Exception) -> None:
+def record_exception(span: Any, exc: Exception) -> None:  # noqa: ANN401
     """Record an exception on the current span without propagating it.
 
     Sets the span status to ERROR and attaches the exception event
@@ -262,7 +279,8 @@ def record_exception(span: Any, exc: Exception) -> None:
     """
     try:
         from opentelemetry.trace import StatusCode
+
         span.record_exception(exc)
         span.set_status(StatusCode.ERROR, str(exc))
-    except Exception:
-        pass
+    except Exception as span_exc:
+        logger.debug("span_exception_record_failed", error=str(span_exc))

@@ -1,18 +1,24 @@
 """GetDatasetUseCase — retrieves a dataset and its schema."""
+
 from __future__ import annotations
 
-from backend.application.queries.get_dataset_query import GetDatasetQuery, DatasetResult
-from backend.domain.dataset.exceptions import DatasetNotFoundException
+from typing import TYPE_CHECKING
+
+from backend.application.queries.get_dataset_query import DatasetResult, GetDatasetQuery
+from backend.domain.dataset.exceptions import DatasetNotFoundError
+
+if TYPE_CHECKING:
+    from backend.domain.dataset.repositories.dataset_repository import DatasetRepository
 
 
 class GetDatasetUseCase:
-    def __init__(self, dataset_repo) -> None:
+    def __init__(self, dataset_repo: DatasetRepository) -> None:
         self._repo = dataset_repo
 
     async def execute(self, query: GetDatasetQuery) -> DatasetResult:
         dataset = await self._repo.get_by_id(query.dataset_id)
         if dataset is None:
-            raise DatasetNotFoundException(query.dataset_id)
+            raise DatasetNotFoundError(query.dataset_id)
 
         schema_cols = []
         if dataset.schema_json:

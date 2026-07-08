@@ -26,8 +26,10 @@ Real-time design:
     (``conversation:<id>``) rather than the dataset room so they are only
     visible to the client that sent the message.
 """
+
 from __future__ import annotations
 
+import contextlib
 from typing import Any
 
 import structlog
@@ -53,8 +55,8 @@ class SecurityAgent(BaseAgent):
 
     def __init__(
         self,
-        policy:     Policy = Policy.MODERATE,
-        llm_client: Any    = None,
+        policy: Policy = Policy.MODERATE,
+        llm_client: Any = None,  # noqa: ANN401
     ) -> None:
         super().__init__("security")
         self._engine = GovernanceEngine(
@@ -68,7 +70,7 @@ class SecurityAgent(BaseAgent):
         self,
         context: AgentContext,
         message: str = "",
-        **kwargs: Any,
+        **kwargs: Any,  # noqa: ANN401
     ) -> dict:
         """Run all security checks and return a decision dict.
 
@@ -81,9 +83,9 @@ class SecurityAgent(BaseAgent):
             pii_detected, pii_categories, injection_detected, injection_score,
             injection_risk, block_reason.
         """
-        sio             = context._sio
+        sio = context._sio
         conversation_id = context.get("conversation_id", "")
-        dataset_id      = context.dataset_id
+        dataset_id = context.dataset_id
 
         if not message:
             return self._allow_result("", "empty_message")
@@ -99,82 +101,84 @@ class SecurityAgent(BaseAgent):
         room = f"conversation:{conversation_id}" if conversation_id else f"dataset:{dataset_id}"
 
         if decision.pii_result and decision.pii_result.detected and sio:
-            try:
+            with contextlib.suppress(Exception):
                 await sio.emit(
                     "security:pii_detected",
                     {
                         "conversation_id": conversation_id,
-                        "categories":      decision.pii_result.categories,
-                        "action":          decision.action.value,
+                        "categories": decision.pii_result.categories,
+                        "action": decision.action.value,
                     },
                     room=room,
                 )
-            except Exception:
-                pass
 
         if decision.injection_result and decision.injection_result.detected and sio:
-            try:
+            with contextlib.suppress(Exception):
                 await sio.emit(
                     "security:injection_detected",
                     {
-                        "conversation_id":   conversation_id,
-                        "risk_level":        decision.injection_result.risk_level,
-                        "matched_patterns":  decision.injection_result.matched_patterns,
-                        "action":            decision.action.value,
+                        "conversation_id": conversation_id,
+                        "risk_level": decision.injection_result.risk_level,
+                        "matched_patterns": decision.injection_result.matched_patterns,
+                        "action": decision.action.value,
                     },
                     room=room,
                 )
-            except Exception:
-                pass
 
         # ── Block path ────────────────────────────────────────────────────
         if decision.is_blocked:
             if sio:
-                try:
+                with contextlib.suppress(Exception):
                     await sio.emit(
                         "security:blocked",
                         {
                             "conversation_id": conversation_id,
-                            "reason":          decision.block_reason,
+                            "reason": decision.block_reason,
                         },
                         room=room,
                     )
-                except Exception:
-                    pass
 
             logger.warning(
                 "security_message_blocked",
                 reason=decision.block_reason,
-                injection_risk=decision.injection_result.risk_level if decision.injection_result else "none",
+                injection_risk=decision.injection_result.risk_level
+                if decision.injection_result
+                else "none",
                 pii_categories=decision.pii_result.categories if decision.pii_result else [],
             )
 
             return {
-                "safe":                False,
-                "action":              "block",
-                "sanitised_message":   None,
-                "pii_detected":        bool(decision.pii_result and decision.pii_result.detected),
-                "pii_categories":      decision.pii_result.categories if decision.pii_result else [],
-                "injection_detected":  bool(decision.injection_result and decision.injection_result.detected),
-                "injection_score":     decision.injection_result.score if decision.injection_result else 0.0,
-                "injection_risk":      decision.injection_result.risk_level if decision.injection_result else "none",
-                "block_reason":        decision.block_reason,
+                "safe": False,
+                "action": "block",
+                "sanitised_message": None,
+                "pii_detected": bool(decision.pii_result and decision.pii_result.detected),
+                "pii_categories": decision.pii_result.categories if decision.pii_result else [],
+                "injection_detected": bool(
+                    decision.injection_result and decision.injection_result.detected
+                ),
+                "injection_score": decision.injection_result.score
+                if decision.injection_result
+                else 0.0,
+                "injection_risk": decision.injection_result.risk_level
+                if decision.injection_result
+                else "none",
+                "block_reason": decision.block_reason,
             }
 
         # ── Allow / sanitise path ─────────────────────────────────────────
         if sio:
-            try:
+            with contextlib.suppress(Exception):
                 await sio.emit(
                     "security:cleared",
                     {
                         "conversation_id": conversation_id,
-                        "pii_sanitised":   decision.is_sanitised,
-                        "pii_categories":  decision.pii_result.categories if decision.pii_result else [],
+                        "pii_sanitised": decision.is_sanitised,
+                        "pii_categories": decision.pii_result.categories
+                        if decision.pii_result
+                        else [],
                     },
                     room=room,
                 )
-            except Exception:
-                pass
 
         logger.info(
             "security_cleared",
@@ -184,15 +188,21 @@ class SecurityAgent(BaseAgent):
         )
 
         return {
-            "safe":               True,
-            "action":             decision.action.value,
-            "sanitised_message":  decision.safe_message,
-            "pii_detected":       bool(decision.pii_result and decision.pii_result.detected),
-            "pii_categories":     decision.pii_result.categories if decision.pii_result else [],
-            "injection_detected": bool(decision.injection_result and decision.injection_result.detected),
-            "injection_score":    decision.injection_result.score if decision.injection_result else 0.0,
-            "injection_risk":     decision.injection_result.risk_level if decision.injection_result else "none",
-            "block_reason":       None,
+            "safe": True,
+            "action": decision.action.value,
+            "sanitised_message": decision.safe_message,
+            "pii_detected": bool(decision.pii_result and decision.pii_result.detected),
+            "pii_categories": decision.pii_result.categories if decision.pii_result else [],
+            "injection_detected": bool(
+                decision.injection_result and decision.injection_result.detected
+            ),
+            "injection_score": decision.injection_result.score
+            if decision.injection_result
+            else 0.0,
+            "injection_risk": decision.injection_result.risk_level
+            if decision.injection_result
+            else "none",
+            "block_reason": None,
         }
 
     async def scan_agent_output(self, response: str, context: AgentContext) -> str:
@@ -202,21 +212,23 @@ class SecurityAgent(BaseAgent):
         """
         decision = self._engine.check_agent_output(response)
         if decision.is_sanitised:
-            logger.info("security_output_pii_sanitised",
-                        categories=decision.pii_result.categories if decision.pii_result else [])
+            logger.info(
+                "security_output_pii_sanitised",
+                categories=decision.pii_result.categories if decision.pii_result else [],
+            )
         return decision.safe_message
 
     @staticmethod
     def _allow_result(message: str, reason: str) -> dict:
         return {
-            "safe":               True,
-            "action":             "allow",
-            "sanitised_message":  message,
-            "pii_detected":       False,
-            "pii_categories":     [],
+            "safe": True,
+            "action": "allow",
+            "sanitised_message": message,
+            "pii_detected": False,
+            "pii_categories": [],
             "injection_detected": False,
-            "injection_score":    0.0,
-            "injection_risk":     "none",
-            "block_reason":       None,
-            "skip_reason":        reason,
+            "injection_score": 0.0,
+            "injection_risk": "none",
+            "block_reason": None,
+            "skip_reason": reason,
         }

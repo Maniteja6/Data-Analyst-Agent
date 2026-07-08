@@ -1,4 +1,5 @@
 """LangGraph orchestration — analysis pipeline, chat query, and report generation graphs."""
+
 """LangGraph orchestration — typed state graphs for analysis pipeline and chat.
 
 Sub-packages:

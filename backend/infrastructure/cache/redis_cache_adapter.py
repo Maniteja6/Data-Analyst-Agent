@@ -25,13 +25,17 @@ Usage::
     await cache.set("key", "value", ttl=3600)
     value = await cache.get("key")
 """
+
 from __future__ import annotations
 
 import json
 from functools import lru_cache
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
+
+if TYPE_CHECKING:
+    import redis.asyncio as redis
 
 logger = structlog.get_logger(__name__)
 
@@ -43,23 +47,24 @@ class RedisCacheAdapter:
     FastAPI route handlers and Celery async tasks without blocking.
     """
 
-    def __init__(self, redis_client=None, default_ttl: int = 86400) -> None:
+    def __init__(self, redis_client: redis.Redis | None = None, default_ttl: int = 86400) -> None:
         """
         Args:
             redis_client: Pre-built ``redis.asyncio.Redis`` instance.
                           When None, the singleton is created from Settings.
             default_ttl:  Default key expiry in seconds (24 hours).
         """
-        self._redis      = redis_client
+        self._redis = redis_client
         self._default_ttl = default_ttl
 
     # ── Connection ────────────────────────────────────────────────────────
 
-    async def _get_redis(self):
+    async def _get_redis(self) -> redis.Redis:
         """Return the Redis client, creating it lazily on first use."""
         if self._redis is None:
             import redis.asyncio as aioredis
             from backend.config.settings import get_settings
+
             settings = get_settings()
             self._redis = aioredis.from_url(
                 settings.redis_url,
@@ -96,9 +101,7 @@ class RedisCacheAdapter:
             logger.warning("redis_get_failed", key=key, error=str(exc))
             return None
 
-    async def set(
-        self, key: str, value: str, ttl: int | None = None
-    ) -> None:
+    async def set(self, key: str, value: str, ttl: int | None = None) -> None:
         """Set a string value with an optional TTL.
 
         Args:
@@ -136,9 +139,7 @@ class RedisCacheAdapter:
             logger.warning("redis_json_decode_failed", key=key, error=str(exc))
             return None
 
-    async def set_json(
-        self, key: str, value: dict | list, ttl: int | None = None
-    ) -> None:
+    async def set_json(self, key: str, value: dict | list, ttl: int | None = None) -> None:
         """Serialise ``value`` to JSON and store it.
 
         Non-serialisable values are coerced to strings via ``default=str``.
@@ -208,7 +209,7 @@ class RedisCacheAdapter:
         """
         try:
             client = await self._get_redis()
-            pipe   = client.pipeline()
+            pipe = client.pipeline()
             pipe.incr(key)
             if ttl:
                 pipe.expire(key, ttl, xx=False)  # only set expiry if not already set
@@ -284,10 +285,10 @@ class RedisCacheAdapter:
         The ``/api/v1/jobs/<job_id>`` endpoint calls ``hgetall`` to read them.
         """
         payload = {
-            "job_id":   job_id,
-            "status":   status,
+            "job_id": job_id,
+            "status": status,
             "progress": str(progress),
-            "step":     step,
+            "step": step,
             **(extra or {}),
         }
         await self.hset(f"job:{job_id}", payload, ttl=3600)
@@ -316,5 +317,6 @@ def get_redis_cache() -> RedisCacheAdapter:
     Call ``get_redis_cache.cache_clear()`` in tests that need a fresh adapter.
     """
     from backend.config.settings import get_settings
+
     settings = get_settings()
     return RedisCacheAdapter(default_ttl=settings.redis_ttl_seconds)

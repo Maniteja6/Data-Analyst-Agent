@@ -1,4 +1,3 @@
-"""Socket.IO WebSocket server."""
 """Socket.IO WebSocket layer — real-time event streaming backbone.
 
 ws_server.py:       socketio.AsyncServer; Redis psubscribe("dataset:*") bridge;
@@ -12,7 +11,8 @@ Room conventions (enforced here and by all agents):
     monitoring:<dataset_id>        — admin perf dashboard
     job:<job_id>                   — job:status for polling clients
 """
-from backend.api.websocket.ws_server       import sio, socket_app
-from backend.api.websocket.ws_event_router import register, dispatch
+
+from backend.api.websocket.ws_event_router import dispatch, register
+from backend.api.websocket.ws_server import sio, socket_app
 
 __all__ = ["sio", "socket_app", "register", "dispatch"]

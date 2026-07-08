@@ -33,15 +33,18 @@ Usage (extend and override ``handle_message``):
     consumer = MyConsumer()
     await consumer.run()   # long-running; blocks until stopped
 """
+
 from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
-
 from backend.config.settings import get_settings
+
+if TYPE_CHECKING:
+    from aiokafka.structs import ConsumerRecord
 
 logger = structlog.get_logger(__name__)
 
@@ -70,17 +73,17 @@ class KafkaConsumerBase:
                                ``'earliest'`` — replay all messages (safe default).
                                ``'latest'``   — skip historical messages.
         """
-        settings              = get_settings()
-        self._topics           = topics
-        self._group_id         = group_id or settings.kafka_consumer_group_id
-        self._bootstrap        = settings.kafka_bootstrap_servers
+        settings = get_settings()
+        self._topics = topics
+        self._group_id = group_id or settings.kafka_consumer_group_id
+        self._bootstrap = settings.kafka_bootstrap_servers
         self._security_protocol = settings.kafka_security_protocol
-        self._sasl_mechanism   = settings.kafka_sasl_mechanism
-        self._sasl_username    = settings.kafka_sasl_username
-        self._sasl_password    = settings.kafka_sasl_password
+        self._sasl_mechanism = settings.kafka_sasl_mechanism
+        self._sasl_username = settings.kafka_sasl_username
+        self._sasl_password = settings.kafka_sasl_password
         self._auto_offset_reset = auto_offset_reset
-        self._consumer         = None
-        self._running          = False
+        self._consumer = None
+        self._running = False
 
     # ── Lifecycle ─────────────────────────────────────────────────────────
 
@@ -89,14 +92,14 @@ class KafkaConsumerBase:
         from aiokafka import AIOKafkaConsumer
 
         kwargs: dict[str, Any] = {
-            "bootstrap_servers":   self._bootstrap,
-            "group_id":            self._group_id,
-            "auto_offset_reset":   self._auto_offset_reset,
-            "enable_auto_commit":  False,       # manual commit for at-least-once
-            "max_poll_records":    100,
-            "session_timeout_ms":  30_000,
+            "bootstrap_servers": self._bootstrap,
+            "group_id": self._group_id,
+            "auto_offset_reset": self._auto_offset_reset,
+            "enable_auto_commit": False,  # manual commit for at-least-once
+            "max_poll_records": 100,
+            "session_timeout_ms": 30_000,
             "heartbeat_interval_ms": 10_000,
-            "value_deserializer":  self._deserialize_value,
+            "value_deserializer": self._deserialize_value,
         }
 
         if self._security_protocol in ("SASL_SSL", "SSL"):
@@ -149,10 +152,10 @@ class KafkaConsumerBase:
         finally:
             await self.stop()
 
-    async def _process_message(self, msg) -> None:
+    async def _process_message(self, msg: ConsumerRecord) -> None:
         """Process one Kafka message with retry and error handling."""
-        topic   = msg.topic
-        payload = msg.value   # already deserialised by value_deserializer
+        topic = msg.topic
+        payload = msg.value  # already deserialised by value_deserializer
 
         # Bind log context for this message
         structlog.contextvars.bind_contextvars(
@@ -168,7 +171,7 @@ class KafkaConsumerBase:
                 structlog.contextvars.clear_contextvars()
                 return
 
-            except _SkipMessage:
+            except _SkipMessageError:
                 # Permanent error — skip this message and commit the offset
                 logger.warning(
                     "kafka_message_skipped",
@@ -218,14 +221,14 @@ class KafkaConsumerBase:
         # Detect Confluent wire format (magic byte)
         if len(raw) >= 5 and raw[0] == 0x00:
             try:
-                from backend.infrastructure.messaging.avro.serializer import get_avro_serializer
                 import asyncio
+
+                from backend.infrastructure.messaging.avro.serializer import get_avro_serializer
+
                 loop = asyncio.get_event_loop()
-                return loop.run_until_complete(
-                    get_avro_serializer().deserialize(raw)
-                )
-            except Exception:
-                pass   # fall through to JSON
+                return loop.run_until_complete(get_avro_serializer().deserialize(raw))
+            except Exception as exc:
+                logger.debug("avro_deserialize_failed", error=str(exc))  # fall through to JSON
 
         # Plain JSON
         try:
@@ -239,20 +242,18 @@ class KafkaConsumerBase:
     async def handle_message(self, topic: str, payload: dict) -> None:
         """Process one decoded message. Override in subclasses.
 
-        Raise ``KafkaConsumerBase.SkipMessage()`` to skip without retrying.
+        Raise ``KafkaConsumerBase.SkipMessageError()`` to skip without retrying.
         Raise any other exception to trigger the retry mechanism.
 
         Args:
             topic:   Kafka topic name the message arrived on.
             payload: Decoded message payload dict.
         """
-        raise NotImplementedError(
-            f"{self.__class__.__name__} must implement handle_message()"
-        )
+        raise NotImplementedError(f"{self.__class__.__name__} must implement handle_message()")
 
-    class SkipMessage(Exception):
+    class SkipMessageError(Exception):
         """Raise from ``handle_message`` to permanently skip a message."""
 
 
 # Private alias for the skip-message sentinel (used in _process_message)
-_SkipMessage = KafkaConsumerBase.SkipMessage
+_SkipMessageError = KafkaConsumerBase.SkipMessageError

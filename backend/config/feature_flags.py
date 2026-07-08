@@ -24,15 +24,16 @@ Or the lower-level helper::
 Flag environment variable format:  ``FEATURE_<FLAG_NAME>=true``
 Example:  ``FEATURE_RAG=true``, ``FEATURE_ML_AGENT=false``
 """
+
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass
 
-
 # ---------------------------------------------------------------------------
 # Low-level helper
 # ---------------------------------------------------------------------------
+
 
 def is_enabled(flag_name: str, default: bool = False) -> bool:
     """Return True if the ``FEATURE_<FLAG_NAME>`` env var is set to a truthy value.
@@ -54,6 +55,7 @@ def is_enabled(flag_name: str, default: bool = False) -> bool:
 # ---------------------------------------------------------------------------
 # Typed flag container — single source of truth for all flags
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class FeatureFlags:
@@ -154,7 +156,7 @@ class FeatureFlags:
     """
 
     @classmethod
-    def from_env(cls) -> "FeatureFlags":
+    def from_env(cls) -> FeatureFlags:
         """Construct a FeatureFlags instance by reading all env vars."""
         return cls(
             rag_enabled=is_enabled("RAG"),
@@ -175,6 +177,7 @@ class FeatureFlags:
     def as_dict(self) -> dict[str, bool]:
         """Return all flags as a plain dict (useful for logging / health endpoints)."""
         import dataclasses
+
         return dataclasses.asdict(self)
 
 

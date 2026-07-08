@@ -1,4 +1,5 @@
 """ConversationId value object — typed UUID for Conversation aggregates."""
+
 from __future__ import annotations
 
 import uuid
@@ -28,18 +29,18 @@ class ConversationId(ValueObject):
     def _validate(self) -> None:
         try:
             uuid.UUID(self.value)
-        except (ValueError, AttributeError):
+        except (ValueError, AttributeError) as exc:
             raise ValueError(
                 f"ConversationId must be a valid UUID4 string, got: {self.value!r}"
-            )
+            ) from exc
 
     @classmethod
-    def generate(cls) -> "ConversationId":
+    def generate(cls) -> ConversationId:
         """Factory — creates a new random ConversationId."""
         return cls(value=str(uuid.uuid4()))
 
     @classmethod
-    def from_string(cls, value: str) -> "ConversationId":
+    def from_string(cls, value: str) -> ConversationId:
         """Parse and normalise a string into a ConversationId."""
         return cls(value=str(uuid.UUID(value)))
 

@@ -1,12 +1,12 @@
 """PostgresInsightRepository — InsightReport repository backed by Postgres."""
-from __future__ import annotations
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from __future__ import annotations
 
 from backend.domain.insight.entities.insight_report import InsightReport
 from backend.domain.insight.repositories.insight_repository import InsightRepository
 from backend.infrastructure.persistence.models.insight_model import InsightReportModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class PostgresInsightRepository(InsightRepository):
@@ -44,8 +44,7 @@ class PostgresInsightRepository(InsightRepository):
 
     async def get_by_session_id(self, session_id: str) -> InsightReport | None:
         result = await self._session.execute(
-            select(InsightReportModel)
-            .where(InsightReportModel.session_id == session_id)
+            select(InsightReportModel).where(InsightReportModel.session_id == session_id)
         )
         row = result.scalar_one_or_none()
         return self._to_entity(row) if row else None
@@ -95,10 +94,10 @@ class PostgresInsightRepository(InsightRepository):
     @staticmethod
     def _update_model(model: InsightReportModel, entity: InsightReport) -> None:
         d = entity.to_dict()
-        model.report_json         = d
-        model.executive_summary   = {"text": entity.executive_summary}
-        model.insight_count       = len(entity.insights)
-        model.has_forecasts       = entity.has_forecasts
+        model.report_json = d
+        model.executive_summary = {"text": entity.executive_summary}
+        model.insight_count = len(entity.insights)
+        model.has_forecasts = entity.has_forecasts
         model.is_critic_validated = entity.is_critic_validated
-        model.report_pdf_key      = entity.report_pdf_key
-        model.generated_at        = entity.generated_at
+        model.report_pdf_key = entity.report_pdf_key
+        model.generated_at = entity.generated_at

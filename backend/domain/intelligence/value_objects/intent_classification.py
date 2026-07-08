@@ -1,4 +1,5 @@
 """IntentClassification value object — output of the Intent Agent."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -15,12 +16,12 @@ class Intent(str, Enum):
     sub-graph based on the intent.
     """
 
-    STATISTICAL_QUESTION  = "statistical_question"
+    STATISTICAL_QUESTION = "statistical_question"
     """User wants a descriptive statistic: average, max, distribution, etc.
     → Routes to SQL Agent for aggregation queries.
     """
 
-    FORECASTING_REQUEST   = "forecasting_request"
+    FORECASTING_REQUEST = "forecasting_request"
     """User asks about future values or trends.
     → Routes to Forecast Agent.
     """
@@ -30,7 +31,7 @@ class Intent(str, Enum):
     → Routes to SQL Agent + AnomalyAlert lookup.
     """
 
-    SQL_QUERY             = "sql_query"
+    SQL_QUERY = "sql_query"
     """User has written or wants a specific SQL query executed.
     → Routes directly to SQL Agent with the user's SQL.
     """
@@ -40,12 +41,12 @@ class Intent(str, Enum):
     → Routes to SQL Agent + Visualization Agent.
     """
 
-    DATA_EXPORT           = "data_export"
+    DATA_EXPORT = "data_export"
     """User wants to download filtered data or a report.
     → Routes to Export use case.
     """
 
-    GENERAL_QUESTION      = "general_question"
+    GENERAL_QUESTION = "general_question"
     """Anything else — overview questions, explanations, comparisons.
     → Routes to RAG Agent + narrative response.
     """
@@ -71,14 +72,14 @@ class IntentClassification(ValueObject):
         raw_input:      The original user message (for audit logging).
     """
 
-    intent:         Intent
-    confidence:     float               = 1.0
-    entities:       tuple               = field(default_factory=tuple)   # frozen (key, val) pairs
-    sub_intents:    tuple[str, ...]     = field(default_factory=tuple)
-    requires_sql:   bool                = False
-    requires_rag:   bool                = True
-    requires_chart: bool                = False
-    raw_input:      str                 = ""
+    intent: Intent
+    confidence: float = 1.0
+    entities: tuple = field(default_factory=tuple)  # frozen (key, val) pairs
+    sub_intents: tuple[str, ...] = field(default_factory=tuple)
+    requires_sql: bool = False
+    requires_rag: bool = True
+    requires_chart: bool = False
+    raw_input: str = ""
 
     def _validate(self) -> None:
         if not 0.0 <= self.confidence <= 1.0:
@@ -114,7 +115,7 @@ class IntentClassification(ValueObject):
         entities: dict | None = None,
         sub_intents: list[str] | None = None,
         raw_input: str = "",
-    ) -> "IntentClassification":
+    ) -> IntentClassification:
         """Create an IntentClassification, inferring routing flags from the intent."""
         if isinstance(intent, str):
             intent = Intent(intent)
@@ -140,11 +141,11 @@ class IntentClassification(ValueObject):
 
     def to_dict(self) -> dict:
         return {
-            "intent":         self.intent.value,
-            "confidence":     self.confidence,
-            "entities":       self.entities_dict,
-            "sub_intents":    list(self.sub_intents),
-            "requires_sql":   self.requires_sql,
-            "requires_rag":   self.requires_rag,
+            "intent": self.intent.value,
+            "confidence": self.confidence,
+            "entities": self.entities_dict,
+            "sub_intents": list(self.sub_intents),
+            "requires_sql": self.requires_sql,
+            "requires_rag": self.requires_rag,
             "requires_chart": self.requires_chart,
         }

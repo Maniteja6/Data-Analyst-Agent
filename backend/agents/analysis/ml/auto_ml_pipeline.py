@@ -7,22 +7,29 @@ with 3-fold cross-validation.
 For regression:  scoring = R²
 For classification: scoring = accuracy
 """
+
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
+
+    DataFrameT = pl.DataFrame | pd.DataFrame
+
 logger = structlog.get_logger(__name__)
 
-N_ESTIMATORS   = 100
-CV_FOLDS       = 3
+N_ESTIMATORS = 100
+CV_FOLDS = 3
 MAX_TRAIN_ROWS = 50_000
 
 
 async def run_automl(
-    df,
+    df: DataFrameT,
     target_col: str,
     schema: dict,
 ) -> dict[str, Any]:
@@ -39,15 +46,13 @@ async def run_automl(
     """
     loop = asyncio.get_event_loop()
     try:
-        return await loop.run_in_executor(
-            None, _run_automl_sync, df, target_col, schema
-        )
+        return await loop.run_in_executor(None, _run_automl_sync, df, target_col, schema)
     except Exception as exc:
         logger.warning("automl_failed", error=str(exc))
         return {"error": str(exc)}
 
 
-def _run_automl_sync(df, target_col: str, schema: dict) -> dict:
+def _run_automl_sync(df: DataFrameT, target_col: str, schema: dict) -> dict:
     """Synchronous AutoML — runs in thread pool."""
     try:
         import numpy as np
@@ -61,10 +66,8 @@ def _run_automl_sync(df, target_col: str, schema: dict) -> dict:
     # Convert to pandas
     try:
         import polars as pl
-        if isinstance(df, pl.DataFrame):
-            pdf = df.to_pandas()
-        else:
-            pdf = df.copy()
+
+        pdf = df.to_pandas() if isinstance(df, pl.DataFrame) else df.copy()
     except ImportError:
         pdf = df.copy()
 
@@ -87,24 +90,25 @@ def _run_automl_sync(df, target_col: str, schema: dict) -> dict:
     # Auto-detect task type
     n_unique = len(np.unique(y))
     if n_unique <= 20 and y.dtype.kind in ("i", "u", "S", "U", "O"):
-        model    = RandomForestClassifier(n_estimators=N_ESTIMATORS, random_state=42, n_jobs=-1)
-        task     = "classification"
-        scoring  = "accuracy"
+        model = RandomForestClassifier(n_estimators=N_ESTIMATORS, random_state=42, n_jobs=-1)
+        task = "classification"
+        scoring = "accuracy"
     else:
-        model    = RandomForestRegressor(n_estimators=N_ESTIMATORS, random_state=42, n_jobs=-1)
-        task     = "regression"
-        scoring  = "r2"
+        model = RandomForestRegressor(n_estimators=N_ESTIMATORS, random_state=42, n_jobs=-1)
+        task = "regression"
+        scoring = "r2"
 
     try:
         scores = cross_val_score(model, x_data, y, cv=CV_FOLDS, scoring=scoring)
         model.fit(x_data, y)
-        importances = dict(zip(
-            feature_df.columns,
-            model.feature_importances_.tolist(),
-        ))
-        top_features = dict(
-            sorted(importances.items(), key=lambda x: -x[1])[:10]
+        importances = dict(
+            zip(
+                feature_df.columns,
+                model.feature_importances_.tolist(),
+                strict=False,
+            )
         )
+        top_features = dict(sorted(importances.items(), key=lambda x: -x[1])[:10])
     except Exception as exc:
         return {"error": f"Model training failed: {exc}"}
 
@@ -117,14 +121,14 @@ def _run_automl_sync(df, target_col: str, schema: dict) -> dict:
     )
 
     return {
-        "task":                 task,
-        "target":               target_col,
-        "model_type":           "RandomForest",
-        "features":             list(feature_df.columns),
-        "feature_count":        len(feature_df.columns),
-        "cv_score_mean":        round(float(scores.mean()), 4),
-        "cv_score_std":         round(float(scores.std()), 4),
-        "scoring":              scoring,
-        "feature_importances":  top_features,
-        "training_rows":        len(pdf),
+        "task": task,
+        "target": target_col,
+        "model_type": "RandomForest",
+        "features": list(feature_df.columns),
+        "feature_count": len(feature_df.columns),
+        "cv_score_mean": round(float(scores.mean()), 4),
+        "cv_score_std": round(float(scores.std()), 4),
+        "scoring": scoring,
+        "feature_importances": top_features,
+        "training_rows": len(pdf),
     }

@@ -15,10 +15,16 @@ Socket.IO events emitted:
     report:uploading     — "Uploading to secure storage…"
     report:ready         — {download_url, format, expires_in} — triggers frontend download
 """
+
 from __future__ import annotations
 
+import contextlib
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from backend.infrastructure.storage.local_storage_adapter import LocalStorageAdapter
+    from backend.infrastructure.storage.s3_storage_adapter import S3StorageAdapter
 
 import structlog
 from backend.agents.base.agent_context import AgentContext
@@ -30,7 +36,7 @@ from backend.shared.utils.uuid_factory import new_uuid
 
 logger = structlog.get_logger(__name__)
 
-PRESIGNED_URL_TTL = 900   # 15 minutes
+PRESIGNED_URL_TTL = 900  # 15 minutes
 
 
 class ReportAgent(BaseAgent):
@@ -42,7 +48,11 @@ class ReportAgent(BaseAgent):
                      interface consistency with other agents).
     """
 
-    def __init__(self, storage=None, llm_client=None) -> None:
+    def __init__(
+        self,
+        storage: LocalStorageAdapter | S3StorageAdapter | None = None,
+        llm_client: Any = None,  # noqa: ANN401
+    ) -> None:
         super().__init__("report")
         self._storage = storage
 
@@ -51,7 +61,7 @@ class ReportAgent(BaseAgent):
         context: AgentContext,
         format: str = "json",
         insight_report: dict | None = None,
-        **kwargs: Any,
+        **kwargs: Any,  # noqa: ANN401
     ) -> dict:
         """Render the report and upload to S3.
 
@@ -63,37 +73,35 @@ class ReportAgent(BaseAgent):
         Returns:
             Dict with keys: format, download_url, storage_key, expires_in, bytes_written.
         """
-        sio        = context._sio
+        sio = context._sio
         dataset_id = context.dataset_id
-        fmt        = format.lower()
+        fmt = format.lower()
 
         # Build full report dict
         report = insight_report or {
-            "session_id":        context.session_id,
-            "dataset_id":        dataset_id,
+            "session_id": context.session_id,
+            "dataset_id": dataset_id,
             "executive_summary": "",
-            "insights":          context.insight_results or [],
-            "kpis":              [],
-            "anomaly_alerts":    context.anomaly_results or [],
-            "forecasts":         context.forecast_results or [],
-            "recommendations":   context.recommendations or [],
-            "has_forecasts":     bool(context.forecast_results),
-            "has_anomalies":     bool(context.anomaly_results),
-            "insight_count":     len(context.insight_results or []),
+            "insights": context.insight_results or [],
+            "kpis": [],
+            "anomaly_alerts": context.anomaly_results or [],
+            "forecasts": context.forecast_results or [],
+            "recommendations": context.recommendations or [],
+            "has_forecasts": bool(context.forecast_results),
+            "has_anomalies": bool(context.anomaly_results),
+            "insight_count": len(context.insight_results or []),
         }
 
         dataset_name = context.get("dataset_name", f"Dataset {dataset_id[:8]}")
 
         # ── Notify render start ───────────────────────────────────────────
         if sio and dataset_id:
-            try:
+            with contextlib.suppress(Exception):
                 await sio.emit(
                     "report:render_start",
                     {"dataset_id": dataset_id, "format": fmt},
                     room=f"dataset:{dataset_id}",
                 )
-            except Exception:
-                pass
 
         await context.push_progress(96, f"Generating {fmt.upper()} report…", step="report")
 
@@ -103,29 +111,28 @@ class ReportAgent(BaseAgent):
         if not rendered_bytes:
             return {
                 "format": fmt,
-                "error":  f"Failed to render {fmt} report",
+                "error": f"Failed to render {fmt} report",
                 "download_url": None,
             }
 
         # ── Upload to S3 ──────────────────────────────────────────────────
         if sio and dataset_id:
-            try:
+            with contextlib.suppress(Exception):
                 await sio.emit(
                     "report:uploading",
                     {"dataset_id": dataset_id, "format": fmt},
                     room=f"dataset:{dataset_id}",
                 )
-            except Exception:
-                pass
 
-        export_id   = new_uuid()
+        export_id = new_uuid()
         storage_key = f"reports/{dataset_id}/{export_id}.{fmt}"
-        mime_type   = self._content_type(fmt)
+        mime_type = self._content_type(fmt)
 
         download_url = None
         try:
             storage = self._get_storage()
             import io
+
             await storage.upload_fileobj(
                 io.BytesIO(rendered_bytes),
                 storage_key,
@@ -141,39 +148,38 @@ class ReportAgent(BaseAgent):
         if download_url:
             try:
                 from backend.infrastructure.cache.redis_cache_adapter import get_redis_cache
+
                 await get_redis_cache().set(
                     f"report_url:{export_id}",
                     download_url,
                     ttl=PRESIGNED_URL_TTL,
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("report_url_cache_failed", error=str(exc))
 
         result = {
-            "format":       fmt,
-            "export_id":    export_id,
-            "storage_key":  storage_key,
+            "format": fmt,
+            "export_id": export_id,
+            "storage_key": storage_key,
             "download_url": download_url,
-            "expires_in":   PRESIGNED_URL_TTL,
+            "expires_in": PRESIGNED_URL_TTL,
             "bytes_written": len(rendered_bytes),
         }
 
         # ── Emit report:ready ─────────────────────────────────────────────
         if sio and dataset_id:
-            try:
+            with contextlib.suppress(Exception):
                 await sio.emit(
                     "report:ready",
                     {
-                        "dataset_id":   dataset_id,
-                        "format":       fmt,
+                        "dataset_id": dataset_id,
+                        "format": fmt,
                         "download_url": download_url,
-                        "expires_in":   PRESIGNED_URL_TTL,
-                        "export_id":    export_id,
+                        "expires_in": PRESIGNED_URL_TTL,
+                        "export_id": export_id,
                     },
                     room=f"dataset:{dataset_id}",
                 )
-            except Exception:
-                pass
 
         await context.push_progress(100, "Report ready", step="report")
 
@@ -188,7 +194,12 @@ class ReportAgent(BaseAgent):
     # ── Render dispatch ───────────────────────────────────────────────────
 
     async def _render(
-        self, report: dict, fmt: str, dataset_name: str, sio, dataset_id: str
+        self,
+        report: dict,
+        fmt: str,
+        dataset_name: str,
+        sio: Any,  # noqa: ANN401
+        dataset_id: str,
     ) -> bytes | None:
         try:
             if fmt == "pdf":
@@ -206,14 +217,15 @@ class ReportAgent(BaseAgent):
     @staticmethod
     def _content_type(fmt: str) -> str:
         return {
-            "pdf":  "application/pdf",
+            "pdf": "application/pdf",
             "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
             "json": "application/json",
         }.get(fmt, "application/octet-stream")
 
-    def _get_storage(self):
+    def _get_storage(self) -> LocalStorageAdapter | S3StorageAdapter:
         if self._storage is None:
             from backend.infrastructure.storage.s3_storage_adapter import get_s3_storage
+
             self._storage = get_s3_storage()
         return self._storage

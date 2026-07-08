@@ -21,15 +21,18 @@ Re-ranking:
     mentioned in the user's query. This improves precision for narrow queries
     like "what is the average discount_pct?".
 """
+
 from __future__ import annotations
+
+from typing import Any
 
 import structlog
 
 logger = structlog.get_logger(__name__)
 
-DEFAULT_TOP_K    = 8
-MIN_SCORE        = 0.60    # minimum cosine similarity to include in results
-RERANK_BOOST     = 0.10    # added to score when chunk contains query terms
+DEFAULT_TOP_K = 8
+MIN_SCORE = 0.60  # minimum cosine similarity to include in results
+RERANK_BOOST = 0.10  # added to score when chunk contains query terms
 
 
 class Retriever:
@@ -40,18 +43,20 @@ class Retriever:
         embed_service: BedrockEmbeddingService instance.
     """
 
-    def __init__(self, qdrant: Any = None, embed_service: Any = None) -> None:
+    def __init__(self, qdrant: Any = None, embed_service: Any = None) -> None:  # noqa: ANN401
         if qdrant is None:
             from backend.infrastructure.vector_store.qdrant_adapter import QdrantAdapter
+
             qdrant = QdrantAdapter()
         if embed_service is None:
             from backend.infrastructure.vector_store.bedrock_embedding_service import (
                 BedrockEmbeddingService,
             )
+
             embed_service = BedrockEmbeddingService()
 
         self._qdrant = qdrant
-        self._embed  = embed_service
+        self._embed = embed_service
 
     async def retrieve(
         self,
@@ -79,7 +84,7 @@ class Retriever:
         raw_results = await self._qdrant.search(
             vector=vector,
             dataset_id=dataset_id,
-            top_k=top_k * 2,   # fetch more, then re-rank to top_k
+            top_k=top_k * 2,  # fetch more, then re-rank to top_k
         )
 
         # Filter by minimum score
@@ -118,14 +123,13 @@ class Retriever:
         import asyncio
 
         tasks = [
-            self._qdrant.search(vector=v, dataset_id=dataset_id, top_k=top_k)
-            for v in query_vectors
+            self._qdrant.search(vector=v, dataset_id=dataset_id, top_k=top_k) for v in query_vectors
         ]
         all_results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Merge and average scores by chunk ID
         merged: dict[str, dict] = {}
-        counts: dict[str, int]  = {}
+        counts: dict[str, int] = {}
         for results in all_results:
             if isinstance(results, Exception):
                 continue
@@ -149,10 +153,10 @@ class Retriever:
         query_terms = set(query.lower().split())
         scored = []
         for r in results:
-            content       = (r.get("payload", {}).get("content") or r.get("content", "")).lower()
-            keyword_hits  = sum(1 for term in query_terms if term in content)
-            boost         = min(RERANK_BOOST * keyword_hits, 0.30)
-            final_score   = min(1.0, r.get("score", 0.0) + boost)
+            content = (r.get("payload", {}).get("content") or r.get("content", "")).lower()
+            keyword_hits = sum(1 for term in query_terms if term in content)
+            boost = min(RERANK_BOOST * keyword_hits, 0.30)
+            final_score = min(1.0, r.get("score", 0.0) + boost)
             scored.append({**r, "score": round(final_score, 4)})
 
         scored.sort(key=lambda r: r["score"], reverse=True)
@@ -172,15 +176,15 @@ class Retriever:
         Returns:
             Concatenated chunk content, truncated to max_chars.
         """
-        parts  = []
-        total  = 0
+        parts = []
+        total = 0
         for r in results:
             payload = r.get("payload", {})
             content = payload.get("content") or r.get("content", "")
             if not content:
                 continue
             chunk_type = payload.get("chunk_type") or r.get("chunk_type", "")
-            block      = f"[{chunk_type.upper()}]\n{content}"
+            block = f"[{chunk_type.upper()}]\n{content}"
             if total + len(block) > max_chars:
                 break
             parts.append(block)

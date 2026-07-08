@@ -1,16 +1,16 @@
 """PostgresConversationRepository — Conversation repository backed by Postgres."""
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
-from sqlalchemy import select, update
-from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import UTC, datetime
 
 from backend.domain.workspace.entities.conversation import Conversation
 from backend.domain.workspace.entities.message import Message
 from backend.domain.workspace.repositories.conversation_repository import ConversationRepository
-from backend.domain.workspace.value_objects.message_role import MessageRole, Role
+from backend.domain.workspace.value_objects.message_role import MessageRole
 from backend.infrastructure.persistence.models.conversation_model import ConversationModel
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class PostgresConversationRepository(ConversationRepository):
@@ -41,7 +41,7 @@ class PostgresConversationRepository(ConversationRepository):
         await self._session.execute(
             update(ConversationModel)
             .where(ConversationModel.id == entity_id)
-            .values(deleted_at=datetime.now(timezone.utc))
+            .values(deleted_at=datetime.now(UTC))
         )
 
     async def get_by_dataset_id(self, dataset_id: str) -> list[Conversation]:
@@ -58,8 +58,8 @@ class PostgresConversationRepository(ConversationRepository):
     async def get_by_project_id(self, project_id: str) -> list[Conversation]:
         # Conversations are linked to datasets, not projects directly.
         # This requires a JOIN via the dataset_id → project_id relationship.
-        from sqlalchemy import join as sqla_join
         from backend.infrastructure.persistence.models.dataset_model import DatasetModel
+
         stmt = (
             select(ConversationModel)
             .join(DatasetModel, ConversationModel.dataset_id == DatasetModel.id)
@@ -76,8 +76,8 @@ class PostgresConversationRepository(ConversationRepository):
         result = await self._session.execute(
             select(ConversationModel)
             .where(
-                ConversationModel.dataset_id  == dataset_id,
-                ConversationModel.is_closed   == False,
+                ConversationModel.dataset_id == dataset_id,
+                not ConversationModel.is_closed,
                 ConversationModel.deleted_at.is_(None),
             )
             .order_by(ConversationModel.updated_at.desc())
@@ -88,8 +88,10 @@ class PostgresConversationRepository(ConversationRepository):
 
     async def count_by_dataset(self, dataset_id: str) -> int:
         from sqlalchemy import func
+
         result = await self._session.execute(
-            select(func.count()).select_from(ConversationModel)
+            select(func.count())
+            .select_from(ConversationModel)
             .where(
                 ConversationModel.dataset_id == dataset_id,
                 ConversationModel.deleted_at.is_(None),
@@ -101,12 +103,13 @@ class PostgresConversationRepository(ConversationRepository):
         self, dataset_id: str, query: str, limit: int = 10
     ) -> list[Conversation]:
         """Full-text search over JSONB messages using PostgreSQL ILIKE."""
-        from sqlalchemy import cast, func
+        from sqlalchemy import func
         from sqlalchemy.dialects.postgresql import TEXT
+
         result = await self._session.execute(
             select(ConversationModel)
             .where(
-                ConversationModel.dataset_id  == dataset_id,
+                ConversationModel.dataset_id == dataset_id,
                 ConversationModel.deleted_at.is_(None),
                 func.cast(ConversationModel.messages, TEXT).ilike(f"%{query}%"),
             )
@@ -120,15 +123,17 @@ class PostgresConversationRepository(ConversationRepository):
     @staticmethod
     def _to_entity(model: ConversationModel) -> Conversation:
         messages = []
-        for m in (model.messages or []):
-            messages.append(Message(
-                id=m.get("id", ""),
-                conversation_id=model.id,
-                role=MessageRole.from_string(m.get("role", "user")),
-                content=m.get("content", ""),
-                citations=m.get("citations", []),
-                visualizations=m.get("visualizations", []),
-            ))
+        for m in model.messages or []:
+            messages.append(
+                Message(
+                    id=m.get("id", ""),
+                    conversation_id=model.id,
+                    role=MessageRole.from_string(m.get("role", "user")),
+                    content=m.get("content", ""),
+                    citations=m.get("citations", []),
+                    visualizations=m.get("visualizations", []),
+                )
+            )
         return Conversation(
             id=model.id,
             dataset_id=model.dataset_id,
@@ -156,9 +161,9 @@ class PostgresConversationRepository(ConversationRepository):
 
     @staticmethod
     def _update_model(model: ConversationModel, entity: Conversation) -> None:
-        model.title          = entity.title
-        model.messages       = [m.to_dict() for m in entity.messages]
+        model.title = entity.title
+        model.messages = [m.to_dict() for m in entity.messages]
         model.memory_summary = entity.memory_summary
-        model.message_count  = entity.message_count
-        model.is_closed      = entity.is_closed
-        model.updated_at     = entity.updated_at or datetime.now(timezone.utc)
+        model.message_count = entity.message_count
+        model.is_closed = entity.is_closed
+        model.updated_at = entity.updated_at or datetime.now(UTC)

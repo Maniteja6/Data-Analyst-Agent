@@ -6,6 +6,7 @@ Comparison criteria (in order of priority):
 3. Prophet is preferred over ARIMA when both succeed (better for business seasonality)
 4. Fall through to XGBoost as last resort
 """
+
 from __future__ import annotations
 
 import structlog
@@ -29,10 +30,10 @@ def select_best_model(*results: dict) -> dict:
         all_errors = [r.get("error", "Unknown error") for r in results]
         logger.warning("all_forecast_models_failed", errors=all_errors)
         return {
-            "error":       "All forecast models failed",
-            "model":       "None",
+            "error": "All forecast models failed",
+            "model": "None",
             "predictions": [],
-            "errors":      all_errors,
+            "errors": all_errors,
         }
 
     # Prefer the model with lowest MAPE if available
@@ -57,11 +58,7 @@ def compute_mape(actual: list[float], predicted: list[float]) -> float | None:
     if len(actual) != len(predicted) or not actual:
         return None
     try:
-        errors = [
-            abs((a - p) / a)
-            for a, p in zip(actual, predicted)
-            if a != 0
-        ]
+        errors = [abs((a - p) / a) for a, p in zip(actual, predicted, strict=False) if a != 0]
         return round(sum(errors) / len(errors), 6) if errors else None
     except Exception:
         return None

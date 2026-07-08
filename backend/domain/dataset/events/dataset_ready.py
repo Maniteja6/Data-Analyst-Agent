@@ -1,4 +1,5 @@
 """DatasetReady domain event."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

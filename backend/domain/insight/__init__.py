@@ -5,6 +5,7 @@ Aggregate: InsightReport (executive_summary, insights, kpis, anomalies,
 Service:   KPICalculator → list[KPI]
 Event:     InsightReportGenerated
 """
+
 from backend.domain.insight.entities.insight_report import InsightReport
 from backend.domain.insight.services.kpi_calculator import KPICalculator
 

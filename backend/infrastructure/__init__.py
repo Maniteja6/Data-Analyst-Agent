@@ -180,7 +180,7 @@ Real-time role:
         Returns the full response string after the model finishes.
         Retry: @with_bedrock_retry decorator — jittered exponential backoff
                for ThrottlingException, ServiceUnavailableException, etc.
-               Non-retryable: AccessDeniedException, ValidationException.
+               Non-retryable: AccessDeniedException, ValidationError.
 
     STREAMING (BedrockStreamAdapter)
         Used by: NarrativeGenerator (executive summary typewriter effect).
@@ -212,7 +212,7 @@ bedrock/
         @with_bedrock_retry / @with_bedrock_retry(max_retries=N)
         RETRYABLE: ThrottlingException, ServiceUnavailableException,
                    ModelNotReadyException, InternalServerException.
-        NON_RETRYABLE: AccessDeniedException, ValidationException,
+        NON_RETRYABLE: AccessDeniedException, ValidationError,
                        ModelErrorException, ResourceNotFoundException.
 
     bedrock_cost_tracker.py
@@ -367,10 +367,20 @@ ColumnStatsWriter
     write_profile(dataset_id, profile) — inserts one row per column from DataProfile.
     Called non-blocking (asyncio.ensure_future) after profiling completes.
 """
+
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
-def get_redis_cache():
+if TYPE_CHECKING:
+    from backend.infrastructure.cache.in_memory_cache_adapter import InMemoryCacheAdapter
+    from backend.infrastructure.cache.redis_cache_adapter import RedisCacheAdapter
+    from backend.infrastructure.storage.local_storage_adapter import LocalStorageAdapter
+    from backend.infrastructure.storage.s3_storage_adapter import S3StorageAdapter
+
+
+def get_redis_cache() -> InMemoryCacheAdapter | RedisCacheAdapter:
     """Return the process-level RedisCacheAdapter singleton.
 
     Falls back to InMemoryCacheAdapter when REDIS_URL=memory:// (test env).
@@ -383,15 +393,18 @@ def get_redis_cache():
         await cache.set_json("insights:abc", report_dict, ttl=86400)
     """
     from backend.config.settings import get_settings
+
     settings = get_settings()
     if settings.redis_url == "memory://":
         from backend.infrastructure.cache.in_memory_cache_adapter import InMemoryCacheAdapter
+
         return _get_or_create("_in_memory_cache", InMemoryCacheAdapter)
     from backend.infrastructure.cache.redis_cache_adapter import RedisCacheAdapter
+
     return _get_or_create("_redis_cache", RedisCacheAdapter)
 
 
-def get_storage():
+def get_storage() -> LocalStorageAdapter | S3StorageAdapter:
     """Return the process-level storage adapter (S3 or local).
 
     Switches to LocalStorageAdapter when s3_endpoint_url == 'local://'
@@ -404,11 +417,14 @@ def get_storage():
         url = await storage.generate_presigned_download_url("reports/abc/report.pdf")
     """
     from backend.config.settings import get_settings
+
     settings = get_settings()
     if getattr(settings, "s3_endpoint_url", "") == "local://":
         from backend.infrastructure.storage.local_storage_adapter import LocalStorageAdapter
+
         return _get_or_create("_local_storage", LocalStorageAdapter)
     from backend.infrastructure.storage.s3_storage_adapter import S3StorageAdapter
+
     return _get_or_create("_s3_storage", S3StorageAdapter)
 
 
@@ -419,7 +435,7 @@ def get_storage():
 _singletons: dict = {}
 
 
-def _get_or_create(key: str, factory):
+def _get_or_create(key: str, factory: Callable[[], Any]) -> Any:  # noqa: ANN401
     if key not in _singletons:
         _singletons[key] = factory()
     return _singletons[key]

@@ -1,14 +1,15 @@
 """Dataset bounded context exceptions."""
+
 from __future__ import annotations
 
-from backend.shared.exceptions import DomainException, ValidationException
+from backend.shared.exceptions import DomainError, ValidationError
 
 
-class DatasetException(DomainException):
+class DatasetError(DomainError):
     """Base exception for the dataset bounded context."""
 
 
-class InvalidStatusTransitionError(DatasetException):
+class InvalidStatusTransitionError(DatasetError):
     """Raised when a Dataset aggregate is asked to move to an unreachable state.
 
     Example: trying to transition from READY → PROFILING is not allowed
@@ -21,10 +22,10 @@ class InvalidStatusTransitionError(DatasetException):
             code="INVALID_DATASET_STATUS_TRANSITION",
         )
         self.current = current
-        self.target  = target
+        self.target = target
 
 
-class DatasetNotFoundException(DatasetException):
+class DatasetNotFoundError(DatasetError):
     """Raised when a requested Dataset does not exist in the repository."""
 
     def __init__(self, dataset_id: str) -> None:
@@ -35,7 +36,7 @@ class DatasetNotFoundException(DatasetException):
         self.dataset_id = dataset_id
 
 
-class DuplicateDatasetError(DatasetException):
+class DuplicateDatasetError(DatasetError):
     """Raised when a file with an identical SHA-256 checksum already exists
     for the same project, preventing duplicate storage costs.
     """
@@ -46,42 +47,43 @@ class DuplicateDatasetError(DatasetException):
             f"(id={existing_id}). Duplicate uploads are not permitted.",
             code="DUPLICATE_DATASET",
         )
-        self.checksum    = checksum
+        self.checksum = checksum
         self.existing_id = existing_id
 
 
-class UnsupportedFileTypeError(ValidationException):
+class UnsupportedFileTypeError(ValidationError):
     """Raised when the uploaded file has an extension that DataPilot cannot process."""
 
     SUPPORTED_EXTENSIONS = {".csv", ".tsv", ".xlsx", ".xls", ".parquet", ".json", ".jsonl"}
 
     def __init__(self, filename: str) -> None:
         import os
+
         ext = os.path.splitext(filename)[1].lower() or "(none)"
         super().__init__(
             "filename",
             f"Extension '{ext}' is not supported. "
             f"Supported formats: {', '.join(sorted(self.SUPPORTED_EXTENSIONS))}",
         )
-        self.filename  = filename
+        self.filename = filename
         self.extension = ext
 
 
-class FileTooLargeError(ValidationException):
+class FileTooLargeError(ValidationError):
     """Raised when the uploaded file exceeds the configured size limit."""
 
     def __init__(self, size_bytes: int, max_bytes: int) -> None:
-        size_mb = size_bytes / (1024 ** 2)
-        max_mb  = max_bytes  / (1024 ** 2)
+        size_mb = size_bytes / (1024**2)
+        max_mb = max_bytes / (1024**2)
         super().__init__(
             "file_size",
             f"Upload size {size_mb:.1f} MB exceeds the {max_mb:.0f} MB limit.",
         )
         self.size_bytes = size_bytes
-        self.max_bytes  = max_bytes
+        self.max_bytes = max_bytes
 
 
-class EmptyFileError(ValidationException):
+class EmptyFileError(ValidationError):
     """Raised when the uploaded file has zero bytes."""
 
     def __init__(self, filename: str) -> None:
@@ -89,7 +91,7 @@ class EmptyFileError(ValidationException):
         self.filename = filename
 
 
-class SchemaInferenceError(DatasetException):
+class SchemaInferenceError(DatasetError):
     """Raised when schema inference cannot determine column types."""
 
     def __init__(self, dataset_id: str, reason: str) -> None:
@@ -98,4 +100,4 @@ class SchemaInferenceError(DatasetException):
             code="SCHEMA_INFERENCE_FAILED",
         )
         self.dataset_id = dataset_id
-        self.reason     = reason
+        self.reason = reason

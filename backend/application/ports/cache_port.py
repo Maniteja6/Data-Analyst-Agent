@@ -1,7 +1,8 @@
 """ICacheService — abstract port for caching."""
+
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import Any
 
 
 class ICacheService(ABC):
@@ -20,7 +21,9 @@ class ICacheService(ABC):
     @abstractmethod
     async def publish_json(self, channel: str, payload: dict) -> int: ...
     @abstractmethod
-    async def cache_job_status(self, job_id: str, status: str, progress: int, step: str, extra: dict | None = None) -> None: ...
+    async def cache_job_status(
+        self, job_id: str, status: str, progress: int, step: str, extra: dict | None = None
+    ) -> None: ...
     @abstractmethod
     async def get_job_status(self, job_id: str) -> dict: ...
     @abstractmethod

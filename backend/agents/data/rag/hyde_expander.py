@@ -21,7 +21,10 @@ Reference:
     Gao et al. (2022) "Precise Zero-Shot Dense Retrieval without Relevance Labels"
     https://arxiv.org/abs/2212.10496
 """
+
 from __future__ import annotations
+
+from typing import Any
 
 import structlog
 from backend.infrastructure.llm.model_id_registry import get_model_id
@@ -48,8 +51,8 @@ class HyDEExpander:
                     Can be overridden per-call.
     """
 
-    def __init__(self, llm_client=None, use_hyde: bool = True) -> None:
-        self._llm      = llm_client
+    def __init__(self, llm_client: Any = None, use_hyde: bool = True) -> None:  # noqa: ANN401
+        self._llm = llm_client
         self._use_hyde = use_hyde
 
     async def expand(
@@ -80,8 +83,7 @@ class HyDEExpander:
             return query
 
         schema_hint = (
-            f"\nDataset columns available: {schema_summary[:300]}"
-            if schema_summary else ""
+            f"\nDataset columns available: {schema_summary[:300]}" if schema_summary else ""
         )
 
         prompt = (
@@ -95,7 +97,7 @@ class HyDEExpander:
             expanded = await self._llm.complete(
                 prompt=prompt,
                 system=_SYSTEM,
-                model_id=get_model_id("schema"),   # Haiku for speed
+                model_id=get_model_id("schema"),  # Haiku for speed
                 max_tokens=150,
             )
             result = expanded.strip()
@@ -107,7 +109,7 @@ class HyDEExpander:
             return result
         except Exception as exc:
             logger.debug("hyde_expansion_failed", error=str(exc))
-            return query   # fall back to original query
+            return query  # fall back to original query
 
     async def expand_multi(
         self,
@@ -133,7 +135,8 @@ class HyDEExpander:
             return [expanded]
 
         import asyncio
+
         tasks = [self.expand(query, schema_summary) for _ in range(n)]
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        valid   = [r for r in results if isinstance(r, str)]
+        valid = [r for r in results if isinstance(r, str)]
         return valid if valid else [query]

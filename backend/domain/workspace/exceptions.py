@@ -1,14 +1,15 @@
 """Workspace bounded context exceptions."""
+
 from __future__ import annotations
 
-from backend.shared.exceptions import DomainException
+from backend.shared.exceptions import DomainError
 
 
-class WorkspaceException(DomainException):
+class WorkspaceError(DomainError):
     """Base exception for the workspace bounded context."""
 
 
-class ConversationNotFoundException(WorkspaceException):
+class ConversationNotFoundError(WorkspaceError):
     def __init__(self, conversation_id: str) -> None:
         super().__init__(
             f"Conversation '{conversation_id}' not found.",
@@ -17,7 +18,7 @@ class ConversationNotFoundException(WorkspaceException):
         self.conversation_id = conversation_id
 
 
-class ProjectNotFoundException(WorkspaceException):
+class ProjectNotFoundError(WorkspaceError):
     def __init__(self, project_id: str) -> None:
         super().__init__(
             f"Project '{project_id}' not found.",
@@ -26,7 +27,7 @@ class ProjectNotFoundException(WorkspaceException):
         self.project_id = project_id
 
 
-class MessageNotFoundException(WorkspaceException):
+class MessageNotFoundError(WorkspaceError):
     def __init__(self, message_id: str) -> None:
         super().__init__(
             f"Message '{message_id}' not found.",
@@ -35,7 +36,7 @@ class MessageNotFoundException(WorkspaceException):
         self.message_id = message_id
 
 
-class ConversationClosedError(WorkspaceException):
+class ConversationClosedError(WorkspaceError):
     """Raised when a message is appended to a conversation that has been closed."""
 
     def __init__(self, conversation_id: str) -> None:
@@ -46,7 +47,7 @@ class ConversationClosedError(WorkspaceException):
         self.conversation_id = conversation_id
 
 
-class DatasetMismatchError(WorkspaceException):
+class DatasetMismatchError(WorkspaceError):
     """Raised when a message references a different dataset than the conversation was
     created for — prevents cross-dataset context pollution in the memory buffer.
     """
@@ -58,10 +59,10 @@ class DatasetMismatchError(WorkspaceException):
             code="DATASET_MISMATCH",
         )
         self.conversation_dataset = conversation_dataset
-        self.message_dataset      = message_dataset
+        self.message_dataset = message_dataset
 
 
-class ContextWindowExceededError(WorkspaceException):
+class ContextWindowExceededError(WorkspaceError):
     """Raised when the conversation has too many messages to fit in the LLM context
     window and must be compressed before adding another message.
     """
@@ -73,10 +74,10 @@ class ContextWindowExceededError(WorkspaceException):
             code="CONTEXT_WINDOW_EXCEEDED",
         )
         self.message_count = message_count
-        self.max_messages  = max_messages
+        self.max_messages = max_messages
 
 
-class ProjectDatasetLimitError(WorkspaceException):
+class ProjectDatasetLimitError(WorkspaceError):
     """Raised when a project already has the maximum number of datasets."""
 
     def __init__(self, project_id: str, max_datasets: int) -> None:
@@ -84,5 +85,5 @@ class ProjectDatasetLimitError(WorkspaceException):
             f"Project '{project_id}' has reached the {max_datasets}-dataset limit.",
             code="PROJECT_DATASET_LIMIT",
         )
-        self.project_id   = project_id
+        self.project_id = project_id
         self.max_datasets = max_datasets

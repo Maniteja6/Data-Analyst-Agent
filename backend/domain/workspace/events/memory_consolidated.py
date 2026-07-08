@@ -1,4 +1,5 @@
 """MemoryConsolidated domain event."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -32,17 +33,19 @@ class MemoryConsolidated(DomainEvent):
         summary_preview:  First 80 characters of the memory summary.
     """
 
-    conversation_id:  str = ""
-    dataset_id:       str = ""
+    conversation_id: str = ""
+    dataset_id: str = ""
     turns_compressed: int = 0
-    summary_preview:  str = ""
+    summary_preview: str = ""
 
     def to_dict(self) -> dict:
         base = super().to_dict()
-        base.update({
-            "conversation_id":  self.conversation_id,
-            "dataset_id":       self.dataset_id,
-            "turns_compressed": self.turns_compressed,
-            "summary_preview":  self.summary_preview,
-        })
+        base.update(
+            {
+                "conversation_id": self.conversation_id,
+                "dataset_id": self.dataset_id,
+                "turns_compressed": self.turns_compressed,
+                "summary_preview": self.summary_preview,
+            }
+        )
         return base

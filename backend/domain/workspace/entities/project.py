@@ -1,11 +1,12 @@
 """Project entity — a named workspace grouping related datasets and conversations."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from backend.shared.entity import Entity
 from backend.domain.workspace.exceptions import ProjectDatasetLimitError
+from backend.shared.entity import Entity
 
 MAX_DATASETS_PER_PROJECT = 50
 
@@ -34,14 +35,14 @@ class Project(Entity):
         updated_at:      UTC last-modified timestamp.
     """
 
-    name:             str
-    description:      str            = ""
-    owner_id:         str | None     = None
-    dataset_ids:      list[str]      = field(default_factory=list)
-    conversation_ids: list[str]      = field(default_factory=list)
-    is_archived:      bool           = False
-    created_at:       datetime | None = None
-    updated_at:       datetime | None = None
+    name: str
+    description: str = ""
+    owner_id: str | None = None
+    dataset_ids: list[str] = field(default_factory=list)
+    conversation_ids: list[str] = field(default_factory=list)
+    is_archived: bool = False
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     # ── Domain methods ────────────────────────────────────────────────────
 
@@ -55,39 +56,39 @@ class Project(Entity):
             raise ProjectDatasetLimitError(self.id, MAX_DATASETS_PER_PROJECT)
         if dataset_id not in self.dataset_ids:
             self.dataset_ids.append(dataset_id)
-            self.updated_at = datetime.now(timezone.utc)
+            self.updated_at = datetime.now(UTC)
 
     def remove_dataset(self, dataset_id: str) -> None:
         """Remove a dataset from the project (does not delete the dataset)."""
         if dataset_id in self.dataset_ids:
             self.dataset_ids.remove(dataset_id)
-            self.updated_at = datetime.now(timezone.utc)
+            self.updated_at = datetime.now(UTC)
 
     def add_conversation(self, conversation_id: str) -> None:
         if conversation_id not in self.conversation_ids:
             self.conversation_ids.append(conversation_id)
-            self.updated_at = datetime.now(timezone.utc)
+            self.updated_at = datetime.now(UTC)
 
     def remove_conversation(self, conversation_id: str) -> None:
         if conversation_id in self.conversation_ids:
             self.conversation_ids.remove(conversation_id)
-            self.updated_at = datetime.now(timezone.utc)
+            self.updated_at = datetime.now(UTC)
 
     def archive(self) -> None:
         """Soft-archive the project — hides it from the active list."""
         self.is_archived = True
-        self.updated_at  = datetime.now(timezone.utc)
+        self.updated_at = datetime.now(UTC)
 
     def restore(self) -> None:
         """Restore an archived project to the active list."""
         self.is_archived = False
-        self.updated_at  = datetime.now(timezone.utc)
+        self.updated_at = datetime.now(UTC)
 
     def rename(self, name: str) -> None:
         if not name.strip():
             raise ValueError("Project name must not be blank")
-        self.name       = name.strip()[:200]
-        self.updated_at = datetime.now(timezone.utc)
+        self.name = name.strip()[:200]
+        self.updated_at = datetime.now(UTC)
 
     # ── Derived helpers ───────────────────────────────────────────────────
 
@@ -115,9 +116,10 @@ class Project(Entity):
         name: str,
         owner_id: str | None = None,
         description: str = "",
-    ) -> "Project":
+    ) -> Project:
         from backend.shared.utils.datetime_utils import utcnow
         from backend.shared.utils.uuid_factory import new_uuid
+
         now = utcnow()
         return cls(
             id=new_uuid(),
@@ -130,14 +132,14 @@ class Project(Entity):
 
     def to_dict(self) -> dict:
         return {
-            "id":               self.id,
-            "name":             self.name,
-            "description":      self.description,
-            "owner_id":         self.owner_id,
-            "dataset_count":    self.dataset_count,
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "owner_id": self.owner_id,
+            "dataset_count": self.dataset_count,
             "conversation_count": self.conversation_count,
-            "is_archived":      self.is_archived,
-            "is_empty":         self.is_empty,
-            "created_at":       self.created_at.isoformat() if self.created_at else None,
-            "updated_at":       self.updated_at.isoformat() if self.updated_at else None,
+            "is_archived": self.is_archived,
+            "is_empty": self.is_empty,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

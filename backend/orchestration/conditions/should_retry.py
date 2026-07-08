@@ -15,10 +15,11 @@ Usage in graph definition::
         {"retry": "insight", "done": "report"},
     )
 """
+
 from __future__ import annotations
 
-from backend.orchestration.state.pipeline_state import PipelineState
 from backend.config.settings import get_settings
+from backend.orchestration.state.pipeline_state import PipelineState
 
 
 def should_retry(state: PipelineState) -> str:
@@ -35,8 +36,8 @@ def should_retry(state: PipelineState) -> str:
     if approved:
         return "done"
 
-    max_rounds     = get_settings().critic_max_revision_rounds
-    current_round  = state.get("metadata", {}).get("revision_round", 0)
+    max_rounds = get_settings().critic_max_revision_rounds
+    current_round = state.get("metadata", {}).get("revision_round", 0)
 
     if current_round >= max_rounds:
         return "done"

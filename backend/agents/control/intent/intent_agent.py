@@ -15,6 +15,7 @@ Output routing:
     requires_viz       → VisualizationAgent
     requires_rag       → RAGAgent (always True as fallback)
 """
+
 from __future__ import annotations
 
 import json
@@ -38,22 +39,55 @@ _SYSTEM = (
 )
 
 # Keyword-based pre-classifier to save LLM calls for obvious intents
-_SQL_KEYWORDS = frozenset({
-    "total", "sum", "average", "avg", "count", "group", "top", "filter", "where",
-    "how many",
-})
-_FORECAST_WORDS = frozenset({
-    "forecast", "predict", "future", "trend", "next month", "next quarter",
-    "projection",
-})
-_VIZ_WORDS = frozenset({
-    "chart", "graph", "plot", "visualise", "visualize", "show me a", "pie",
-    "bar chart",
-})
-_ANOMALY_WORDS = frozenset({
-    "anomaly", "outlier", "unusual", "spike", "drop", "strange", "weird",
-    "wrong",
-})
+_SQL_KEYWORDS = frozenset(
+    {
+        "total",
+        "sum",
+        "average",
+        "avg",
+        "count",
+        "group",
+        "top",
+        "filter",
+        "where",
+        "how many",
+    }
+)
+_FORECAST_WORDS = frozenset(
+    {
+        "forecast",
+        "predict",
+        "future",
+        "trend",
+        "next month",
+        "next quarter",
+        "projection",
+    }
+)
+_VIZ_WORDS = frozenset(
+    {
+        "chart",
+        "graph",
+        "plot",
+        "visualise",
+        "visualize",
+        "show me a",
+        "pie",
+        "bar chart",
+    }
+)
+_ANOMALY_WORDS = frozenset(
+    {
+        "anomaly",
+        "outlier",
+        "unusual",
+        "spike",
+        "drop",
+        "strange",
+        "weird",
+        "wrong",
+    }
+)
 
 
 class IntentAgent(BaseAgent):
@@ -65,16 +99,16 @@ class IntentAgent(BaseAgent):
                        the LLM call for unambiguous intents.
     """
 
-    def __init__(self, llm_client: Any, use_fast_path: bool = True) -> None:
+    def __init__(self, llm_client: Any, use_fast_path: bool = True) -> None:  # noqa: ANN401
         super().__init__("intent")
-        self._llm       = llm_client
+        self._llm = llm_client
         self._fast_path = use_fast_path
 
     async def _execute(
         self,
         context: AgentContext,
         user_message: str = "",
-        **kwargs: Any,
+        **kwargs: Any,  # noqa: ANN401
     ) -> dict:
         """Classify the user message and return an IntentClassification dict.
 
@@ -113,10 +147,10 @@ class IntentAgent(BaseAgent):
                 model_id=get_model_id("intent"),
                 max_tokens=400,
             )
-            data         = self._parse_response(raw)
-            intent       = data.get("intent", "general_question")
+            data = self._parse_response(raw)
+            intent = data.get("intent", "general_question")
             entities_raw = data.get("entities", {})
-            entities     = IntentEntities(
+            entities = IntentEntities(
                 column=entities_raw.get("column"),
                 metric=entities_raw.get("metric"),
                 time_range=entities_raw.get("time_range"),
@@ -124,7 +158,9 @@ class IntentAgent(BaseAgent):
                 top_n=entities_raw.get("top_n"),
             )
             classification = IntentClassification(
-                intent=Intent(intent) if intent in Intent._value2member_map_ else Intent.GENERAL_QUESTION,
+                intent=Intent(intent)
+                if intent in Intent._value2member_map_
+                else Intent.GENERAL_QUESTION,
                 entities=entities,
                 confidence=float(data.get("confidence", 0.85)),
                 sub_intents=data.get("sub_intents", []),
@@ -147,7 +183,11 @@ class IntentAgent(BaseAgent):
         return classification.to_dict()
 
     def _build_prompt(self, message: str, column_names: list[str]) -> str:
-        col_hint = f"\nDataset columns (use to detect column references): {column_names[:20]}" if column_names else ""
+        col_hint = (
+            f"\nDataset columns (use to detect column references): {column_names[:20]}"
+            if column_names
+            else ""
+        )
         return f"""Classify this data analytics chat message.{col_hint}
 
 USER MESSAGE: {message}
@@ -223,4 +263,4 @@ Return ONLY valid JSON:
                 search_query=message,
             )
 
-        return None   # fall through to LLM
+        return None  # fall through to LLM

@@ -25,13 +25,16 @@ Usage::
         project_id="proj-789",         # optional
     )
 """
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
+if TYPE_CHECKING:
+    from backend.infrastructure.analytics_db.clickhouse_client import ClickHouseClient
 from backend.config.feature_flags import flags
 
 logger = structlog.get_logger(__name__)
@@ -47,7 +50,7 @@ class ColumnStatsWriter:
     instance state) — a single shared instance is sufficient per worker process.
     """
 
-    def __init__(self, client=None) -> None:
+    def __init__(self, client: ClickHouseClient | None = None) -> None:
         """
         Args:
             client: Optional ``ClickHouseClient`` instance. When None the
@@ -62,7 +65,7 @@ class ColumnStatsWriter:
         self,
         dataset_id: str,
         session_id: str,
-        profile: Any,
+        profile: Any,  # noqa: ANN401
         project_id: str = "",
     ) -> int:
         """Write all column statistics from a DataProfile to ClickHouse.
@@ -94,7 +97,7 @@ class ColumnStatsWriter:
             )
             return 0
 
-        profiled_at = datetime.now(timezone.utc)
+        profiled_at = datetime.now(UTC)
         rows = [
             self._build_row(col, dataset_id, session_id, project_id, profiled_at)
             for col in column_profiles
@@ -123,7 +126,7 @@ class ColumnStatsWriter:
 
     async def write_column(
         self,
-        column_profile: Any,
+        column_profile: Any,  # noqa: ANN401
         dataset_id: str,
         session_id: str,
         project_id: str = "",
@@ -137,7 +140,7 @@ class ColumnStatsWriter:
         if not flags.clickhouse_enabled:
             return
 
-        profiled_at = datetime.now(timezone.utc)
+        profiled_at = datetime.now(UTC)
         row = self._build_row(column_profile, dataset_id, session_id, project_id, profiled_at)
         try:
             client = self._get_client()
@@ -158,25 +161,24 @@ class ColumnStatsWriter:
             return
         try:
             client = self._get_client()
-            await client.command(
-                f"ALTER TABLE {_TABLE} DELETE WHERE dataset_id = '{dataset_id}'"
-            )
+            await client.command(f"ALTER TABLE {_TABLE} DELETE WHERE dataset_id = '{dataset_id}'")
             logger.info("clickhouse_dataset_deleted", dataset_id=dataset_id)
         except Exception as exc:
             logger.warning("clickhouse_delete_failed", dataset_id=dataset_id, error=str(exc))
 
     # ── Private helpers ───────────────────────────────────────────────────
 
-    def _get_client(self):
+    def _get_client(self) -> ClickHouseClient:
         """Return the ClickHouseClient, lazily importing the singleton."""
         if self._client is None:
             from backend.infrastructure.analytics_db.clickhouse_client import get_clickhouse_client
+
             self._client = get_clickhouse_client()
         return self._client
 
     @staticmethod
     def _build_row(
-        col: Any,
+        col: Any,  # noqa: ANN401
         dataset_id: str,
         session_id: str,
         project_id: str,
@@ -187,7 +189,8 @@ class ColumnStatsWriter:
         Handles both the domain entity form (attribute access) and the plain
         dict form (key access) produced by ``ColumnProfile.to_dict()``.
         """
-        def _get(obj, *keys, default=None):
+
+        def _get(obj: Any, *keys: str, default: Any = None) -> Any:  # noqa: ANN401
             """Try attribute access then dict access."""
             for key in keys:
                 v = getattr(obj, key, None)
@@ -201,8 +204,8 @@ class ColumnStatsWriter:
             return default
 
         # Core identity fields
-        column_name  = _get(col, "column_name", "name", default="")
-        data_type    = _get(col, "data_type", "dtype", default="unknown")
+        column_name = _get(col, "column_name", "name", default="")
+        data_type = _get(col, "data_type", "dtype", default="unknown")
         semantic_type = _get(col, "semantic_type", default="unknown")
         # SemanticType enum → string
         if hasattr(semantic_type, "value"):
@@ -212,60 +215,60 @@ class ColumnStatsWriter:
         if hasattr(kind, "value"):
             kind = kind.value
 
-        total_rows   = int(_get(col, "total_rows", default=0))
-        null_count   = int(_get(col, "null_count", default=0))
+        total_rows = int(_get(col, "total_rows", default=0))
+        null_count = int(_get(col, "null_count", default=0))
         unique_count = int(_get(col, "unique_count", default=0))
-        null_rate    = float(_get(col, "null_rate", default=0.0))
+        null_rate = float(_get(col, "null_rate", default=0.0))
         completeness = float(_get(col, "completeness", default=1.0))
 
         # Numeric statistics from StatisticalSummary VO
         stats = _get(col, "stats")
         if isinstance(stats, dict):
-            mean     = stats.get("mean")
-            stddev   = stats.get("stddev")
-            min_val  = stats.get("min") or stats.get("min_val")
-            max_val  = stats.get("max") or stats.get("max_val")
-            p25      = stats.get("p25")
-            p50      = stats.get("p50")
-            p75      = stats.get("p75")
+            mean = stats.get("mean")
+            stddev = stats.get("stddev")
+            min_val = stats.get("min") or stats.get("min_val")
+            max_val = stats.get("max") or stats.get("max_val")
+            p25 = stats.get("p25")
+            p50 = stats.get("p50")
+            p75 = stats.get("p75")
             skewness = stats.get("skewness")
         elif stats is not None:
-            mean     = getattr(stats, "mean",     None)
-            stddev   = getattr(stats, "stddev",   None)
-            min_val  = getattr(stats, "min_val",  None)
-            max_val  = getattr(stats, "max_val",  None)
-            p25      = getattr(stats, "p25",      None)
-            p50      = getattr(stats, "p50",      None)
-            p75      = getattr(stats, "p75",      None)
+            mean = getattr(stats, "mean", None)
+            stddev = getattr(stats, "stddev", None)
+            min_val = getattr(stats, "min_val", None)
+            max_val = getattr(stats, "max_val", None)
+            p25 = getattr(stats, "p25", None)
+            p50 = getattr(stats, "p50", None)
+            p75 = getattr(stats, "p75", None)
             skewness = getattr(stats, "skewness", None)
         else:
             mean = stddev = min_val = max_val = p25 = p50 = p75 = skewness = None
 
-        is_constant         = int(bool(_get(col, "is_constant",         default=False)))
+        is_constant = int(bool(_get(col, "is_constant", default=False)))
         is_high_cardinality = int(bool(_get(col, "is_high_cardinality", default=False)))
 
         return {
-            "dataset_id":          dataset_id,
-            "session_id":          session_id,
-            "project_id":          project_id,
-            "column_name":         column_name,
-            "profiled_at":         profiled_at,
-            "data_type":           str(data_type),
-            "semantic_type":       str(semantic_type),
-            "kind":                str(kind),
-            "total_rows":          total_rows,
-            "null_count":          null_count,
-            "unique_count":        unique_count,
-            "null_rate":           null_rate,
-            "completeness":        completeness,
-            "mean":                mean,
-            "stddev":              stddev,
-            "min_val":             min_val,
-            "max_val":             max_val,
-            "p25":                 p25,
-            "p50":                 p50,
-            "p75":                 p75,
-            "skewness":            skewness,
-            "is_constant":         is_constant,
+            "dataset_id": dataset_id,
+            "session_id": session_id,
+            "project_id": project_id,
+            "column_name": column_name,
+            "profiled_at": profiled_at,
+            "data_type": str(data_type),
+            "semantic_type": str(semantic_type),
+            "kind": str(kind),
+            "total_rows": total_rows,
+            "null_count": null_count,
+            "unique_count": unique_count,
+            "null_rate": null_rate,
+            "completeness": completeness,
+            "mean": mean,
+            "stddev": stddev,
+            "min_val": min_val,
+            "max_val": max_val,
+            "p25": p25,
+            "p50": p50,
+            "p75": p75,
+            "skewness": skewness,
+            "is_constant": is_constant,
             "is_high_cardinality": is_high_cardinality,
         }

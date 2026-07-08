@@ -1,4 +1,5 @@
 """CleaningReport entity — audit record of the data cleaning pipeline."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -10,29 +11,30 @@ from backend.shared.entity import Entity
 
 class CleaningAction(str, Enum):
     """Types of cleaning operations that can be applied to a dataset."""
-    REMOVE_DUPLICATES  = "remove_duplicates"
-    IMPUTE_MEDIAN      = "impute_median"
-    IMPUTE_MEAN        = "impute_mean"
-    IMPUTE_MODE        = "impute_mode"
-    IMPUTE_CONSTANT    = "impute_constant"
+
+    REMOVE_DUPLICATES = "remove_duplicates"
+    IMPUTE_MEDIAN = "impute_median"
+    IMPUTE_MEAN = "impute_mean"
+    IMPUTE_MODE = "impute_mode"
+    IMPUTE_CONSTANT = "impute_constant"
     DROP_HIGH_NULL_COL = "drop_column_high_null"
-    COERCE_TO_FLOAT    = "coerce_to_float"
+    COERCE_TO_FLOAT = "coerce_to_float"
     COERCE_TO_DATETIME = "coerce_to_datetime"
-    FLAG_OUTLIER       = "flag_outlier"
-    CLIP_OUTLIER       = "clip_outlier"
-    STRIP_WHITESPACE   = "strip_whitespace"
+    FLAG_OUTLIER = "flag_outlier"
+    CLIP_OUTLIER = "clip_outlier"
+    STRIP_WHITESPACE = "strip_whitespace"
 
 
 @dataclass
 class CleaningStep:
     """Records one atomic cleaning action applied to the dataset."""
 
-    action:        CleaningAction
-    column:        str | None       # None for row-level actions (e.g. duplicate removal)
-    rows_affected: int              = 0
-    description:   str              = ""
-    before_value:  str | None       = None  # sample value before cleaning
-    after_value:   str | None       = None  # sample value after cleaning
+    action: CleaningAction
+    column: str | None  # None for row-level actions (e.g. duplicate removal)
+    rows_affected: int = 0
+    description: str = ""
+    before_value: str | None = None  # sample value before cleaning
+    after_value: str | None = None  # sample value after cleaning
 
 
 @dataclass
@@ -53,14 +55,14 @@ class CleaningReport(Entity):
         cleaned_at:      UTC timestamp when cleaning completed.
     """
 
-    session_id:     str
-    dataset_id:     str
-    rows_before:    int
-    rows_after:     int
+    session_id: str
+    dataset_id: str
+    rows_before: int
+    rows_after: int
     columns_before: int
-    columns_after:  int
-    steps:          list[CleaningStep] = field(default_factory=list)
-    cleaned_at:     datetime | None    = None
+    columns_after: int
+    steps: list[CleaningStep] = field(default_factory=list)
+    cleaned_at: datetime | None = None
 
     # ── Derived helpers ───────────────────────────────────────────────────
 
@@ -75,8 +77,7 @@ class CleaningReport(Entity):
     @property
     def duplicates_removed(self) -> int:
         return sum(
-            s.rows_affected for s in self.steps
-            if s.action == CleaningAction.REMOVE_DUPLICATES
+            s.rows_affected for s in self.steps if s.action == CleaningAction.REMOVE_DUPLICATES
         )
 
     @property
@@ -88,40 +89,38 @@ class CleaningReport(Entity):
             CleaningAction.IMPUTE_MODE,
             CleaningAction.IMPUTE_CONSTANT,
         }
-        return list({
-            s.column for s in self.steps
-            if s.action in impute_actions and s.column
-        })
+        return list({s.column for s in self.steps if s.action in impute_actions and s.column})
 
     @property
     def dropped_columns(self) -> list[str]:
         """Column names dropped due to excessive nulls."""
         return [
-            s.column for s in self.steps
+            s.column
+            for s in self.steps
             if s.action == CleaningAction.DROP_HIGH_NULL_COL and s.column
         ]
 
     def to_dict(self) -> dict:
         return {
-            "id":             self.id,
-            "session_id":     self.session_id,
-            "dataset_id":     self.dataset_id,
-            "rows_before":    self.rows_before,
-            "rows_after":     self.rows_after,
-            "rows_removed":   self.rows_removed,
+            "id": self.id,
+            "session_id": self.session_id,
+            "dataset_id": self.dataset_id,
+            "rows_before": self.rows_before,
+            "rows_after": self.rows_after,
+            "rows_removed": self.rows_removed,
             "columns_before": self.columns_before,
-            "columns_after":  self.columns_after,
+            "columns_after": self.columns_after,
             "columns_removed": self.columns_removed,
             "duplicates_removed": self.duplicates_removed,
             "imputed_columns": self.imputed_columns,
             "dropped_columns": self.dropped_columns,
-            "step_count":     len(self.steps),
-            "steps":          [
+            "step_count": len(self.steps),
+            "steps": [
                 {
-                    "action":        s.action.value,
-                    "column":        s.column,
+                    "action": s.action.value,
+                    "column": s.column,
                     "rows_affected": s.rows_affected,
-                    "description":   s.description,
+                    "description": s.description,
                 }
                 for s in self.steps
             ],

@@ -4,6 +4,7 @@ Centralising UUID creation here means tests can mock ``new_uuid`` once
 and control all ID generation across the codebase, rather than patching
 ``uuid.uuid4`` everywhere.
 """
+
 from __future__ import annotations
 
 import uuid

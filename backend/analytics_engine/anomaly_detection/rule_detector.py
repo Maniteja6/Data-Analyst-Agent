@@ -22,10 +22,16 @@ Usage::
     detector = RuleDetector()
     results  = detector.detect(df, column="price", semantic_type="currency")
 """
+
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
+
+    DataFrameT = pl.DataFrame | pd.DataFrame
 
 import structlog
 
@@ -51,7 +57,7 @@ class RuleDetector:
 
     def detect(
         self,
-        df,
+        df: DataFrameT,
         column: str,
         semantic_type: str = "unknown",
     ) -> list[dict]:
@@ -83,39 +89,39 @@ class RuleDetector:
         if stype == "email":
             results.extend(self._check_email_format(df, column))
 
-        return results[:self._max_results]
+        return results[: self._max_results]
 
     # ── Rule implementations ──────────────────────────────────────────────
 
-    def _check_negative_currency(
-        self, df, column: str, stype: str
-    ) -> list[dict]:
+    def _check_negative_currency(self, df: DataFrameT, column: str, stype: str) -> list[dict]:
         """Flag negative values in columns that must be non-negative."""
         if stype == "numeric_measure":
-            return []   # measures can be negative (temperature, profit delta)
+            return []  # measures can be negative (temperature, profit delta)
 
         results = []
         try:
             col_data = self._get_column_data(df, column)
             for idx, val in enumerate(col_data):
                 if val is not None and float(val) < 0:
-                    results.append(self._make_violation(
-                        column=column,
-                        row_index=idx,
-                        raw_value=val,
-                        description=(
-                            f"Negative value {val:.4g} in '{column}' "
-                            f"({stype} column should be ≥ 0)."
-                        ),
-                        severity="high",
-                    ))
+                    results.append(
+                        self._make_violation(
+                            column=column,
+                            row_index=idx,
+                            raw_value=val,
+                            description=(
+                                f"Negative value {val:.4g} in '{column}' "
+                                f"({stype} column should be ≥ 0)."
+                            ),
+                            severity="high",
+                        )
+                    )
                 if len(results) >= self._max_results:
                     break
         except Exception as exc:
             logger.debug("rule_negative_check_failed", column=column, error=str(exc))
         return results
 
-    def _check_percentage_range(self, df, column: str) -> list[dict]:
+    def _check_percentage_range(self, df: DataFrameT, column: str) -> list[dict]:
         """Flag percentage values outside [0, 100] or [0, 1]."""
         results = []
         try:
@@ -131,23 +137,25 @@ class RuleDetector:
 
             for idx, val in enumerate(col_data):
                 if val is not None and not (low <= float(val) <= high):
-                    results.append(self._make_violation(
-                        column=column,
-                        row_index=idx,
-                        raw_value=val,
-                        description=(
-                            f"Percentage value {val:.4g} in '{column}' is outside "
-                            f"expected range [{low}, {high}]."
-                        ),
-                        severity="high",
-                    ))
+                    results.append(
+                        self._make_violation(
+                            column=column,
+                            row_index=idx,
+                            raw_value=val,
+                            description=(
+                                f"Percentage value {val:.4g} in '{column}' is outside "
+                                f"expected range [{low}, {high}]."
+                            ),
+                            severity="high",
+                        )
+                    )
                 if len(results) >= self._max_results:
                     break
         except Exception as exc:
             logger.debug("rule_percentage_check_failed", column=column, error=str(exc))
         return results
 
-    def _check_non_integer_count(self, df, column: str) -> list[dict]:
+    def _check_non_integer_count(self, df: DataFrameT, column: str) -> list[dict]:
         """Flag non-integer values in count columns."""
         results = []
         try:
@@ -156,23 +164,25 @@ class RuleDetector:
                 if val is not None:
                     fval = float(val)
                     if fval != int(fval) or fval < 0:
-                        results.append(self._make_violation(
-                            column=column,
-                            row_index=idx,
-                            raw_value=val,
-                            description=(
-                                f"Value {val} in count column '{column}' "
-                                f"is not a non-negative integer."
-                            ),
-                            severity="medium",
-                        ))
+                        results.append(
+                            self._make_violation(
+                                column=column,
+                                row_index=idx,
+                                raw_value=val,
+                                description=(
+                                    f"Value {val} in count column '{column}' "
+                                    f"is not a non-negative integer."
+                                ),
+                                severity="medium",
+                            )
+                        )
                 if len(results) >= self._max_results:
                     break
         except Exception as exc:
             logger.debug("rule_count_check_failed", column=column, error=str(exc))
         return results
 
-    def _check_datetime_range(self, df, column: str) -> list[dict]:
+    def _check_datetime_range(self, df: DataFrameT, column: str) -> list[dict]:
         """Flag datetime values outside the plausible business date range."""
         results = []
         try:
@@ -181,49 +191,50 @@ class RuleDetector:
                 if val is None:
                     continue
                 try:
-                    import datetime
-                    if hasattr(val, "year"):
-                        year = val.year
-                    else:
-                        year = int(str(val)[:4])
+                    year = val.year if hasattr(val, "year") else int(str(val)[:4])
                     if not (_MIN_YEAR <= year <= _MAX_YEAR):
-                        results.append(self._make_violation(
-                            column=column,
-                            row_index=idx,
-                            raw_value=str(val),
-                            description=(
-                                f"Date {val} in '{column}' has year {year}, "
-                                f"outside plausible range [{_MIN_YEAR}, {_MAX_YEAR}]."
-                            ),
-                            severity="medium",
-                        ))
-                except Exception:
-                    pass
+                        results.append(
+                            self._make_violation(
+                                column=column,
+                                row_index=idx,
+                                raw_value=str(val),
+                                description=(
+                                    f"Date {val} in '{column}' has year {year}, "
+                                    f"outside plausible range [{_MIN_YEAR}, {_MAX_YEAR}]."
+                                ),
+                                severity="medium",
+                            )
+                        )
+                except Exception as exc:
+                    logger.debug("year_range_check_failed", column=column, error=str(exc))
                 if len(results) >= self._max_results:
                     break
         except Exception as exc:
             logger.debug("rule_datetime_check_failed", column=column, error=str(exc))
         return results
 
-    def _check_email_format(self, df, column: str) -> list[dict]:
+    def _check_email_format(self, df: DataFrameT, column: str) -> list[dict]:
         """Flag email values that don't match a basic RFC pattern."""
         import re
+
         pattern = re.compile(_EMAIL_PATTERN)
         results = []
         try:
             col_data = self._get_column_data(df, column)
             for idx, val in enumerate(col_data):
                 if val is not None and not pattern.match(str(val)):
-                    results.append(self._make_violation(
-                        column=column,
-                        row_index=idx,
-                        raw_value=str(val),
-                        description=(
-                            f"Value '{val}' in email column '{column}' "
-                            f"does not match a valid email format."
-                        ),
-                        severity="medium",
-                    ))
+                    results.append(
+                        self._make_violation(
+                            column=column,
+                            row_index=idx,
+                            raw_value=str(val),
+                            description=(
+                                f"Value '{val}' in email column '{column}' "
+                                f"does not match a valid email format."
+                            ),
+                            severity="medium",
+                        )
+                    )
                 if len(results) >= self._max_results:
                     break
         except Exception as exc:
@@ -233,7 +244,7 @@ class RuleDetector:
     # ── Helpers ───────────────────────────────────────────────────────────
 
     @staticmethod
-    def _get_column_data(df, column: str) -> list:
+    def _get_column_data(df: DataFrameT, column: str) -> list:
         """Extract column values as a Python list — handles polars and pandas."""
         try:
             return df[column].to_list()
@@ -244,18 +255,18 @@ class RuleDetector:
     def _make_violation(
         column: str,
         row_index: int,
-        raw_value: Any,
+        raw_value: Any,  # noqa: ANN401
         description: str,
         severity: str = "high",
     ) -> dict:
         return {
-            "column":           column,
+            "column": column,
             "detection_method": "Rule",
-            "anomaly_type":     "rule_violation",
-            "severity":         severity,
-            "confidence":       0.95,
-            "rows_affected":    1,
-            "value":            str(raw_value),
-            "row_index":        row_index,
-            "description":      description,
+            "anomaly_type": "rule_violation",
+            "severity": severity,
+            "confidence": 0.95,
+            "rows_affected": 1,
+            "value": str(raw_value),
+            "row_index": row_index,
+            "description": description,
         }

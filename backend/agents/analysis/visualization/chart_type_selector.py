@@ -7,11 +7,12 @@ Selection logic (priority order):
 4. If one numeric column → histogram
 5. Default → bar chart
 """
+
 from __future__ import annotations
 
-DATE_TYPES    = frozenset({"date", "datetime"})
+DATE_TYPES = frozenset({"date", "datetime"})
 NUMERIC_TYPES = frozenset({"currency", "numeric_measure", "numeric_count", "percentage"})
-CAT_TYPES     = frozenset({"categorical"})
+CAT_TYPES = frozenset({"categorical"})
 
 
 def select_chart_type(
@@ -31,24 +32,21 @@ def select_chart_type(
         Dict with keys: ``mark``, ``x_type``, ``y_type``, ``orient``,
         ``bin_count`` (for histograms).
     """
-    date_cols    = [n for n, t in col_types.items() if t in DATE_TYPES]
+    date_cols = [n for n, t in col_types.items() if t in DATE_TYPES]
     numeric_cols = [n for n, t in col_types.items() if t in NUMERIC_TYPES]
-    cat_cols     = [n for n, t in col_types.items() if t in CAT_TYPES]
+    cat_cols = [n for n, t in col_types.items() if t in CAT_TYPES]
 
     intent_lower = intent.lower()
 
     # ── User intent overrides ─────────────────────────────────────────────
-    if "trend" in intent_lower or "over time" in intent_lower:
-        if date_cols and numeric_cols:
-            return {"mark": "line", "x_type": "temporal", "y_type": "quantitative"}
+    if ("trend" in intent_lower or "over time" in intent_lower) and date_cols and numeric_cols:
+        return {"mark": "line", "x_type": "temporal", "y_type": "quantitative"}
 
-    if "distribut" in intent_lower or "histogram" in intent_lower:
-        if numeric_cols:
-            return _histogram(row_count)
+    if ("distribut" in intent_lower or "histogram" in intent_lower) and numeric_cols:
+        return _histogram(row_count)
 
-    if "scatter" in intent_lower or "correlat" in intent_lower:
-        if len(numeric_cols) >= 2:
-            return {"mark": "point", "x_type": "quantitative", "y_type": "quantitative"}
+    if ("scatter" in intent_lower or "correlat" in intent_lower) and len(numeric_cols) >= 2:
+        return {"mark": "point", "x_type": "quantitative", "y_type": "quantitative"}
 
     # ── Automatic selection ───────────────────────────────────────────────
     if date_cols and numeric_cols:
@@ -58,7 +56,7 @@ def select_chart_type(
         n_cats = len(cat_cols)
         orient = "horizontal" if n_cats > 8 else "vertical"
         return {
-            "mark":   "bar",
+            "mark": "bar",
             "x_type": "nominal",
             "y_type": "quantitative",
             "orient": orient,
@@ -76,9 +74,9 @@ def select_chart_type(
 def _histogram(row_count: int) -> dict:
     bin_count = min(30, max(5, row_count // 50)) if row_count else 20
     return {
-        "mark":      "bar",
-        "x_type":    "quantitative",
-        "y_type":    "quantitative",
+        "mark": "bar",
+        "x_type": "quantitative",
+        "y_type": "quantitative",
         "bin_count": bin_count,
         "is_histogram": True,
     }

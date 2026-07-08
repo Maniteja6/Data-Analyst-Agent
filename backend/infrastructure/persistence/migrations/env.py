@@ -16,6 +16,7 @@ Run migrations::
     # Offline — generate a SQL script instead
     alembic upgrade head --sql > /tmp/migration.sql
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -31,20 +32,22 @@ from sqlalchemy.ext.asyncio import create_async_engine
 # ── Add backend to sys.path so model imports resolve ─────────────────────
 # Needed when Alembic is invoked directly (not via pytest/uvicorn which
 # set up sys.path already).
-_BACKEND_ROOT = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "..", "..")
-)
+_BACKEND_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 if _BACKEND_ROOT not in sys.path:
     sys.path.insert(0, _BACKEND_ROOT)
 
 # ── Import all ORM models so Alembic can detect schema changes ────────────
 from backend.infrastructure.persistence.database import Base  # noqa: E402
-from backend.infrastructure.persistence.models.dataset_model         import DatasetModel          # noqa: F401
-from backend.infrastructure.persistence.models.session_model         import SessionModel           # noqa: F401
-from backend.infrastructure.persistence.models.insight_model         import InsightReportModel     # noqa: F401
-from backend.infrastructure.persistence.models.conversation_model    import ConversationModel      # noqa: F401
-from backend.infrastructure.persistence.models.message_model         import MessageModel           # noqa: F401
-from backend.infrastructure.persistence.models.agent_execution_model import AgentExecutionModel    # noqa: F401
+from backend.infrastructure.persistence.models.agent_execution_model import (
+    AgentExecutionModel,  # noqa: F401
+)
+from backend.infrastructure.persistence.models.conversation_model import (
+    ConversationModel,  # noqa: F401
+)
+from backend.infrastructure.persistence.models.dataset_model import DatasetModel  # noqa: F401
+from backend.infrastructure.persistence.models.insight_model import InsightReportModel  # noqa: F401
+from backend.infrastructure.persistence.models.message_model import MessageModel  # noqa: F401
+from backend.infrastructure.persistence.models.session_model import SessionModel  # noqa: F401
 
 # ── Alembic Config object ─────────────────────────────────────────────────
 config = context.config
@@ -61,6 +64,7 @@ target_metadata = Base.metadata
 # ---------------------------------------------------------------------------
 # Offline mode — generate SQL without connecting
 # ---------------------------------------------------------------------------
+
 
 def run_migrations_offline() -> None:
     """Generate migration SQL without a live database connection.
@@ -84,6 +88,7 @@ def run_migrations_offline() -> None:
 # Online mode — apply migrations to a live database
 # ---------------------------------------------------------------------------
 
+
 def do_run_migrations(connection: Connection) -> None:
     context.configure(
         connection=connection,
@@ -99,7 +104,7 @@ async def run_async_migrations() -> None:
     """Create an async engine and run migrations via a synchronous connection."""
     connectable = create_async_engine(
         config.get_main_option("sqlalchemy.url"),
-        poolclass=pool.NullPool,   # don't pool connections during migrations
+        poolclass=pool.NullPool,  # don't pool connections during migrations
     )
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)

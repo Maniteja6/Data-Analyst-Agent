@@ -7,6 +7,7 @@ For real-time applications: the generated Vega-Lite spec dict is returned
 directly in the Socket.IO ``chat:complete`` event payload under the
 ``visualizations`` key. The React frontend passes it to ``VegaEmbed``.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -37,9 +38,9 @@ class VisualizationAgent(BaseAgent):
         llm_client: Optional LLM client for chart title generation.
     """
 
-    MAX_DATA_POINTS = 500   # cap data sent to the frontend
+    MAX_DATA_POINTS = 500  # cap data sent to the frontend
 
-    def __init__(self, llm_client: Any = None) -> None:
+    def __init__(self, llm_client: Any = None) -> None:  # noqa: ANN401
         super().__init__("visualization")
         self._llm = llm_client
 
@@ -49,7 +50,7 @@ class VisualizationAgent(BaseAgent):
         data: list[dict] | None = None,
         user_intent: str = "",
         title: str = "",
-        **kwargs: Any,
+        **kwargs: Any,  # noqa: ANN401
     ) -> dict:
         """Generate a Vega-Lite chart spec from result rows.
 
@@ -64,23 +65,17 @@ class VisualizationAgent(BaseAgent):
         """
         if not data:
             return {
-                "spec":             None,
-                "chart_type":       None,
+                "spec": None,
+                "chart_type": None,
                 "data_point_count": 0,
-                "error":            "No data provided to VisualizationAgent",
+                "error": "No data provided to VisualizationAgent",
             }
 
-        schema   = context.schema or {}
-        col_map  = {
-            c["name"]: c.get("semantic_type", "unknown")
-            for c in schema.get("columns", [])
-        }
+        schema = context.schema or {}
+        col_map = {c["name"]: c.get("semantic_type", "unknown") for c in schema.get("columns", [])}
 
         # Build semantic type map for the result columns only
-        result_col_types = {
-            key: col_map.get(key, "unknown")
-            for key in data[0].keys()
-        }
+        result_col_types = {key: col_map.get(key, "unknown") for key in data[0]}
 
         # Select chart type
         chart_info = select_chart_type(
@@ -89,9 +84,9 @@ class VisualizationAgent(BaseAgent):
             row_count=len(data),
         )
 
-        mark       = chart_info.get("mark", "bar")
-        x_type     = chart_info.get("x_type", "nominal")
-        y_type     = chart_info.get("y_type", "quantitative")
+        mark = chart_info.get("mark", "bar")
+        x_type = chart_info.get("x_type", "nominal")
+        y_type = chart_info.get("y_type", "quantitative")
         horizontal = chart_info.get("orient") == "horizontal"
 
         # Pick x and y columns based on type priority
@@ -110,20 +105,28 @@ class VisualizationAgent(BaseAgent):
             spec = build_line_spec(plot_data, x_col, y_col, title=chart_title)
         elif mark == "point":
             color_col = next(
-                (k for k, t in result_col_types.items()
-                 if t in CAT_TYPES and k not in (x_col, y_col)), None
+                (
+                    k
+                    for k, t in result_col_types.items()
+                    if t in CAT_TYPES and k not in (x_col, y_col)
+                ),
+                None,
             )
-            spec = build_scatter_spec(plot_data, x_col, y_col,
-                                      color_col=color_col, title=chart_title)
+            spec = build_scatter_spec(
+                plot_data, x_col, y_col, color_col=color_col, title=chart_title
+            )
         elif chart_info.get("is_histogram"):
             spec = build_histogram_spec(
-                plot_data, x_col,
+                plot_data,
+                x_col,
                 bin_count=chart_info.get("bin_count", 20),
                 title=chart_title,
             )
         else:
             spec = build_bar_spec(
-                plot_data, x_col, y_col,
+                plot_data,
+                x_col,
+                y_col,
                 title=chart_title,
                 horizontal=horizontal,
             )
@@ -137,13 +140,13 @@ class VisualizationAgent(BaseAgent):
         )
 
         return {
-            "spec":             spec,
-            "chart_type":       mark,
-            "x":                x_col,
-            "y":                y_col,
+            "spec": spec,
+            "chart_type": mark,
+            "x": x_col,
+            "y": y_col,
             "data_point_count": len(plot_data),
-            "truncated":        len(data) > self.MAX_DATA_POINTS,
-            "error":            None,
+            "truncated": len(data) > self.MAX_DATA_POINTS,
+            "error": None,
         }
 
     @staticmethod
@@ -155,9 +158,9 @@ class VisualizationAgent(BaseAgent):
     ) -> str:
         """Pick the best column for an axis based on the preferred Vega type."""
         type_priority: dict[str, frozenset] = {
-            "temporal":    DATE_TYPES,
+            "temporal": DATE_TYPES,
             "quantitative": NUMERIC_TYPES,
-            "nominal":     CAT_TYPES,
+            "nominal": CAT_TYPES,
         }
         preferred_set = type_priority.get(preferred_type, frozenset())
         for key in keys:
@@ -176,14 +179,13 @@ class VisualizationAgent(BaseAgent):
             return f"{y} by {x}"
         try:
             from backend.infrastructure.llm.model_id_registry import get_model_id
+
             prompt = (
                 f"Write a short chart title (5 words max) for a chart showing "
                 f"'{y}' on the y-axis and '{x}' on the x-axis. "
                 f"User asked: '{intent}'. "
                 "Return ONLY the title string."
             )
-            return await self._llm.complete(
-                prompt=prompt, model_id=get_model_id("intent")
-            )
+            return await self._llm.complete(prompt=prompt, model_id=get_model_id("intent"))
         except Exception:
             return f"{y} by {x}"

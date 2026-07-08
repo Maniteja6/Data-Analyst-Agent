@@ -1,12 +1,12 @@
 """PostgresSessionRepository — AnalysisSession repository backed by Postgres."""
-from __future__ import annotations
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from __future__ import annotations
 
 from backend.domain.analytics.entities.analysis_session import AnalysisSession, SessionStatus
 from backend.domain.analytics.repositories.session_repository import SessionRepository
 from backend.infrastructure.persistence.models.session_model import SessionModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class PostgresSessionRepository(SessionRepository):
@@ -58,8 +58,10 @@ class PostgresSessionRepository(SessionRepository):
 
     async def count_by_dataset(self, dataset_id: str) -> int:
         from sqlalchemy import func
+
         result = await self._session.execute(
-            select(func.count()).select_from(SessionModel)
+            select(func.count())
+            .select_from(SessionModel)
             .where(SessionModel.dataset_id == dataset_id)
         )
         return result.scalar_one()
@@ -92,15 +94,18 @@ class PostgresSessionRepository(SessionRepository):
 
     @staticmethod
     def _update_model(model: SessionModel, entity: AnalysisSession) -> None:
-        model.status        = entity.status.value
+        model.status = entity.status.value
         model.error_message = entity.error_message
-        model.completed_at  = entity.completed_at
+        model.completed_at = entity.completed_at
         if entity.profile:
-            model.profile_json = entity.profile.to_dict() if hasattr(entity.profile, "to_dict") else entity.profile
+            model.profile_json = (
+                entity.profile.to_dict() if hasattr(entity.profile, "to_dict") else entity.profile
+            )
         if entity.cleaning_report:
             model.cleaning_report_json = (
                 entity.cleaning_report.to_dict()
-                if hasattr(entity.cleaning_report, "to_dict") else entity.cleaning_report
+                if hasattr(entity.cleaning_report, "to_dict")
+                else entity.cleaning_report
             )
         if entity.anomaly_ids:
             model.anomaly_ids = entity.anomaly_ids

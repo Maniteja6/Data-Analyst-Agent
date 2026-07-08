@@ -17,25 +17,23 @@ Usage (prefer ``BedrockEmbeddingService`` over direct use)::
     vector = await adapter.embed("Total revenue column, Float64, currency")
     assert len(vector) == 1536
 """
+
 from __future__ import annotations
 
 import asyncio
 import json
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any
 
 import structlog
-
+from backend.config.bedrock_config import get_bedrock_config
 from backend.infrastructure.llm.bedrock.bedrock_client import get_bedrock_runtime_client
 from backend.infrastructure.llm.bedrock.bedrock_retry_handler import with_bedrock_retry
-from backend.infrastructure.llm.token_tracker import TokenTracker
-from backend.config.bedrock_config import get_bedrock_config
 from backend.infrastructure.llm.bedrock.model_configs.titan_embed import (
     DEFAULT_DIMENSIONS,
-    MAX_INPUT_CHARS,
-    NORMALIZE,
     build_request_body,
-    estimate_cost,
 )
+from backend.infrastructure.llm.token_tracker import TokenTracker
 
 logger = structlog.get_logger(__name__)
 
@@ -50,8 +48,8 @@ class BedrockEmbeddingAdapter:
     """
 
     def __init__(self, token_tracker: TokenTracker | None = None) -> None:
-        self._client        = get_bedrock_runtime_client()
-        self._cfg           = get_bedrock_config()
+        self._client = get_bedrock_runtime_client()
+        self._cfg = get_bedrock_config()
         self._token_tracker = token_tracker or TokenTracker()
 
     @with_bedrock_retry
@@ -72,11 +70,11 @@ class BedrockEmbeddingAdapter:
         Raises:
             botocore.exceptions.ClientError: On Bedrock API errors (retried automatically).
         """
-        body    = json.dumps(build_request_body(text, dimensions))
-        model   = self._cfg.bedrock_embedding_model_id
-        loop    = asyncio.get_event_loop()
+        body = json.dumps(build_request_body(text, dimensions))
+        model = self._cfg.bedrock_embedding_model_id
+        loop = asyncio.get_event_loop()
 
-        def _invoke():
+        def _invoke() -> Any:  # noqa: ANN401 — boto3 response dict, no type stubs
             return self._client.invoke_model(
                 modelId=model,
                 body=body,
@@ -85,7 +83,7 @@ class BedrockEmbeddingAdapter:
             )
 
         response = await loop.run_in_executor(_EMBED_EXECUTOR, _invoke)
-        result   = json.loads(response["body"].read())
+        result = json.loads(response["body"].read())
         vector: list[float] = result["embedding"]
 
         # Titan Embed does not report token counts in the response;

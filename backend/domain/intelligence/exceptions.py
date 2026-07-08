@@ -1,14 +1,15 @@
 """Intelligence bounded context exceptions."""
+
 from __future__ import annotations
 
-from backend.shared.exceptions import DomainException, AgentException
+from backend.shared.exceptions import AgentError, DomainError
 
 
-class IntelligenceException(DomainException):
+class IntelligenceError(DomainError):
     """Base exception for the intelligence bounded context."""
 
 
-class ExecutionPlanNotFoundException(IntelligenceException):
+class ExecutionPlanNotFoundError(IntelligenceError):
     def __init__(self, plan_id: str) -> None:
         super().__init__(
             f"ExecutionPlan '{plan_id}' not found.",
@@ -17,7 +18,7 @@ class ExecutionPlanNotFoundException(IntelligenceException):
         self.plan_id = plan_id
 
 
-class InvalidExecutionPlanError(IntelligenceException):
+class InvalidExecutionPlanError(IntelligenceError):
     """Raised when a Planner Agent generates an ExecutionPlan with
     invalid task dependencies (e.g. a cycle or missing dependency).
     """
@@ -28,10 +29,10 @@ class InvalidExecutionPlanError(IntelligenceException):
             code="INVALID_EXECUTION_PLAN",
         )
         self.plan_id = plan_id
-        self.reason  = reason
+        self.reason = reason
 
 
-class DAGCycleDetectedError(IntelligenceException):
+class DAGCycleDetectedError(IntelligenceError):
     """Raised when the DAG executor detects a dependency cycle in the plan."""
 
     def __init__(self, task_ids: list[str]) -> None:
@@ -42,7 +43,7 @@ class DAGCycleDetectedError(IntelligenceException):
         self.task_ids = task_ids
 
 
-class AgentRegistrationError(IntelligenceException):
+class AgentRegistrationError(IntelligenceError):
     """Raised when an agent name in an ExecutionPlan has no registered
     implementation in the agent registry.
     """
@@ -56,7 +57,7 @@ class AgentRegistrationError(IntelligenceException):
         self.agent_name = agent_name
 
 
-class IntentClassificationError(IntelligenceException):
+class IntentClassificationError(IntelligenceError):
     """Raised when the Intent Agent fails to classify a user message."""
 
     def __init__(self, message_preview: str) -> None:
@@ -67,7 +68,7 @@ class IntentClassificationError(IntelligenceException):
         self.message_preview = message_preview
 
 
-class LLMResponseParsingError(IntelligenceException):
+class LLMResponseParsingError(IntelligenceError):
     """Raised when an agent cannot parse the LLM response into the expected schema."""
 
     def __init__(self, agent_name: str, expected_schema: str, raw_response: str) -> None:
@@ -76,12 +77,12 @@ class LLMResponseParsingError(IntelligenceException):
             f"Raw (first 200 chars): {raw_response[:200]}",
             code="LLM_RESPONSE_PARSING_FAILED",
         )
-        self.agent_name      = agent_name
+        self.agent_name = agent_name
         self.expected_schema = expected_schema
-        self.raw_response    = raw_response
+        self.raw_response = raw_response
 
 
-class MaxRetriesExceededError(AgentException):
+class MaxRetriesExceededError(AgentError):
     """Raised when an agent exhausts all retry attempts."""
 
     def __init__(self, agent_name: str, attempts: int) -> None:

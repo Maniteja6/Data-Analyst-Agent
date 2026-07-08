@@ -7,6 +7,7 @@ Designed for real-time applications:
 - Observable: emits structured log events at every lifecycle step
 - Cancellation-safe: CancelledError is never swallowed
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -18,7 +19,7 @@ from typing import Any
 import structlog
 from backend.agents.base.agent_context import AgentContext
 from backend.agents.base.agent_result import AgentResult
-from backend.shared.exceptions import AgentException
+from backend.shared.exceptions import AgentError
 
 logger = structlog.get_logger(__name__)
 
@@ -34,17 +35,17 @@ class BaseAgent(ABC):
     - OpenTelemetry span creation (no-op when OTel is not configured)
     """
 
-    MAX_RETRIES:    int   = 3
-    BASE_BACKOFF:   float = 1.5   # seconds; doubles per attempt
-    MAX_BACKOFF:    float = 30.0  # cap
+    MAX_RETRIES: int = 3
+    BASE_BACKOFF: float = 1.5  # seconds; doubles per attempt
+    MAX_BACKOFF: float = 30.0  # cap
 
     def __init__(self, name: str) -> None:
-        self.name    = name
+        self.name = name
         self._logger = structlog.get_logger(f"datapilot.agent.{name}")
 
     # ── Primary entry point ────────────────────────────────────────────────
 
-    async def run(self, context: AgentContext, **kwargs: Any) -> AgentResult:
+    async def run(self, context: AgentContext, **kwargs: Any) -> AgentResult:  # noqa: ANN401
         """Run the agent with retry logic.
 
         Args:
@@ -55,9 +56,9 @@ class BaseAgent(ABC):
             AgentResult with success/failure state, payload, and metrics.
 
         Raises:
-            AgentException: After all retry attempts are exhausted.
+            AgentError: After all retry attempts are exhausted.
         """
-        start      = time.monotonic()
+        start = time.monotonic()
         last_error: Exception | None = None
 
         for attempt in range(1, self.MAX_RETRIES + 1):
@@ -92,7 +93,7 @@ class BaseAgent(ABC):
                     token_output=output_tokens,
                 )
 
-            except AgentException:
+            except AgentError:
                 # Domain-level AgentExceptions are not retried
                 raise
 
@@ -123,16 +124,14 @@ class BaseAgent(ABC):
             max_retries=self.MAX_RETRIES,
             last_error=str(last_error),
         )
-        raise AgentException(
+        raise AgentError(
             self.name,
             f"All {self.MAX_RETRIES} attempts failed. Last error: {last_error}",
         )
 
     # ── Streaming entry point (for WebSocket real-time streaming) ──────────
 
-    async def stream(
-        self, context: AgentContext, **kwargs: Any
-    ) -> AsyncGenerator[str, None]:
+    async def stream(self, context: AgentContext, **kwargs: Any) -> AsyncGenerator[str, None]:  # noqa: ANN401
         """Stream agent output token by token (for WebSocket chat).
 
         Default implementation: runs _execute() and yields the full result
@@ -148,7 +147,9 @@ class BaseAgent(ABC):
             yield token
 
     async def _execute_stream(
-        self, context: AgentContext, **kwargs: Any
+        self,
+        context: AgentContext,
+        **kwargs: Any,  # noqa: ANN401
     ) -> AsyncGenerator[str, None]:
         """Async generator yielding output tokens.
 
@@ -161,7 +162,7 @@ class BaseAgent(ABC):
     # ── Subclass contract ─────────────────────────────────────────────────
 
     @abstractmethod
-    async def _execute(self, context: AgentContext, **kwargs: Any) -> Any:
+    async def _execute(self, context: AgentContext, **kwargs: Any) -> Any:  # noqa: ANN401
         """Core agent logic. Must be implemented by every subclass.
 
         Args:
@@ -177,7 +178,7 @@ class BaseAgent(ABC):
     # ── Internal helpers ──────────────────────────────────────────────────
 
     @staticmethod
-    def _extract_tokens(result: Any) -> tuple[int, int]:
+    def _extract_tokens(result: Any) -> tuple[int, int]:  # noqa: ANN401
         """Extract token counts from agent result if present."""
         if isinstance(result, dict):
             return (
@@ -186,18 +187,19 @@ class BaseAgent(ABC):
             )
         return 0, 0
 
-    def _otel_span(self, context: AgentContext):
+    def _otel_span(self, context: AgentContext) -> Any:  # noqa: ANN401 — OTel span or _NoOpSpan
         """Return an OpenTelemetry span context manager (no-op if OTel absent)."""
         try:
             from opentelemetry import trace
+
             tracer = trace.get_tracer("datapilot.agents")
             return tracer.start_as_current_span(
                 f"agent.{self.name}",
                 attributes={
-                    "agent.name":       self.name,
-                    "session.id":       context.session_id,
-                    "dataset.id":       context.dataset_id,
-                    "correlation.id":   context.correlation_id,
+                    "agent.name": self.name,
+                    "session.id": context.session_id,
+                    "dataset.id": context.dataset_id,
+                    "correlation.id": context.correlation_id,
                 },
             )
         except Exception:
@@ -206,5 +208,9 @@ class BaseAgent(ABC):
 
 class _NoOpSpan:
     """Fallback context manager when OpenTelemetry is not available."""
-    def __enter__(self):  return self
-    def __exit__(self, *_): pass
+
+    def __enter__(self) -> _NoOpSpan:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        pass

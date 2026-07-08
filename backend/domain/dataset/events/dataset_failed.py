@@ -1,4 +1,5 @@
 """DatasetFailed domain event."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -25,7 +26,7 @@ class DatasetFailed(DomainEvent):
     """
 
     dataset_id: str = ""
-    reason:     str = ""
+    reason: str = ""
 
     def to_dict(self) -> dict:
         base = super().to_dict()

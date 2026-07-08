@@ -1,14 +1,15 @@
 """DatasetService — domain service for Dataset validation and MIME inference."""
+
 from __future__ import annotations
 
 import os
 
-from backend.domain.dataset.value_objects.mime_type import EXTENSION_MIME_MAP
 from backend.domain.dataset.exceptions import (
-    UnsupportedFileTypeError,
-    FileTooLargeError,
     EmptyFileError,
+    FileTooLargeError,
+    UnsupportedFileTypeError,
 )
+from backend.domain.dataset.value_objects.mime_type import EXTENSION_MIME_MAP
 
 # Default 2 GB limit — overridden by Settings.max_upload_size_bytes at runtime
 DEFAULT_MAX_SIZE_BYTES = 2 * 1024 * 1024 * 1024
@@ -71,7 +72,7 @@ class DatasetService:
         Returns:
             MIME type string (e.g. ``'application/vnd.openxmlformats-...'``).
         """
-        ext  = os.path.splitext(filename.lower())[1]
+        ext = os.path.splitext(filename.lower())[1]
         return EXTENSION_MIME_MAP.get(ext, "application/octet-stream")
 
     # ── Storage key generation ────────────────────────────────────────────
@@ -92,7 +93,7 @@ class DatasetService:
         Returns:
             S3 object key string, e.g. ``'datasets/abc-123/sales_q3.csv'``.
         """
-        safe_name = os.path.basename(filename)   # strip any path traversal
+        safe_name = os.path.basename(filename)  # strip any path traversal
         return f"datasets/{dataset_id}/{safe_name}"
 
     # ── Duplicate detection ───────────────────────────────────────────────

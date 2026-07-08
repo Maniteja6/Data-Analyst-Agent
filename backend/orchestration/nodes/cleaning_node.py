@@ -1,4 +1,5 @@
 """CleaningNode — runs DataCleaner and stores the CleaningReport in state."""
+
 from __future__ import annotations
 
 import structlog
@@ -13,25 +14,31 @@ async def cleaning_node(state: PipelineState) -> dict:
     Reads:  state['context'], state['profile_result']
     Writes: state['cleaning_result'] — {cleaning_report: dict, rows_after: int}
     """
-    ctx     = state.get("context", {})
+    ctx = state.get("context", {})
     profile = state.get("profile_result", {})
     try:
         from backend.analytics_engine.cleaning.data_cleaner import DataCleaner
         from backend.analytics_engine.ingestion.file_reader import FileReader
 
-        reader  = FileReader()
-        df      = await reader.read(ctx["storage_key"])
+        reader = FileReader()
+        df = await reader.read(ctx["storage_key"])
 
         # Build a lightweight profile proxy for the cleaner
         class _ProfileProxy:
             column_profiles = [
-                type("CP", (), {
-                    "column_name": c.get("column_name", ""),
-                    "null_rate":   c.get("null_rate", 0.0),
-                    "kind":        type("K", (), {"value": c.get("kind", "unknown")})(),
-                    "semantic_type": type("ST", (), {"value": c.get("semantic_type", "unknown")})(),
-                    "data_type":   c.get("data_type", "unknown"),
-                })()
+                type(
+                    "CP",
+                    (),
+                    {
+                        "column_name": c.get("column_name", ""),
+                        "null_rate": c.get("null_rate", 0.0),
+                        "kind": type("K", (), {"value": c.get("kind", "unknown")})(),
+                        "semantic_type": type(
+                            "ST", (), {"value": c.get("semantic_type", "unknown")}
+                        )(),
+                        "data_type": c.get("data_type", "unknown"),
+                    },
+                )()
                 for c in profile.get("column_profiles", [])
             ]
 
@@ -51,8 +58,8 @@ async def cleaning_node(state: PipelineState) -> dict:
         return {
             "cleaning_result": {
                 "cleaning_report": report.to_dict(),
-                "rows_after":      report.rows_after,
-                "columns_after":   report.columns_after,
+                "rows_after": report.rows_after,
+                "columns_after": report.columns_after,
             }
         }
     except Exception as exc:

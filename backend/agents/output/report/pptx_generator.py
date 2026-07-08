@@ -17,15 +17,20 @@ Design tokens:
     Dark:    #1A1A3E (DataPilot navy)
     Light:   #F5F4F1 (DataPilot canvas)
 """
+
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import io
 from datetime import datetime
-from pydoc import text
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
+
+if TYPE_CHECKING:
+    from pptx.shapes.autoshape import Shape
+    from pptx.slide import Slide
 
 logger = structlog.get_logger(__name__)
 
@@ -33,7 +38,7 @@ logger = structlog.get_logger(__name__)
 async def export_to_pptx(
     report: dict[str, Any],
     dataset_name: str = "Dataset",
-    sio: Any = None,
+    sio: Any = None,  # noqa: ANN401
     dataset_id: str = "",
 ) -> bytes:
     """Generate a PPTX deck from an InsightReport dict.
@@ -50,9 +55,9 @@ async def export_to_pptx(
 def _build_deck(
     report: dict[str, Any],
     dataset_name: str,
-    sio: Any,
+    sio: Any,  # noqa: ANN401
     dataset_id: str,
-    loop: Any,
+    loop: asyncio.AbstractEventLoop,
 ) -> bytes:
     try:
         from pptx import Presentation
@@ -66,39 +71,42 @@ def _build_deck(
     def _emit(slide_num: int, label: str) -> None:
         slide_done[0] += 1
         if sio and dataset_id:
-            try:
+            with contextlib.suppress(Exception):
                 asyncio.run_coroutine_threadsafe(
                     sio.emit(
                         "report:slide_complete",
                         {
                             "dataset_id": dataset_id,
-                            "slide":      slide_num,
-                            "label":      label,
+                            "slide": slide_num,
+                            "label": label,
                         },
                         room=f"dataset:{dataset_id}",
                     ),
                     loop,
                 )
-            except Exception:
-                pass
 
     violet = RGBColor(0x5B, 0x4F, 0xE8)
     navy = RGBColor(0x1A, 0x1A, 0x3E)
     white = RGBColor(0xFF, 0xFF, 0xFF)
 
     prs = Presentation()
-    prs.slide_width  = Inches(13.33)
+    prs.slide_width = Inches(13.33)
     prs.slide_height = Inches(7.5)
 
-    blank_layout = prs.slide_layouts[6]   # blank layout
+    blank_layout = prs.slide_layouts[6]  # blank layout
 
-    def _text_box(slide, text: str, left: float, top: float,
-                  width: float, height: float,
-                  size: int = 18, bold: bool = False,
-                  color: RGBColor = None):
-        tx_box = slide.shapes.add_textbox(
-            Inches(left), Inches(top), Inches(width), Inches(height)
-        )
+    def _text_box(
+        slide: Slide,
+        text: str,
+        left: float,
+        top: float,
+        width: float,
+        height: float,
+        size: int = 18,
+        bold: bool = False,
+        color: RGBColor = None,
+    ) -> Shape:
+        tx_box = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
         tf = tx_box.text_frame
         tf.word_wrap = True
         p = tf.paragraphs[0]
@@ -109,9 +117,10 @@ def _build_deck(
             p.runs[0].font.color.rgb = color
         return tx_box
 
-    def _fill_bg(slide, color_hex: str = "1A1A3E") -> None:
+    def _fill_bg(slide: Slide, color_hex: str = "1A1A3E") -> None:
         """Fill slide background with a solid colour."""
         from pptx.dml.color import RGBColor
+
         bg = slide.background
         fill = bg.fill
         fill.solid()
@@ -136,8 +145,10 @@ def _build_deck(
     kpis = report.get("kpis", [])[:4]
     for i, kpi in enumerate(kpis):
         left = 0.5 + i * 3.0
-        _text_box(s2, str(kpi.get("value", "")),  left, 5.2, 2.8, 0.8, size=28, bold=True, color=violet)
-        _text_box(s2, kpi.get("name", ""),         left, 6.0, 2.8, 0.5, size=12, color=navy)
+        _text_box(
+            s2, str(kpi.get("value", "")), left, 5.2, 2.8, 0.8, size=28, bold=True, color=violet
+        )
+        _text_box(s2, kpi.get("name", ""), left, 6.0, 2.8, 0.5, size=12, color=navy)
     _emit(2, "Executive Summary")
 
     # ── Slide 3: Data Quality ─────────────────────────────────────────────
@@ -146,7 +157,7 @@ def _build_deck(
 
     kpis_all = report.get("kpis", [])
     completeness = next((k for k in kpis_all if "Completeness" in k.get("name", "")), None)
-    duplicates   = next((k for k in kpis_all if "Duplicate" in k.get("name", "")), None)
+    duplicates = next((k for k in kpis_all if "Duplicate" in k.get("name", "")), None)
     anomaly_count = len(report.get("anomaly_alerts", []))
 
     quality_text = (
@@ -163,10 +174,14 @@ def _build_deck(
     for batch_start, slide_num, label in [(0, 4, "Insights 1-3"), (3, 5, "Insights 4-5")]:
         si = prs.slides.add_slide(blank_layout)
         _text_box(si, label, 0.5, 0.3, 12, 0.8, size=24, bold=True, color=navy)
-        for j, ins in enumerate(insights[batch_start:batch_start+3]):
+        for j, ins in enumerate(insights[batch_start : batch_start + 3]):
             top = 1.3 + j * 1.9
-            _text_box(si, ins.get("headline", ""), 0.5, top, 12, 0.7, size=15, bold=True, color=violet)
-            _text_box(si, ins.get("explanation", "")[:180], 0.5, top + 0.7, 12, 1.2, size=12, color=navy)
+            _text_box(
+                si, ins.get("headline", ""), 0.5, top, 12, 0.7, size=15, bold=True, color=violet
+            )
+            _text_box(
+                si, ins.get("explanation", "")[:180], 0.5, top + 0.7, 12, 1.2, size=12, color=navy
+            )
         _emit(slide_num, label)
 
     # ── Slide 6: Recommendations ──────────────────────────────────────────
@@ -189,8 +204,16 @@ def _build_deck(
         "3.  Schedule a follow-up analysis in 30 days to track improvements"
     )
     _text_box(s7, next_steps, 0.5, 1.8, 12, 3.5, size=18, color=white)
-    _text_box(s7, "Questions?  Export the full report as PDF or Excel.",
-              0.5, 5.8, 12, 0.8, size=14, color=white)
+    _text_box(
+        s7,
+        "Questions?  Export the full report as PDF or Excel.",
+        0.5,
+        5.8,
+        12,
+        0.8,
+        size=14,
+        color=white,
+    )
     _emit(7, "Next Steps")
 
     buffer = io.BytesIO()

@@ -1,34 +1,34 @@
 """MimeType value object — validated MIME type for uploaded files."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 from backend.shared.value_object import ValueObject
 
-
 # Supported MIME types and their canonical extensions
 SUPPORTED_MIME_TYPES: dict[str, str] = {
-    "text/csv":                                                       ".csv",
-    "text/tab-separated-values":                                      ".tsv",
-    "text/plain":                                                     ".txt",
+    "text/csv": ".csv",
+    "text/tab-separated-values": ".tsv",
+    "text/plain": ".txt",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
-    "application/vnd.ms-excel":                                       ".xls",
-    "application/octet-stream":                                       ".parquet",  # Parquet has no standard MIME
-    "application/json":                                               ".json",
-    "application/x-ndjson":                                          ".jsonl",
+    "application/vnd.ms-excel": ".xls",
+    "application/octet-stream": ".parquet",  # Parquet has no standard MIME
+    "application/json": ".json",
+    "application/x-ndjson": ".jsonl",
 }
 
 # Extension → MIME type mapping used during upload validation
 EXTENSION_MIME_MAP: dict[str, str] = {
-    ".csv":     "text/csv",
-    ".tsv":     "text/tab-separated-values",
-    ".txt":     "text/plain",
-    ".xlsx":    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    ".xls":     "application/vnd.ms-excel",
+    ".csv": "text/csv",
+    ".tsv": "text/tab-separated-values",
+    ".txt": "text/plain",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".xls": "application/vnd.ms-excel",
     ".parquet": "application/octet-stream",
-    ".pq":      "application/octet-stream",
-    ".json":    "application/json",
-    ".jsonl":   "application/x-ndjson",
+    ".pq": "application/octet-stream",
+    ".json": "application/json",
+    ".jsonl": "application/x-ndjson",
 }
 
 
@@ -55,14 +55,13 @@ class MimeType(ValueObject):
         if self.value not in SUPPORTED_MIME_TYPES:
             supported = ", ".join(sorted(SUPPORTED_MIME_TYPES))
             raise ValueError(
-                f"MIME type '{self.value}' is not supported. "
-                f"Supported types: {supported}"
+                f"MIME type '{self.value}' is not supported. Supported types: {supported}"
             )
 
     # ── Factory ───────────────────────────────────────────────────────────
 
     @classmethod
-    def from_extension(cls, filename: str) -> "MimeType":
+    def from_extension(cls, filename: str) -> MimeType:
         """Infer MimeType from a filename's extension.
 
         Args:
@@ -72,10 +71,12 @@ class MimeType(ValueObject):
             ValueError: If the extension is not in ``EXTENSION_MIME_MAP``.
         """
         import os
+
         ext = os.path.splitext(filename)[1].lower()
         mime = EXTENSION_MIME_MAP.get(ext)
         if not mime:
             from backend.domain.dataset.exceptions import UnsupportedFileTypeError
+
             raise UnsupportedFileTypeError(filename)
         return cls(value=mime)
 

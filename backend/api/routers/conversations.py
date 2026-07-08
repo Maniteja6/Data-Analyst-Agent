@@ -1,18 +1,32 @@
 """Conversation CRUD and chat endpoints."""
-from __future__ import annotations
-import uuid
-from fastapi import APIRouter, Depends, HTTPException
-import structlog
 
+from __future__ import annotations
+
+import uuid
+from typing import TYPE_CHECKING
+
+import structlog
 from backend.api.dependencies import (
-    get_create_conversation_use_case, get_send_message_use_case,
     get_conversation_repo,
+    get_create_conversation_use_case,
+    get_send_message_use_case,
 )
 from backend.api.schemas.conversation_schemas import (
-    CreateConversationRequest, CreateConversationResponse,
-    SendMessageRequest, MessageResponse, ConversationResponse,
+    ConversationResponse,
+    CreateConversationRequest,
+    CreateConversationResponse,
+    MessageResponse,
+    SendMessageRequest,
 )
 from backend.application.commands.send_message_command import SendMessageCommand
+from fastapi import APIRouter, Depends, HTTPException
+
+if TYPE_CHECKING:
+    from backend.application.use_cases.create_conversation import CreateConversationUseCase
+    from backend.application.use_cases.send_message import SendMessageUseCase
+    from backend.domain.workspace.repositories.conversation_repository import (
+        ConversationRepository,
+    )
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/api/v1/conversations", tags=["conversations"])
@@ -20,9 +34,9 @@ router = APIRouter(prefix="/api/v1/conversations", tags=["conversations"])
 
 @router.post("/", response_model=CreateConversationResponse, status_code=201)
 async def create_conversation(
-    body:     CreateConversationRequest,
-    use_case=Depends(get_create_conversation_use_case),
-):
+    body: CreateConversationRequest,
+    use_case: CreateConversationUseCase = Depends(get_create_conversation_use_case),
+) -> CreateConversationResponse:
     """Create a new conversation for a dataset."""
     result = await use_case.execute(dataset_id=body.dataset_id, title=body.title)
     return CreateConversationResponse(**result)
@@ -31,8 +45,8 @@ async def create_conversation(
 @router.get("/{conversation_id}", response_model=ConversationResponse)
 async def get_conversation(
     conversation_id: str,
-    repo=Depends(get_conversation_repo),
-):
+    repo: ConversationRepository = Depends(get_conversation_repo),
+) -> ConversationResponse:
     """Retrieve a conversation with its message history."""
     conv = await repo.get_by_id(conversation_id)
     if conv is None:
@@ -52,9 +66,9 @@ async def get_conversation(
 @router.post("/{conversation_id}/messages", response_model=MessageResponse)
 async def send_message(
     conversation_id: str,
-    body:            SendMessageRequest,
-    use_case=Depends(get_send_message_use_case),
-):
+    body: SendMessageRequest,
+    use_case: SendMessageUseCase = Depends(get_send_message_use_case),
+) -> MessageResponse:
     """Send a user message and receive the AI assistant's response."""
     conv = await use_case._conv_repo.get_by_id(conversation_id)
     if conv is None:
@@ -74,14 +88,17 @@ async def send_message(
 @router.get("/by-dataset/{dataset_id}", response_model=list[ConversationResponse])
 async def list_conversations(
     dataset_id: str,
-    repo=Depends(get_conversation_repo),
-):
+    repo: ConversationRepository = Depends(get_conversation_repo),
+) -> list[ConversationResponse]:
     """List all conversations for a dataset."""
     convs = await repo.get_by_dataset_id(dataset_id)
     return [
         ConversationResponse(
-            id=c.id, dataset_id=c.dataset_id, title=c.title,
-            message_count=c.message_count, is_closed=c.is_closed,
+            id=c.id,
+            dataset_id=c.dataset_id,
+            title=c.title,
+            message_count=c.message_count,
+            is_closed=c.is_closed,
             created_at=c.created_at.isoformat() if c.created_at else None,
             updated_at=c.updated_at.isoformat() if c.updated_at else None,
         )

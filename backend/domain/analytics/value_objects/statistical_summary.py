@@ -1,4 +1,5 @@
 """StatisticalSummary value object — descriptive statistics for a numeric column."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -17,19 +18,19 @@ class StatisticalSummary(ValueObject):
     allowing the full stats to be serialised to JSON for the insight agents.
     """
 
-    count: int                       # total non-null observations
+    count: int  # total non-null observations
     mean: float | None = None
     stddev: float | None = None
     variance: float | None = None
     min_val: float | None = None
     max_val: float | None = None
-    p05: float | None = None         # 5th  percentile
-    p25: float | None = None         # 25th percentile (Q1)
-    p50: float | None = None         # 50th percentile (median)
-    p75: float | None = None         # 75th percentile (Q3)
-    p95: float | None = None         # 95th percentile
-    skewness: float | None = None    # Pearson's skewness
-    kurtosis: float | None = None    # excess kurtosis (Fisher definition)
+    p05: float | None = None  # 5th  percentile
+    p25: float | None = None  # 25th percentile (Q1)
+    p50: float | None = None  # 50th percentile (median)
+    p75: float | None = None  # 75th percentile (Q3)
+    p95: float | None = None  # 95th percentile
+    skewness: float | None = None  # Pearson's skewness
+    kurtosis: float | None = None  # excess kurtosis (Fisher definition)
 
     def _validate(self) -> None:
         if self.count < 0:
@@ -65,15 +66,15 @@ class StatisticalSummary(ValueObject):
 
     def to_dict(self) -> dict:
         return {
-            "count":    self.count,
-            "mean":     self.mean,
-            "stddev":   self.stddev,
-            "min":      self.min_val,
-            "max":      self.max_val,
-            "p25":      self.p25,
-            "p50":      self.p50,
-            "p75":      self.p75,
-            "iqr":      self.iqr,
+            "count": self.count,
+            "mean": self.mean,
+            "stddev": self.stddev,
+            "min": self.min_val,
+            "max": self.max_val,
+            "p25": self.p25,
+            "p50": self.p50,
+            "p75": self.p75,
+            "iqr": self.iqr,
             "skewness": self.skewness,
             "kurtosis": self.kurtosis,
         }

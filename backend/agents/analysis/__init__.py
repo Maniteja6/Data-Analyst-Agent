@@ -13,12 +13,15 @@ All five agents run concurrently after the cleaning step:
 from __future__ import annotations
 
 from importlib import import_module
-from typing import Any
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from backend.agents.base.base_agent import BaseAgent
 
 __all__ = ["SQLAgent", "PythonAgent", "ForecastAgent", "MLAgent", "VisualizationAgent"]
 
 
-def __getattr__(name: str) -> Any:
+def __getattr__(name: str) -> type[BaseAgent]:
     mapping = {
         "SQLAgent": ("backend.agents.analysis.sql.sql_agent", "SQLAgent"),
         "PythonAgent": ("backend.agents.analysis.python.python_agent", "PythonAgent"),

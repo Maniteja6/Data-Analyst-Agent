@@ -12,12 +12,17 @@ Feature engineering:
 Requirements:
     pip install xgboost
 """
+
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
 
 logger = structlog.get_logger(__name__)
 
@@ -25,7 +30,7 @@ LAG_DAYS = [1, 7, 14, 21]
 
 
 async def run_xgboost(
-    df: Any,
+    df: pl.DataFrame | pd.DataFrame,
     date_col: str,
     target_col: str,
     horizon: int = 30,
@@ -52,8 +57,8 @@ async def run_xgboost(
 
 
 def _run_xgboost_sync(
-    df, date_col: str, target_col: str, horizon: int
-) -> dict:
+    df: pl.DataFrame | pd.DataFrame, date_col: str, target_col: str, horizon: int
+) -> dict[str, Any]:
     """Synchronous XGBoost fitting — called in a thread pool executor."""
     try:
         from xgboost import XGBRegressor
@@ -89,7 +94,7 @@ def _run_xgboost_sync(
 
     # Date-based features for seasonality
     pdf["day_of_week"] = pdf["ds"].dt.dayofweek
-    pdf["month"]       = pdf["ds"].dt.month
+    pdf["month"] = pdf["ds"].dt.month
 
     pdf = pdf.dropna().reset_index(drop=True)
     feature_cols = [f"lag_{lag}" for lag in LAG_DAYS] + ["day_of_week", "month"]
@@ -104,29 +109,30 @@ def _run_xgboost_sync(
     )
     model.fit(pdf[feature_cols], pdf["y"])
 
-    importances = dict(zip(feature_cols, model.feature_importances_.tolist()))
+    importances = dict(zip(feature_cols, model.feature_importances_.tolist(), strict=False))
 
     # Autoregressive rollout
     last_values = list(pdf["y"].values)
-    last_date   = pdf["ds"].iloc[-1]
+    last_date = pdf["ds"].iloc[-1]
     predictions = []
 
     for step in range(horizon):
-        next_date  = last_date + pd.Timedelta(days=step + 1)
+        next_date = last_date + pd.Timedelta(days=step + 1)
         row = {
-            f"lag_{lag}": last_values[-(lag)] if lag <= len(last_values) else 0
-            for lag in LAG_DAYS
+            f"lag_{lag}": last_values[-(lag)] if lag <= len(last_values) else 0 for lag in LAG_DAYS
         }
         row["day_of_week"] = next_date.dayofweek
-        row["month"]       = next_date.month
+        row["month"] = next_date.month
 
         pred = float(model.predict(pd.DataFrame([row]))[0])
-        predictions.append({
-            "timestamp":   str(next_date.date()),
-            "value":       round(pred, 4),
-            "lower_bound": round(pred * 0.90, 4),
-            "upper_bound": round(pred * 1.10, 4),
-        })
+        predictions.append(
+            {
+                "timestamp": str(next_date.date()),
+                "value": round(pred, 4),
+                "lower_bound": round(pred * 0.90, 4),
+                "upper_bound": round(pred * 1.10, 4),
+            }
+        )
         last_values.append(pred)
 
     logger.info(
@@ -137,8 +143,8 @@ def _run_xgboost_sync(
     )
 
     return {
-        "model":               "XGBoost",
-        "predictions":         predictions,
+        "model": "XGBoost",
+        "predictions": predictions,
         "feature_importances": importances,
-        "training_rows":       len(pdf),
+        "training_rows": len(pdf),
     }

@@ -30,20 +30,22 @@ Usage in tests::
         content = await storage.download_bytes(key)
         assert content == b"csv,data"
 """
+
 from __future__ import annotations
 
 import asyncio
 import io
-import os
 import shutil
+import tempfile
+from collections.abc import Callable
 from pathlib import Path
-from typing import BinaryIO
+from typing import Any, BinaryIO
 
 import structlog
 
 logger = structlog.get_logger(__name__)
 
-DEFAULT_BASE_PATH = "/tmp/datapilot_storage"
+DEFAULT_BASE_PATH = str(Path(tempfile.gettempdir()) / "datapilot_storage")
 
 
 class LocalStorageAdapter:
@@ -85,7 +87,7 @@ class LocalStorageAdapter:
             raise ValueError(f"Path traversal detected for key: {key!r}")
         return resolved
 
-    async def _run(self, fn, *args, **kwargs):
+    async def _run(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
         """Run a blocking filesystem call in the default thread pool."""
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, lambda: fn(*args, **kwargs))
@@ -104,7 +106,7 @@ class LocalStorageAdapter:
         """
         dest = self._resolve(key)
 
-        def _write():
+        def _write() -> int:
             dest.parent.mkdir(parents=True, exist_ok=True)
             data = file_obj.read()
             dest.write_bytes(data)
@@ -132,7 +134,7 @@ class LocalStorageAdapter:
         """Copy a local file to the storage directory under the given key."""
         dest = self._resolve(key)
 
-        def _copy():
+        def _copy() -> None:
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(local_path, dest)
 
@@ -160,7 +162,7 @@ class LocalStorageAdapter:
     async def generate_presigned_download_url(
         self,
         key: str,
-        ttl: int | None = None,   # ignored in local adapter — no expiry
+        ttl: int | None = None,  # ignored in local adapter — no expiry
     ) -> str:
         """Return a ``file://`` URI for the stored file.
 
@@ -181,7 +183,7 @@ class LocalStorageAdapter:
     ) -> dict:
         """Return a stub upload URL — direct multipart upload not supported locally."""
         return {
-            "url":    f"http://localhost:8000/api/v1/uploads/local/{key}",
+            "url": f"http://localhost:8000/api/v1/uploads/local/{key}",
             "fields": {"key": key, "Content-Type": content_type},
         }
 
@@ -205,7 +207,7 @@ class LocalStorageAdapter:
         """Delete a stored file (no-op if not found)."""
         path = self._resolve(key)
 
-        def _delete():
+        def _delete() -> None:
             if path.exists():
                 path.unlink()
                 # Remove empty parent directories up to base_path
@@ -231,7 +233,7 @@ class LocalStorageAdapter:
         if not base.exists():
             return 0
 
-        def _collect():
+        def _collect() -> list[Path]:
             files = list(base.rglob("*"))
             return [f for f in files if f.is_file()]
 
@@ -242,7 +244,7 @@ class LocalStorageAdapter:
                 f"exceeding safety cap of {max_objects}"
             )
 
-        def _delete_all():
+        def _delete_all() -> int:
             count = 0
             for f in files:
                 f.unlink(missing_ok=True)
@@ -257,10 +259,10 @@ class LocalStorageAdapter:
 
     async def copy(self, source_key: str, destination_key: str) -> None:
         """Copy a file within the storage directory."""
-        src  = self._resolve(source_key)
+        src = self._resolve(source_key)
         dest = self._resolve(destination_key)
 
-        def _copy():
+        def _copy() -> None:
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dest)
 
@@ -288,8 +290,8 @@ class LocalStorageAdapter:
             keys = storage.list_keys("datasets/")
             assert "datasets/abc-123/sales.csv" in keys
         """
-        base    = (self._base / prefix) if prefix else self._base
-        result  = []
+        base = (self._base / prefix) if prefix else self._base
+        result = []
         for path in base.rglob("*"):
             if path.is_file():
                 result.append(str(path.relative_to(self._base)))

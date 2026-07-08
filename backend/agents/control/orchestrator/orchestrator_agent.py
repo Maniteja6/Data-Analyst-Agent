@@ -11,9 +11,14 @@ Real-time design:
     OrchestratorAgent. The OrchestratorAgent is used for batch runs triggered
     from Celery tasks where the full pipeline runs outside LangGraph.
 """
+
 from __future__ import annotations
 
-from typing import Any
+import contextlib
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from backend.domain.intelligence.entities.execution_plan import ExecutionPlan
 
 import structlog
 from backend.agents.base.agent_context import AgentContext
@@ -34,14 +39,14 @@ class OrchestratorAgent(BaseAgent):
 
     def __init__(self, agent_registry: dict) -> None:
         super().__init__("orchestrator")
-        self._executor   = DAGExecutor(agent_registry)
+        self._executor = DAGExecutor(agent_registry)
         self._aggregator = ResultAggregator()
 
     async def _execute(
         self,
         context: AgentContext,
-        plan=None,
-        **kwargs: Any,
+        plan: ExecutionPlan | None = None,
+        **kwargs: Any,  # noqa: ANN401
     ) -> dict:
         """Execute the plan DAG and return an aggregated results summary.
 
@@ -74,14 +79,14 @@ class OrchestratorAgent(BaseAgent):
 
         # Build summary
         succeeded = [r for r in task_results.values() if r.success]
-        failed    = [r for r in task_results.values() if not r.success]
+        failed = [r for r in task_results.values() if not r.success]
 
         summary = {
-            "succeeded":     len(succeeded),
-            "failed":        len(failed),
-            "total_tasks":   len(task_results),
-            "total_tokens":  context.get("total_tokens", 0),
-            "cost_usd":      context.get("total_cost_usd", 0.0),
+            "succeeded": len(succeeded),
+            "failed": len(failed),
+            "total_tasks": len(task_results),
+            "total_tokens": context.get("total_tokens", 0),
+            "cost_usd": context.get("total_cost_usd", 0.0),
             "agent_summary": [r.to_ws_event() for r in task_results.values()],
         }
 
@@ -93,19 +98,17 @@ class OrchestratorAgent(BaseAgent):
             extra=summary,
         )
         if context._sio:
-            try:
+            with contextlib.suppress(Exception):
                 await context._sio.emit(
                     "analysis.complete",
                     {
-                        "dataset_id":    context.dataset_id,
-                        "session_id":    context.session_id,
+                        "dataset_id": context.dataset_id,
+                        "session_id": context.session_id,
                         "insight_count": len(context.insight_results),
                         **summary,
                     },
                     room=f"dataset:{context.dataset_id}",
                 )
-            except Exception:
-                pass
 
         logger.info(
             "orchestration_complete",

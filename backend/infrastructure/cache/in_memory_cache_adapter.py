@@ -28,6 +28,7 @@ Usage in tests::
     assert await cache.get("key") == "value"
     cache.clear()
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -45,10 +46,10 @@ class InMemoryCacheAdapter:
     """
 
     def __init__(self, default_ttl: int = 86400) -> None:
-        self._store:   dict[str, str]           = {}   # key → raw string value
-        self._expiry:  dict[str, float]          = {}   # key → unix timestamp of expiry
-        self._hashes:  dict[str, dict[str, str]] = {}   # key → {field: value} for hset
-        self._lock     = asyncio.Lock()
+        self._store: dict[str, str] = {}  # key → raw string value
+        self._expiry: dict[str, float] = {}  # key → unix timestamp of expiry
+        self._hashes: dict[str, dict[str, str]] = {}  # key → {field: value} for hset
+        self._lock = asyncio.Lock()
         self._default_ttl = default_ttl
 
     # ── TTL helpers ───────────────────────────────────────────────────────
@@ -164,9 +165,7 @@ class InMemoryCacheAdapter:
 
     # ── Hash operations ───────────────────────────────────────────────────
 
-    async def hset(
-        self, key: str, mapping: dict[str, Any], ttl: int | None = None
-    ) -> None:
+    async def hset(self, key: str, mapping: dict[str, Any], ttl: int | None = None) -> None:
         async with self._lock:
             existing = self._hashes.setdefault(key, {})
             existing.update({k: str(v) for k, v in mapping.items()})
@@ -195,10 +194,10 @@ class InMemoryCacheAdapter:
         extra: dict | None = None,
     ) -> None:
         payload = {
-            "job_id":   job_id,
-            "status":   status,
+            "job_id": job_id,
+            "status": status,
             "progress": str(progress),
-            "step":     step,
+            "step": step,
             **(extra or {}),
         }
         await self.hset(f"job:{job_id}", payload, ttl=3600)
@@ -223,10 +222,7 @@ class InMemoryCacheAdapter:
     def keys(self) -> list[str]:
         """Return all currently live (non-expired) keys — useful in test assertions."""
         now = time.time()
-        return [
-            k for k in self._store
-            if k not in self._expiry or self._expiry[k] > now
-        ]
+        return [k for k in self._store if k not in self._expiry or self._expiry[k] > now]
 
     def size(self) -> int:
         """Return the number of live keys."""
