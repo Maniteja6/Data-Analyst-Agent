@@ -52,7 +52,7 @@ WORKDIR /app
 
 # Copy application code
 COPY backend/ ./backend/
-COPY alembic.ini ./
+COPY backend/alembic.ini ./
 
 # Ensure correct ownership
 RUN chown -R datapilot:datapilot /app
