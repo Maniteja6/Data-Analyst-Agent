@@ -76,11 +76,7 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: |
-          pip install -r requirements.txt \
-                      -r requirements-dev.txt \
-                      --no-deps \
-                      aiosqlite  # SQLite async driver for in-memory DB
+        run: pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Run unit tests
         run: |
