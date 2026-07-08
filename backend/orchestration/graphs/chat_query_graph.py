@@ -220,17 +220,17 @@ def build_chat_query_graph() -> StateGraph:
     graph = StateGraph(ChatState)
 
     graph.add_node("security", security_node)
-    graph.add_node("intent", intent_node)
+    graph.add_node("classify_intent", intent_node)
     graph.add_node("sql", sql_node)
     graph.add_node("rag", rag_node)
     graph.add_node("response", response_node)
     graph.add_node("validation", validation_node)
 
     graph.set_entry_point("security")
-    graph.add_edge("security", "intent")
+    graph.add_edge("security", "classify_intent")
 
     graph.add_conditional_edges(
-        "intent",
+        "classify_intent",
         _route_by_intent,
         {
             "sql": "sql",
