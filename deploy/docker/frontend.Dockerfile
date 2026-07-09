@@ -32,7 +32,11 @@ RUN npm run build
 
 
 # ── Stage 2: nginx serving ────────────────────────────────────────────────────
-FROM nginx:1.25-alpine AS production
+FROM nginx:1.30-alpine AS production
+# 1.25-alpine pinned to Alpine 3.19, EOL and no longer receiving security
+# patches (Trivy CVE-2024-45491/45492 libexpat, CVE-2024-56171 libxml2 --
+# all CRITICAL, all in the OS base, not our code). 1.30-alpine tracks
+# Alpine 3.23, currently maintained.
 
 LABEL description="DataPilot Frontend — React SPA served by nginx"
 
