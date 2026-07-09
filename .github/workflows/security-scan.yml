@@ -78,7 +78,11 @@ jobs:
           path: ./
           base: ${{ steps.scan_range.outputs.base }}
           head: ${{ steps.scan_range.outputs.head }}
-          extra_args: --only-verified --fail
+          # --fail is already hardcoded into this action's own docker run
+          # invocation (not optional/configurable) -- passing it again in
+          # extra_args makes the underlying trufflehog CLI receive --fail
+          # twice, which it rejects ("flag 'fail' cannot be repeated").
+          extra_args: --only-verified
 
   # ── 2. Python SAST — Bandit static analysis ───────────────────────────────
   sast:
@@ -271,7 +275,7 @@ jobs:
           cache: pip
 
       - name: Install deps
-        run: pip install pytest pytest-asyncio -r requirements.txt
+        run: pip install pytest pytest-asyncio pytest-timeout -r requirements.txt
 
       - name: Run SecurityAgent injection + PII tests
         env:
