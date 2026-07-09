@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Dockerfile.analytics — DataPilot analytics engine
+# analytics.Dockerfile — DataPilot analytics engine
 #
 # Runs the deterministic pipeline (ingest → profile → clean → anomaly)
 # as a standalone Celery worker on the `analysis` queue only.

@@ -2,7 +2,7 @@
 # Base: requirements.txt (full set)
 # This file documents which packages are worker-only for image sizing clarity.
 #
-# Usage (Dockerfile.worker, Dockerfile.analytics):
+# Usage (worker.Dockerfile, analytics.Dockerfile):
 #   pip install -r requirements.txt -r requirements-worker.txt
 
 # ── Already in requirements.txt — present here for documentation ──────────────
@@ -13,7 +13,7 @@
 # reportlab==4.4.1
 # python-pptx==1.0.2
 # lxml==5.4.0
-# mlflow==2.22.1
+# mlflow==3.14.0
 
 # ── Worker-only extras ────────────────────────────────────────────────────────
 # cmdstanpy: required by prophet for Bayesian sampling

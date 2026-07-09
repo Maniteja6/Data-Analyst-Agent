@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Dockerfile.worker — DataPilot Celery workers
+# worker.Dockerfile — DataPilot Celery workers
 #
 # Three queues with separate concurrency settings:
 #   analysis  (-c 4)  CPU-bound: DataProfiler, DataCleaner, AnomalyDetector

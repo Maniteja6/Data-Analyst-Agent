@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Dockerfile.api — DataPilot FastAPI + Socket.IO real-time API server
+# api.Dockerfile — DataPilot FastAPI + Socket.IO real-time API server
 #
 # Real-time design notes:
 #   • uvicorn runs with --loop uvloop for maximum asyncio throughput

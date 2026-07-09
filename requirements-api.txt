@@ -6,7 +6,7 @@
 # Usage: pip install -r requirements.txt -r requirements-api.txt
 # (requirements.txt is the base; this file overrides nothing, only excludes)
 #
-# Actually used as: the Dockerfile.api only installs packages from requirements.txt
+# Actually used as: the api.Dockerfile only installs packages from requirements.txt
 # that are NOT in the exclude list below. QueryBuilder handles this via pip-tools.
 
 # ── API-specific extras ───────────────────────────────────────────────────────
@@ -14,14 +14,14 @@
 aiofiles==24.1.0
 
 # ── Explicitly excluded from API image (installed in worker images instead) ──
-# prophet            → Dockerfile.worker, Dockerfile.analytics
-# statsforecast      → Dockerfile.worker, Dockerfile.analytics
-# xgboost            → Dockerfile.worker, Dockerfile.analytics
-# scikit-learn       → Dockerfile.worker, Dockerfile.analytics
-# reportlab          → Dockerfile.worker (reports queue)
-# python-pptx        → Dockerfile.worker (reports queue)
-# lxml               → Dockerfile.worker (reports queue)
-# mlflow             → Dockerfile.worker (agents queue)
-# presidio-analyzer  → Dockerfile.api (security — keep in API for < 2ms gate)
-# presidio-anonymizer→ Dockerfile.api
-# clickhouse-connect → Dockerfile.analytics only
+# prophet            → worker.Dockerfile, analytics.Dockerfile
+# statsforecast      → worker.Dockerfile, analytics.Dockerfile
+# xgboost            → worker.Dockerfile, analytics.Dockerfile
+# scikit-learn       → worker.Dockerfile, analytics.Dockerfile
+# reportlab          → worker.Dockerfile (reports queue)
+# python-pptx        → worker.Dockerfile (reports queue)
+# lxml               → worker.Dockerfile (reports queue)
+# mlflow             → worker.Dockerfile (agents queue)
+# presidio-analyzer  → api.Dockerfile (security — keep in API for < 2ms gate)
+# presidio-anonymizer→ api.Dockerfile
+# clickhouse-connect → analytics.Dockerfile only

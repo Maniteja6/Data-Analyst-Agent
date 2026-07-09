@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Dockerfile.frontend — DataPilot React + Vite frontend
+# frontend.Dockerfile — DataPilot React + Vite frontend
 #
 # Real-time design notes:
 #   • nginx proxies /ws to the API container so Socket.IO works through
