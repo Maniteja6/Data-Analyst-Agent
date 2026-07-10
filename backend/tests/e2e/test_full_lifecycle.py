@@ -16,6 +16,7 @@ import pytest
 E2E_ENABLED = os.environ.get("E2E_ENABLED") == "true"
 skip_e2e = pytest.mark.skipif(not E2E_ENABLED, reason="Set E2E_ENABLED=true to run e2e tests")
 
+
 def _sample_csv(tag: str) -> bytes:
     """Unique-per-test CSV bytes — the upload endpoint rejects duplicate
     uploads by content checksum, so each test needs distinct content to
