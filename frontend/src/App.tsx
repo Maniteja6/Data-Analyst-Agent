@@ -9,7 +9,6 @@ import { ExportResultsPage } from '@/pages/ExportResultsPage'
 import { useUIStore } from '@/store/UiStore'
 import { useDatasetStore } from '@/store/datasetStore'
 import { useWebSocket } from '@/hooks/useWebSocket'
-import { useAnalysisStore } from '@/store/analysisStore'
 import { useChatStore } from '@/store/chatStore'
 import type { WSEvent } from '@/types/websocket'
 
@@ -34,7 +33,6 @@ function ActivePage() {
 
 function AppInner() {
   const { setUploadProgress } = useDatasetStore()
-  const { setAnomalies } = useAnalysisStore()
   const { updateStreamingContent, finaliseStreamingMessage } = useChatStore()
 
   useWebSocket((event: WSEvent) => {

@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { KPIGrid } from '@/components/workspace/KPIGrid'
 import { UploadDropzone } from '@/components/upload/UploadDropzone'
 import { UploadProgress } from '@/components/upload/UploadProgress'
@@ -16,7 +15,7 @@ import { useJobStatus } from '@/hooks/useJobStatus'
 
 export function DashboardPage() {
   const { currentDataset, uploadProgress, uploadStep, jobId } = useDatasetStore()
-  const { upload, isUploading, error, clearError } = useFileUpload()
+  const { upload, isUploading, error } = useFileUpload()
   const { data: jobStatus } = useJobStatus(jobId)
 
   const datasetId = currentDataset?.id ?? null

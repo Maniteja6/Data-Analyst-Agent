@@ -1,262 +1,240 @@
-    # Created by venv; see https://docs.python.org/3/library/venv.html
-    *
-    # =============================================================================
-    # DataPilot — .gitignore
-    # =============================================================================
+# =============================================================================
+# DataPilot — .gitignore
+# =============================================================================
 
-    # -----------------------------------------------------------------------------
-    # SECRETS & ENVIRONMENT — never commit these
-    # -----------------------------------------------------------------------------
-    .env
-    .env.*
-    !.env.example              # keep the example template
-    *.pem
-    *.key
-    *.p12
-    *.pfx
-    secrets/
-    vault-token
-    kubeconfig
-    **/secrets.yaml
-    !**/secrets.yaml.template  # keep the empty template
+# -----------------------------------------------------------------------------
+# SECRETS & ENVIRONMENT — never commit these
+# -----------------------------------------------------------------------------
+.env
+.env.*
+!.env.example              # keep the example template
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+vault-token
+kubeconfig
+/secrets.yaml
+!**/secrets.yaml.template  # keep the empty template
 
-    # -----------------------------------------------------------------------------
-    # PYTHON
-    # -----------------------------------------------------------------------------
-    __pycache__/
-    *.py[cod]
-    *$py.class
-    *.so
-    *.egg
-    *.egg-info/
-    dist/
-    build/
-    eggs/
-    parts/
-    var/
-    sdist/
-    develop-eggs/
-    .installed.cfg
-    lib/
-    lib64/
-    .Python
-    pip-wheel-metadata/
+# -----------------------------------------------------------------------------
+# PYTHON
+# -----------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+.Python
+pip-wheel-metadata/
 
-    # Virtual environments
-    .venv/
-    venv/
-    env/
-    ENV/
-    .env.bak
-
-    # Type checking & linting
-    .mypy_cache/
-    .dmypy.json
-    dmypy.json
-    .ruff_cache/
-    .pytype/
-
-    # Test & coverage
-    .pytest_cache/
-    .coverage
-    .coverage.*
-    htmlcov/
-    coverage.xml
-    *.cover
-    nosetests.xml
-    test-results/
-    junit*.xml
-
-    # Jupyter
-    .ipynb_checkpoints/
-    *.ipynb_checkpoint
-    profile_default/
-    ipython_config.py
-
-    # -----------------------------------------------------------------------------
-    # NODE / FRONTEND
-    # -----------------------------------------------------------------------------
-    node_modules/
-    .npm
-    .yarn/cache
-    .yarn/unplugged
-    .yarn/build-state.yml
-    .pnp.*
-
-    # Build outputs
-    frontend/dist/
-    frontend/.vite/
-    .next/
-    out/
-
-    # Logs
-    npm-debug.log*
-    yarn-debug.log*
-    yarn-error.log*
-    pnpm-debug.log*
-    lerna-debug.log*
-
-    # Storybook
-    .storybook-out/
-    storybook-static/
-
-    # -----------------------------------------------------------------------------
-    # EDITORS & IDES
-    # -----------------------------------------------------------------------------
-    .vscode/
-    !.vscode/extensions.json   # keep recommended extensions list
-    .idea/
-    *.swp
-    *.swo
-    *~
-    .DS_Store
-    Thumbs.db
-    *.sublime-project
-    *.sublime-workspace
-    .history/
-
-    # -----------------------------------------------------------------------------
-    # TERRAFORM
-    # -----------------------------------------------------------------------------
-    terraform/.terraform/
-    terraform/**/.terraform/
-    terraform/**/*.tfstate
-    terraform/**/*.tfstate.*
-    terraform/**/.terraform.lock.hcl
-    terraform/**/terraform.tfvars
-    !terraform/**/terraform.tfvars.example
-    terraform/**/*.tfplan
-    terraform/**/*.tfplan.*
-    crash.log
-    crash.*.log
-    override.tf
-    override.tf.json
-    *_override.tf
-    *_override.tf.json
-
-    # -----------------------------------------------------------------------------
-    # DOCKER
-    # -----------------------------------------------------------------------------
-    .docker/
-    docker-compose.override.yml
-
-    # -----------------------------------------------------------------------------
-    # KUBERNETES
-    # -----------------------------------------------------------------------------
-    kubeconfig
-    *.kubeconfig
-    deploy/kubernetes/secrets/*.yaml
-    !deploy/kubernetes/secrets/*.yaml.template
-
-    # -----------------------------------------------------------------------------
-    # DATABASES & LOCAL DATA
-    # -----------------------------------------------------------------------------
-    *.db
-    *.sqlite
-    *.sqlite3
-    *.duckdb
-    *.duckdb.wal
-    data/
-    local_data/
-    tmp/
-    temp/
-
-    # MinIO local storage
-    .minio/
-
-    # Alembic
-    backend/infrastructure/persistence/migrations/versions/__pycache__/
-
-    # -----------------------------------------------------------------------------
-    # ML & MODELS
-    # -----------------------------------------------------------------------------
-    *.pkl
-    *.pickle
-    *.joblib
-    *.pt
-    *.pth
-    *.onnx
-    *.h5
-    *.hdf5
-    mlruns/
-    mlartifacts/
-    models/
-
-    # Notebooks output cells (keep structure, strip outputs)
-    # Use nbstripout: https://github.com/kynan/nbstripout
-    # notebooks/**/*.ipynb outputs are stripped by pre-commit
-
-    # -----------------------------------------------------------------------------
-    # TEST FIXTURES — real data never in repo
-    # -----------------------------------------------------------------------------
-    backend/tests/e2e/fixtures/*.csv
-    backend/tests/e2e/fixtures/*.xlsx
-    backend/tests/e2e/fixtures/*.parquet
-    !backend/tests/e2e/fixtures/.gitkeep
-    notebooks/datasets/*.csv
-    notebooks/datasets/*.xlsx
-    notebooks/datasets/*.parquet
-    !notebooks/datasets/.gitkeep
-
-    # -----------------------------------------------------------------------------
-    # LOGS & MONITORING
-    # -----------------------------------------------------------------------------
-    logs/
-    *.log
-    *.log.*
-    log/
-
-    # -----------------------------------------------------------------------------
-    # UPLOADS & GENERATED REPORTS
-    # -----------------------------------------------------------------------------
-    uploads/
-    reports/
-    exports/
-    generated/
-
-    # -----------------------------------------------------------------------------
-    # OS FILES
-    # -----------------------------------------------------------------------------
-    .DS_Store
-    .DS_Store?
-    ._*
-    .Spotlight-V100
-    .Trashes
-    ehthumbs.db
-    Thumbs.db
-    desktop.ini
-
-    # -----------------------------------------------------------------------------
-    # MISC
-    # -----------------------------------------------------------------------------
-    *.bak
-    *.tmp
-    *.temp
-    *.orig
-    *.rej
-    *.patch
-    .cache/
-    .parcel-cache/
-    .turbo/
-    .vercel/
-    .netlify/
-
-    # Ignore local Python virtual environments
-venv/
+# Virtual environments
 .venv/
+venv/
+env/
 ENV/
+.env.bak
 
-# Ignore local Node dependencies
+# Type checking & linting
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+.pytype/
+
+# Test & coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+nosetests.xml
+test-results/
+junit*.xml
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoint
+profile_default/
+ipython_config.py
+
+# -----------------------------------------------------------------------------
+# NODE / FRONTEND
+# -----------------------------------------------------------------------------
 node_modules/
+.npm
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.pnp.*
 
-# Ignore Terraform operational and cached files
-**/.terraform/
-*.tfstate
-*.tfstate.*
-.terraform.lock.hcl
-*.tfvars
-*.tfvars.json
+# Build outputs
+frontend/dist/
+frontend/.vite/
+.next/
+out/
 
-# Ignore temporary OS files
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Storybook
+.storybook-out/
+storybook-static/
+
+# -----------------------------------------------------------------------------
+# EDITORS & IDES
+# -----------------------------------------------------------------------------
+.vscode/
+!.vscode/extensions.json   # keep recommended extensions list
+.idea/
+*.swp
+*.swo
+*~
 .DS_Store
 Thumbs.db
+*.sublime-project
+*.sublime-workspace
+.history/
+
+# -----------------------------------------------------------------------------
+# TERRAFORM
+# -----------------------------------------------------------------------------
+terraform/.terraform/
+terraform/**/.terraform/
+terraform/**/*.tfstate
+terraform/**/*.tfstate.*
+terraform/**/.terraform.lock.hcl
+terraform/**/terraform.tfvars
+!terraform/**/terraform.tfvars.example
+terraform/**/*.tfplan
+terraform/**/*.tfplan.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# -----------------------------------------------------------------------------
+# DOCKER
+# -----------------------------------------------------------------------------
+.docker/
+docker-compose.override.yml
+
+# -----------------------------------------------------------------------------
+# KUBERNETES
+# -----------------------------------------------------------------------------
+kubeconfig
+*.kubeconfig
+deploy/kubernetes/secrets/*.yaml
+!deploy/kubernetes/secrets/*.yaml.template
+
+# -----------------------------------------------------------------------------
+# DATABASES & LOCAL DATA
+# -----------------------------------------------------------------------------
+*.db
+*.sqlite
+*.sqlite3
+*.duckdb
+*.duckdb.wal
+data/
+local_data/
+tmp/
+temp/
+
+# MinIO local storage
+.minio/
+
+# Alembic
+backend/infrastructure/persistence/migrations/versions/__pycache__/
+
+# -----------------------------------------------------------------------------
+# ML & MODELS
+# -----------------------------------------------------------------------------
+*.pkl
+*.pickle
+*.joblib
+*.pt
+*.pth
+*.onnx
+*.h5
+*.hdf5
+mlruns/
+mlartifacts/
+models/
+
+# Notebooks output cells (keep structure, strip outputs)
+# Use nbstripout: https://github.com/kynan/nbstripout
+# notebooks/**/*.ipynb outputs are stripped by pre-commit
+
+# -----------------------------------------------------------------------------
+# TEST FIXTURES — real data never in repo
+# -----------------------------------------------------------------------------
+backend/tests/e2e/fixtures/*.csv
+backend/tests/e2e/fixtures/*.xlsx
+backend/tests/e2e/fixtures/*.parquet
+!backend/tests/e2e/fixtures/.gitkeep
+notebooks/datasets/*.csv
+notebooks/datasets/*.xlsx
+notebooks/datasets/*.parquet
+!notebooks/datasets/.gitkeep
+
+# -----------------------------------------------------------------------------
+# LOGS & MONITORING
+# -----------------------------------------------------------------------------
+logs/
+*.log
+*.log.*
+log/
+
+# -----------------------------------------------------------------------------
+# UPLOADS & GENERATED REPORTS
+# -----------------------------------------------------------------------------
+uploads/
+reports/
+exports/
+generated/
+
+# -----------------------------------------------------------------------------
+# OS FILES
+# -----------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# -----------------------------------------------------------------------------
+# MISC
+# -----------------------------------------------------------------------------
+*.bak
+*.tmp
+*.temp
+*.orig
+*.rej
+*.patch
+.cache/
+.parcel-cache/
+.turbo/
+.vercel/
+.netlify/

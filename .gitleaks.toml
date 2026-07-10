@@ -1,0 +1,21 @@
+# Gitleaks configuration — referenced by .github/workflows/security-scan.yml
+#
+# Extends gitleaks' built-in rule set (https://github.com/gitleaks/gitleaks)
+# rather than replacing it. Add path/regex allowlist entries here as needed
+# when test fixtures legitimately contain secret-shaped strings (fake AWS
+# keys, mock JWTs, etc.) that trip the scanner.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Global allowlist"
+paths = [
+  '''venv/''',
+  '''\.venv/''',
+  '''node_modules/''',
+  '''frontend/dist/''',
+  '''package-lock\.json''',
+  '''\.coverage''',
+  '''htmlcov/''',
+]

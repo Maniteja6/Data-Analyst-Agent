@@ -1,6 +1,6 @@
 import {
   ComposedChart, Line, Area, XAxis, YAxis, Tooltip,
-  CartesianGrid, ResponsiveContainer, Legend,
+  CartesianGrid, ResponsiveContainer,
 } from 'recharts'
 import type { ForecastDataPoint } from '@/types/insights'
 import { formatDate } from '@/utils/formatters'

@@ -16,11 +16,15 @@ import pytest
 E2E_ENABLED = os.environ.get("E2E_ENABLED") == "true"
 skip_e2e = pytest.mark.skipif(not E2E_ENABLED, reason="Set E2E_ENABLED=true to run e2e tests")
 
-SAMPLE_CSV = b"""date,region,product,revenue,units
-2024-01-01,North,Widget A,1200.50,10
-2024-01-02,South,Widget B,2300.00,20
-2024-01-03,East,Widget C,450.75,5
-"""
+def _sample_csv(tag: str) -> bytes:
+    """Unique-per-test CSV bytes — the upload endpoint rejects duplicate
+    uploads by content checksum, so each test needs distinct content to
+    avoid tripping that rule when tests share a database."""
+    return f"""date,region,product,revenue,units,tag
+2024-01-01,North,Widget A,1200.50,10,{tag}
+2024-01-02,South,Widget B,2300.00,20,{tag}
+2024-01-03,East,Widget C,450.75,5,{tag}
+""".encode()
 
 
 @pytest.mark.e2e
@@ -31,7 +35,7 @@ class TestFullLifecycle:
         """Upload → verify UPLOADED status → check job_id present."""
         resp = await async_client.post(
             "/api/v1/datasets/upload",
-            files={"file": ("sales.csv", io.BytesIO(SAMPLE_CSV), "text/csv")},
+            files={"file": ("sales.csv", io.BytesIO(_sample_csv("upload_status")), "text/csv")},
         )
         assert resp.status_code == 201
         data = resp.json()
@@ -55,7 +59,7 @@ class TestFullLifecycle:
         """Upload → get job_id → poll job status → eventually complete."""
         resp = await async_client.post(
             "/api/v1/datasets/upload",
-            files={"file": ("test.csv", io.BytesIO(SAMPLE_CSV), "text/csv")},
+            files={"file": ("test.csv", io.BytesIO(_sample_csv("job_polling")), "text/csv")},
         )
         job_id = resp.json().get("job_id", "")
         if not job_id:
@@ -80,7 +84,7 @@ class TestFullLifecycle:
     async def test_delete_dataset(self, async_client) -> None:
         resp = await async_client.post(
             "/api/v1/datasets/upload",
-            files={"file": ("del_test.csv", io.BytesIO(SAMPLE_CSV), "text/csv")},
+            files={"file": ("del_test.csv", io.BytesIO(_sample_csv("delete_dataset")), "text/csv")},
         )
         dataset_id = resp.json().get("dataset_id", "")
         if not dataset_id:

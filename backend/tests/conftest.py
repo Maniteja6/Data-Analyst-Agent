@@ -207,6 +207,23 @@ def fake_conversation(fake_dataset_id):
 # ---------------------------------------------------------------------------
 
 
+@pytest_asyncio.fixture(autouse=True)
+async def _dispose_db_engine_per_test():
+    """Dispose the global async DB engine after each test.
+
+    `database.py` caches the engine/session-factory as module globals,
+    lazily created on first use. Under pytest-asyncio's function-scoped event
+    loops, a cached engine from one test binds its asyncpg connection pool to
+    that test's (now-closed) loop, breaking the next test with
+    "Event loop is closed". Disposing after every test forces a fresh engine
+    bound to whichever loop is current next time one is needed.
+    """
+    yield
+    from backend.infrastructure.persistence.database import dispose_engine
+
+    await dispose_engine()
+
+
 @pytest_asyncio.fixture
 async def async_client(in_memory_cache, local_storage, null_job_service):
     """Async httpx client wired to the FastAPI app with stubbed infrastructure."""
@@ -221,7 +238,9 @@ async def async_client(in_memory_cache, local_storage, null_job_service):
 
     from backend.api.main import app
 
-    async with httpx.AsyncClient(app=app, base_url="http://test") as client:
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
         yield client
 
 

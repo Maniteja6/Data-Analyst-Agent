@@ -26,6 +26,8 @@ version: "3.9"
 x-common-env: &common-env
   DATABASE_URL: postgresql+asyncpg://datapilot:${POSTGRES_PASSWORD}@postgres:5432/datapilot
   REDIS_URL: redis://redis:6379/0
+  CELERY_BROKER_URL: redis://redis:6379/1
+  CELERY_RESULT_BACKEND: redis://redis:6379/2
   KAFKA_BOOTSTRAP_SERVERS: kafka:9092
   AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
   AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
@@ -45,9 +47,6 @@ x-api-image: &api-image
 
 x-worker-image: &worker-image
   image: datapilot/worker:${IMAGE_TAG:-latest}
-  build:
-    context: ../..
-    dockerfile: deploy/docker/worker.Dockerfile
 
 services:
 
@@ -93,8 +92,16 @@ services:
       - datapilot
 
   # ── Celery workers ────────────────────────────────────────────────────────
+  # NOTE: only worker-analysis declares `build:` — it builds the shared
+  # datapilot/worker image once; worker-agents/worker-reports below just
+  # reference the resulting tag. Giving all three a `build:` block makes
+  # BuildKit export the same image tag concurrently, which races and fails
+  # ("image already exists").
   worker-analysis:
     <<: *worker-image
+    build:
+      context: ../..
+      dockerfile: deploy/docker/worker.Dockerfile
     environment:
       <<: *common-env
       QUEUE: analysis
@@ -222,7 +229,9 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:6333/readyz || exit 1"]
+      # qdrant/qdrant has neither curl nor wget, so probe the HTTP port via
+      # bash's /dev/tcp instead of an actual HTTP request.
+      test: ["CMD-SHELL", "bash -c '(exec 3<>/dev/tcp/127.0.0.1/6333)' 2>/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 10

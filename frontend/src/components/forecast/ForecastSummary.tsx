@@ -1,4 +1,3 @@
-import { clsx } from 'clsx'
 import type { ForecastResult } from '@/types/insights'
 import { TREND_COLORS } from '@/utils/colorPalette'
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react'

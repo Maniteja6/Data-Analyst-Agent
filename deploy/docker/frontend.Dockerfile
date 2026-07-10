@@ -40,6 +40,12 @@ FROM nginx:1.30-alpine AS production
 
 LABEL description="DataPilot Frontend — React SPA served by nginx"
 
+# The nginx:1.30-alpine tag is a frozen snapshot — Alpine security patches
+# (e.g. libexpat CVEs) land in the package repo before the tag is rebuilt.
+# Upgrade packages at build time so we're not stuck on whatever was current
+# when the tag was last pushed.
+RUN apk update && apk upgrade --no-cache && rm -rf /var/cache/apk/*
+
 # Remove default nginx config
 RUN rm /etc/nginx/conf.d/default.conf
 

@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
-import { Upload, FileText } from 'lucide-react'
+import { FileText } from 'lucide-react'
 import { clsx } from 'clsx'
 import { ACCEPTED_TYPES, MAX_FILE_SIZE_BYTES } from '@/utils/fileHelpers'
 import { UploadButton } from './UploadButton'

@@ -1,5 +1,4 @@
 import { Database } from 'lucide-react'
-import { clsx } from 'clsx'
 import { StatusDot } from '@/components/shared/StatusDot'
 import type { DatasetStatus } from '@/types/dataset'
 

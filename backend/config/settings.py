@@ -56,7 +56,7 @@ class Settings(BaseSettings):
     )
 
     # ── API server ────────────────────────────────────────────────────────
-    api_host: str = Field("0.0.0.0", description="Bind address for uvicorn")  # noqa: S104 — intentional: containers must bind all interfaces to expose the port
+    api_host: str = Field("0.0.0.0", description="Bind address for uvicorn")  # noqa: S104  # nosec B104 — intentional: containers must bind all interfaces to expose the port
     api_port: int = Field(8000, ge=1, le=65535, description="Bind port for uvicorn")
     api_workers: int = Field(4, ge=1, description="Number of uvicorn worker processes")
     api_reload: bool = Field(False, description="Enable hot-reload (development only)")

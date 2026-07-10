@@ -138,7 +138,7 @@ def _run_query(sql: str, storage_key: str, row_limit: int) -> dict[str, Any]:
         # the path is escaped as a SQL string literal instead of parameter-bound.
         read_fn = _read_function_for(storage_key)
         con.execute(
-            f"CREATE VIEW dataset AS SELECT * FROM {read_fn}('{_escape_literal(storage_key)}')"  # noqa: S608
+            f"CREATE VIEW dataset AS SELECT * FROM {read_fn}('{_escape_literal(storage_key)}')"  # noqa: S608  # nosec B608
         )
 
         # `sql` is validated by sql_validator.validate() before it ever reaches
@@ -146,7 +146,7 @@ def _run_query(sql: str, storage_key: str, row_limit: int) -> dict[str, Any]:
         # DuckDB has no way to bind an entire subquery as a parameter, so this
         # relies on that upstream validation rather than parameter binding.
         # row_limit is coerced to int so it can't smuggle extra SQL either.
-        wrapped = f"SELECT * FROM ({sql}) __q LIMIT {int(row_limit)}"  # noqa: S608
+        wrapped = f"SELECT * FROM ({sql}) __q LIMIT {int(row_limit)}"  # noqa: S608  # nosec B608
         rel = con.execute(wrapped)
 
         columns = [desc[0] for desc in rel.description]
@@ -185,7 +185,7 @@ def _describe(storage_key: str) -> list[dict]:
         # never from storage_key text directly — not an injection vector.
         read_fn = _read_function_for(storage_key)
         rel = con.execute(
-            f"DESCRIBE SELECT * FROM {read_fn}(?) LIMIT 1",  # noqa: S608
+            f"DESCRIBE SELECT * FROM {read_fn}(?) LIMIT 1",  # noqa: S608  # nosec B608
             [storage_key],
         )
         return [{"column_name": row[0], "column_type": row[1]} for row in rel.fetchall()]

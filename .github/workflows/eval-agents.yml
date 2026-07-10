@@ -40,11 +40,18 @@ jobs:
         id: evals
         run: |
           SUITE="${{ github.event.inputs.suite || 'all' }}"
+          if [ "$SUITE" = "all" ]; then
+            SUITES_ARGS="sql insight forecast"
+          else
+            SUITES_ARGS="$SUITE"
+          fi
           python -m backend.tests.evals.eval_runner \
-            --suite "${SUITE}" \
-            --threshold ${{ env.PASS_RATE_THRESHOLD }} \
-            --output-json eval-results.json
+            --suites ${SUITES_ARGS} \
+            --output eval-results.json
         continue-on-error: true
+        # eval_runner.py only accepts --suites (space-separated list) and
+        # --output — it has no --threshold flag; the pass-rate gate below
+        # reads report["pass_rate"] from the JSON output instead.
 
       - name: Parse eval results
         id: results
@@ -54,7 +61,7 @@ jobs:
           with open("eval-results.json") as f:
               data = json.load(f)
           rate = data.get("pass_rate", 0.0)
-          total = data.get("total", 0)
+          total = data.get("total_cases", 0)
           passed = data.get("passed", 0)
           failed = data.get("failed", 0)
 
@@ -64,14 +71,13 @@ jobs:
           summary += f"| Passed | {passed}/{total} |\n"
           summary += f"| Failed | {failed} |\n"
 
-          for suite_name, suite_data in data.get("suites", {}).items():
+          for suite_name, cases in data.get("suites", {}).items():
               summary += f"\n### {suite_name}\n"
-              for case in suite_data.get("cases", []):
+              for case in cases:
                   icon = "✓" if case["passed"] else "✗"
-                  summary += f"- {icon} {case['name']}\n"
+                  summary += f"- {icon} {case['case_id']}\n"
                   if not case["passed"]:
-                      summary += f"  - Expected: {case.get('expected', '')}\n"
-                      summary += f"  - Got:      {case.get('actual', '')}\n"
+                      summary += f"  - Details: {case.get('details', {})}\n"
 
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
               f.write(summary)

@@ -281,7 +281,7 @@ class AvroSerializer:
             headers={"Content-Type": "application/vnd.schemaregistry.v1+json"},
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=5) as resp:  # noqa: S310 — scheme validated above
+        with urllib.request.urlopen(req, timeout=5) as resp:  # noqa: S310  # nosec B310 — scheme validated above
             data = json.loads(resp.read())
             return int(data["id"])
 

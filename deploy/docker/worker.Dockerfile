@@ -30,6 +30,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY requirements.txt requirements-worker.txt* ./
 
+# Upgrade pip's own build tooling first — some transitive sdists get built
+# via pip's isolated build environments, which otherwise bootstrap whatever
+# old setuptools/wheel/jaraco.context happens to be cached (Trivy flagged
+# CVEs in both: wheel <0.46.2, jaraco.context <6.1.0).
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+
 RUN pip install --no-cache-dir --prefix=/install \
     -r requirements.txt \
     $(test -f requirements-worker.txt && echo "-r requirements-worker.txt" || true)

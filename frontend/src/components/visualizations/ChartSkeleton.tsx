@@ -1,5 +1,3 @@
-import { Skeleton } from '@/components/shared/Skeleton'
-
 interface ChartSkeletonProps { height?: number }
 
 export function ChartSkeleton({ height = 180 }: ChartSkeletonProps) {

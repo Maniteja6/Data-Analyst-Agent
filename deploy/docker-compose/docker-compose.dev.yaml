@@ -37,7 +37,14 @@ services:
 
   # ── Frontend: Vite dev server with HMR ────────────────────────────────────
   frontend:
-    image: node:20-slim
+    # This service replaces the production frontend.Dockerfile build with a
+    # bare node image for hot-reload dev. `build: !reset null` is required —
+    # without it, this service still inherits the base file's `build:` block
+    # (frontend.Dockerfile), so `docker compose up --build` builds the
+    # *production* nginx image and exports/tags it as `node:20-slim` (this
+    # service's `image:`), silently corrupting that tag. Digest-pinning is
+    # extra insurance against the same class of tag collision.
+    image: node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
     working_dir: /app
     volumes:
       - ../../frontend:/app

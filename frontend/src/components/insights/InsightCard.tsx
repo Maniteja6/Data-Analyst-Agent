@@ -1,4 +1,3 @@
-import { clsx } from 'clsx'
 import { Badge } from '@/components/shared/Badge'
 import type { Insight } from '@/types/insights'
 
